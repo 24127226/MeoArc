@@ -1,0 +1,135 @@
+# ==========================================
+# 🐍 PYTHON SPECIFIC
+# ==========================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments (Môi trường ảo)
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook & Pytest
+.ipynb_checkpoints
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# ⚛️ REACT & NODE.JS SPECIFIC
+# ==========================================
+# Các thư viện được tải về (Nặng nhất, tuyệt đối không commit)
+**/node_modules/
+**/jspm_packages/
+
+# Thư mục chứa code sau khi build/compile để deploy
+**/dist/
+**/out/
+**/build/
+
+# Các file log sinh ra khi cài đặt thư viện bị lỗi
+└── npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.pnpm-debug.log*
+
+# Bộ nhớ cache của các công cụ build frontend (Vite, Next, Turbo...)
+**/.eslintcache
+**/.stylelintcache
+**/.node_repl_history
+**/.parcel-cache/
+**/.next/
+**/.nuxt/
+**/.turbo/
+**/.vite/
+
+# File lưu vết môi trường local của một số công cụ frontend
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/.env.local
+
+# Các file định dạng kiểm tra kiểu dữ liệu trong TypeScript (nếu có)
+**/*.tsbuildinfo
+
+# ==========================================
+# 🖥️ OPERATING SYSTEM (HĐH)
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.self.db
+Thumbs.self.db
+
+# Windows
+Thumbs.self.db
+Thumbs.self.db:encryptable
+ehthumbs.self.db
+ehthumbs_vista.self.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==========================================
+# 🛠️ IDE & EDITORS (VS Code, IntelliJ, v.v.)
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+*.iws
+out/
+
+# ==========================================
+# 🔒 SECRETS & CONFIG (BẢO MẬT)
+# ==========================================
+# Tuyệt đối không commit file chứa secret key
+.env
+.env.local
+.env.dev
+.env.test
+.env.prod
+*.pem
+*.key
