@@ -1,0 +1,781 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark mode kích hoạt bằng class .dark trên <html> (class strategy) */
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   DESIGN TOKENS — MeoArc · Olive + Terracotta
+   PHÂN VAI MÀU (cố định, không dùng lẫn):
+   - OLIVE      = thương hiệu & trạng thái tích cực
+                  (logo, icon active nav, accent header panel AI,
+                   label, link, viền nhấn, focus ring).
+   - TERRACOTTA = hành động chính (nút Duyệt/Gửi, CTA).
+   - Hai màu CÂN tần suất nhưng KHÔNG đặt cạnh gây chọi —
+     luôn có khoảng KEM ở giữa.
+   3 LỚP SÁNG khác nhau RÕ: background < surface < elevated.
+   Bóng đổ mềm NHIỀU LỚP (khuếch tán rộng + lớp gần sát nét).
+   ============================================================ */
+
+:root {
+  --radius: 1rem;
+
+  /* === LIGHT — "Pomegranate Editorial" (đỏ hồng lựu + chữ kem) ===
+     Đỏ làm KHUNG (nền/nav/panel) chữ kem; dải Hộp thư = hồng coral;
+     email = GLASS tối nổi, chữ kem, avatar đĩa kem → vẫn đọc rõ.
+     Màu category của inbox nằm trong email-list.tsx (một nguồn duy nhất). */
+  --background: #c85555; /* POMEGRANATE — khung trang */
+  --list: #e07970; /* dải Hộp thư — hồng coral */
+  --surface: #cf6262; /* pomegranate sáng hơn 1 chút */
+  --elevated: #d98a8a; /* chip sáng (nav active...) */
+  --panel: #c85555; /* panel AI = pomegranate */
+  --rail: #be4d4d; /* nav — đỏ sẫm hơn khung */
+
+  /* Chữ trên khung đỏ = KEM */
+  --foreground: #fbf0e2;
+  --card: var(--elevated);
+  --card-foreground: #fbf0e2;
+  /* Popover/Dialog/tờ draft = maroon sẫm, chữ kem (nút kem nổi rõ) */
+  --popover: #3a1414;
+  --popover-foreground: #fbf0e2;
+
+  /* CTA — nút kem nổi bật trên nền đỏ */
+  --primary: #f8ead9;
+  --primary-foreground: #a8392f;
+
+  /* Nền phụ / hover */
+  --secondary: #d98a8a;
+  --secondary-foreground: #fbf0e2;
+  --muted: #d98a8a;
+  --muted-foreground: #f3d9cc; /* kem mờ cho text phụ */
+
+  /* Cream-gold — accent/viền/nhãn; KEM cho logo/brand */
+  --accent: #f2dcc0;
+  --accent-foreground: #a8392f;
+  --emphasis: #fbf0e2;
+  --emphasis-foreground: #b23b3b;
+  --success: #f2dcc0;
+  --success-foreground: #a8392f;
+
+  /* Gold ấm — icon active + quầng nắng tĩnh */
+  --active: #fbe0b0;
+  --active-foreground: #7a3a12;
+
+  /* Hồng cherry — chấm chưa đọc; gold kim loại */
+  --spark: #fdaba5;
+  --gold: #e6c079;
+  --star: transparent;
+
+  /* Wine sẫm — destructive/cảnh báo nặng */
+  --destructive: #7a1f1f;
+  --destructive-foreground: #fbf0e2;
+
+  /* Viền hairline + focus ring */
+  --border: #e08a86;
+  --input: #d98a8a;
+  --ring: #fbe0b0;
+
+  /* Glass tối (frosted) — email/khối nổi trên nền đỏ */
+  --glass-bg: rgba(74, 20, 20, 0.3);
+  --glass-border: rgba(255, 240, 226, 0.18);
+
+  /* Bóng sâu (tông đỏ sẫm) để glass nổi rõ trên nền đỏ */
+  --shadow-sm: 0 1px 2px rgba(60, 12, 12, 0.18), 0 1px 3px rgba(60, 12, 12, 0.14);
+  --shadow-md: 0 1px 2px rgba(60, 12, 12, 0.16), 0 6px 12px -4px rgba(60, 12, 12, 0.22),
+    0 18px 36px -12px rgba(60, 12, 12, 0.3);
+  --shadow-lg: 0 2px 4px rgba(60, 12, 12, 0.2), 0 10px 20px -6px rgba(60, 12, 12, 0.28),
+    0 30px 56px -16px rgba(60, 12, 12, 0.4);
+}
+
+.dark {
+  /* === DARK — "Cherry Noir" (rượu vang, cherry, gỗ mun đỏ) ===
+     Palette từ ảnh: night rider → aubergine → mahogany → dark burgundy
+     → pohutukawa → roof terracotta. Đỏ vang trầm + chữ kem rosé + nhấn vàng đồng. */
+  --background: #2f0410; /* nền trang — vang sẫm */
+  --list: #3c050f; /* dải Hộp thư — mahogany (khác nền 1 bậc) */
+  --surface: #3c050f; /* sáng hơn nền 1 bậc */
+  --elevated: #4d0c0c; /* card nổi — vang đỏ */
+  --panel: #320611; /* nền panel AI */
+  --rail: #1c010c; /* nav — tầng tối nhất (night rider) */
+
+  /* Chữ kem ngả rosé trên nền vang */
+  --foreground: #efd9d2;
+  --card: var(--elevated);
+  --card-foreground: #efd9d2;
+  --popover: var(--elevated);
+  --popover-foreground: #efd9d2;
+
+  /* CTA — đỏ cherry tươi (roof terracotta) nổi trên nền vang */
+  --primary: #b21f29;
+  --primary-foreground: #fff1ed;
+
+  --secondary: #4a0f16;
+  --secondary-foreground: #efd9d2;
+  --muted: #4a0f16;
+  --muted-foreground: #c49a98; /* rosé mờ cho text phụ */
+
+  /* Vàng đồng — accent/viền/nhãn (vang + gold = sang) */
+  --accent: #c8a45e;
+  --accent-foreground: #2f0410;
+  --emphasis: #efd9d2; /* logo/brand = kem rosé */
+  --emphasis-foreground: #2f0410;
+  --success: #c8a45e;
+  --success-foreground: #2f0410;
+
+  /* Active icon + quầng nến ấm */
+  --active: #d9a85e;
+  --active-foreground: #2f0410;
+  /* Chấm chưa đọc — cherry tươi */
+  --spark: #f07a86;
+  /* Đốm than hồng cực mờ trong header panel AI */
+  --star: #5e1822;
+
+  --destructive: #930510; /* pohutukawa */
+  --destructive-foreground: #fff1ed;
+
+  /* Brass kim loại */
+  --gold: #c9a86a;
+
+  --border: #54121c;
+  --input: #54121c;
+  --ring: #c8a45e;
+
+  /* Glass nhuốm vang tối */
+  --glass-bg: rgba(28, 2, 10, 0.4);
+  --glass-border: rgba(255, 220, 220, 0.1);
+
+  /* Dark cần bóng sâu hơn, tông đen */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 16px -4px rgba(0, 0, 0, 0.45),
+    0 20px 40px -12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 3px 6px rgba(0, 0, 0, 0.35), 0 12px 24px -6px rgba(0, 0, 0, 0.5),
+    0 32px 60px -16px rgba(0, 0, 0, 0.7);
+}
+
+/* ============================================================
+   MAP tokens -> Tailwind theme
+   ============================================================ */
+@theme inline {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+
+  /* Easing vật lý — "tactile". spring = nảy nhẹ (overshoot); soft = giảm tốc mượt.
+     Dùng class ease-spring / ease-soft cho hover/press/panel. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-panel: var(--panel);
+  --color-list: var(--list);
+  --color-rail: var(--rail);
+  --color-active: var(--active);
+  --color-active-foreground: var(--active-foreground);
+  --color-spark: var(--spark);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-emphasis: var(--emphasis);
+  --color-emphasis-foreground: var(--emphasis-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-gold: var(--gold);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4, .font-serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.022em;
+    line-height: 1.18;
+  }
+}
+
+/* ============================================================
+   Utilities — chiều sâu & chất liệu
+   ============================================================ */
+@layer utilities {
+  .shadow-subtle { box-shadow: var(--shadow-sm); }
+  .shadow-soft { box-shadow: var(--shadow-md); }
+  .shadow-float { box-shadow: var(--shadow-lg); }
+
+  /* Colored shadow (specular ambient occlusion) — bóng đổ MANG MÀU của khối,
+     lấy từ biến --tint (vd màu category). Lớp tối nền + lớp quầng màu khuếch tán. */
+  .shadow-tint {
+    box-shadow:
+      var(--shadow-sm),
+      0 12px 32px -12px color-mix(in srgb, var(--tint, var(--spark)) 50%, transparent);
+  }
+  .shadow-tint-lg {
+    box-shadow:
+      var(--shadow-md),
+      0 22px 52px -14px color-mix(in srgb, var(--tint, var(--spark)) 62%, transparent),
+      0 4px 14px -6px color-mix(in srgb, var(--tint, var(--spark)) 40%, transparent);
+  }
+
+  /* Glass frosted — khối nổi (email card, plan/draft, thanh chat...).
+     Tint + viền lấy từ token nên tự đổi theo theme. */
+  .glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    border: 1px solid var(--glass-border);
+  }
+
+  /* Panel AI: nền riêng (champagne light / surface dark), khác list email.
+     Thêm một lớp tối-dần xuống đáy CỰC nhẹ để có chiều sâu, tĩnh. */
+  .ai-panel-bg {
+    background-color: var(--panel);
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 5%, transparent),
+      transparent 40%
+    );
+  }
+
+  /* Quầng sáng tĩnh, rất nhẹ — gợi đom đóm/nắng quanh icon active.
+     KHÔNG animation, không nhấp nháy. */
+  .glow-active {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--active) 28%, transparent),
+      0 0 14px -3px color-mix(in srgb, var(--active) 55%, transparent);
+  }
+
+  /* Vài chấm sao tĩnh, thưa, gần như không thấy (chỉ dark có --star).
+     Light: --star = transparent nên không hiện gì. */
+  .stars-faint {
+    background-image:
+      radial-gradient(1.4px 1.4px at 18% 38%, var(--star), transparent 60%),
+      radial-gradient(1.2px 1.2px at 62% 22%, var(--star), transparent 60%),
+      radial-gradient(1.3px 1.3px at 82% 58%, var(--star), transparent 60%),
+      radial-gradient(1.1px 1.1px at 38% 72%, var(--star), transparent 60%),
+      radial-gradient(1.2px 1.2px at 92% 34%, var(--star), transparent 60%);
+    background-repeat: no-repeat;
+  }
+
+  /* Vạch sáng mảnh mép trên khối — gợi khối được chiếu sáng */
+  .edge-light {
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, #ffffff 55%, transparent);
+  }
+  .dark .edge-light {
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, #ffffff 8%, transparent);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent) transparent;
+  }
+
+  /* Edge-fade: mép trên/dưới vùng cuộn mờ dần vào nền → chiều sâu "cuộn phim",
+     nhẹ nhàng, KHÔNG transform nên không jank/không gây chóng mặt. */
+  .fade-y {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 20px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 20px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+  }
+}
+
+/* ============================================================
+   AI Orb — avatar trợ lý chuyển động (chỉ transform/opacity → mượt).
+   Idle: xoay & thở rất chậm. Thinking: nhanh & sáng hơn.
+   ============================================================ */
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-breathe {
+  0%, 100% {
+    transform: scale(0.92);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+.ai-orb {
+  position: relative;
+  border-radius: 9999px;
+  isolation: isolate;
+  overflow: hidden;
+}
+.ai-orb::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background: conic-gradient(
+    from 0deg,
+    #eab45c,
+    #c85555,
+    #fdaba5,
+    #e07970,
+    #eab45c
+  );
+  animation: orb-spin 9s linear infinite;
+}
+.ai-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.7), transparent 58%);
+  mix-blend-mode: screen;
+  animation: orb-breathe 4s ease-in-out infinite;
+}
+.ai-orb > * {
+  position: relative;
+  z-index: 1;
+}
+.ai-orb.is-thinking::before {
+  animation-duration: 3.2s;
+}
+.ai-orb.is-thinking::after {
+  animation-duration: 1.1s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-orb::before,
+  .ai-orb::after {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   MeoPet — thú cưng AI (SVG) cử động theo trạng thái.
+   ============================================================ */
+@keyframes pet-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(0deg); }
+}
+@keyframes pet-wiggle {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-4px) rotate(4deg); }
+}
+@keyframes pet-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.12); }
+}
+@keyframes pet-think {
+  0%, 100% { transform: translateY(1px); opacity: 0.45; }
+  50% { transform: translateY(-2px); opacity: 1; }
+}
+
+.meo-pet .pet {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pet-float 3.4s ease-in-out infinite;
+}
+.meo-pet .pet-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pet-blink 4.6s ease-in-out infinite;
+}
+.meo-pet .pet-think {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.meo-pet.is-thinking .pet {
+  animation: pet-wiggle 0.95s ease-in-out infinite;
+}
+.meo-pet.is-thinking .pet-eyes {
+  animation-duration: 2.2s;
+}
+.meo-pet.is-thinking .pet-think {
+  animation: pet-think 0.7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .meo-pet .pet,
+  .meo-pet .pet-eyes,
+  .meo-pet .pet-think {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   A11y — focus ring nhất quán cho mọi phần tử tương tác (chỉ khi dùng bàn phím)
+   ============================================================ */
+@layer base {
+  :where(a, button, input, textarea, select, [role='button'], [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================================
+   Skeleton loading — hiệu ứng "lướt sáng"
+   ============================================================ */
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.skeleton {
+  background-color: var(--glass-bg);
+  /* Shimmer nhuốm cherry ấm thay vì xám trung tính */
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--spark) 22%, transparent),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* ============================================================
+   Gloss — bề mặt "căng mọng dưới ánh sáng" (cherry bóng)
+   .gloss: đốm sáng specular góc trên + viền căng (rim light).
+   .gloss-sweep: vệt sáng lướt qua khi hover.
+   ============================================================ */
+.gloss {
+  position: relative;
+  overflow: hidden;
+}
+.gloss::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(100% 58% at 30% -10%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -3px 9px rgba(46, 12, 12, 0.2);
+}
+.gloss-sweep::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38) 50%,
+    transparent 65%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+}
+.gloss-sweep:hover::before {
+  transform: translateX(130%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gloss-sweep::before {
+    display: none;
+  }
+}
+
+/* Bóng sáng LOANG dịu khi hover — fade mềm (opacity), KHÔNG quét ngang nên
+   vào/ra chuột đều êm, không chóng mắt. Dùng ::before (không đụng .ripe ::after). */
+.bloom-hover {
+  position: relative;
+  overflow: hidden;
+}
+.bloom-hover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    130% 92% at 50% -8%,
+    color-mix(in srgb, #ffffff 26%, transparent),
+    transparent 56%
+  );
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-soft);
+}
+.bloom-hover:hover::before {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bloom-hover::before {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   CHERRY — "căng mọng dưới ánh sáng" (cường độ RÕ & MỌNG)
+   .ripe        : khối tròn mọng — specular gắt + subsurface (ánh đỏ thấu
+                  từ trong) + rim sáng mép trên + tối dồn đáy. Đặt CHỒNG lên
+                  .glass. KHÔNG dùng chung với .gloss (cùng chiếm ::after).
+   .cherry-dot  : chấm chưa đọc như hạt cherry — highlight + quầng glow.
+   .bokeh       : vài đốm sáng nhoè phía sau (ánh sáng xuyên qua), tĩnh.
+   .ripe-pulse  : 1 nhịp glow khi vừa hoàn tất hành động.
+   ============================================================ */
+.ripe {
+  position: relative;
+  overflow: hidden;
+}
+.ripe::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /* đốm sáng specular gắt góc trên-trái */
+    radial-gradient(58% 44% at 26% -8%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 60%),
+    /* highlight phụ nhỏ góc trên-phải */
+    radial-gradient(20% 18% at 80% 6%, rgba(255, 255, 255, 0.34), transparent 70%),
+    /* subsurface: ánh cherry ấm thấu từ đáy lên */
+    radial-gradient(
+      130% 86% at 50% 124%,
+      color-mix(in srgb, var(--spark) 28%, transparent),
+      transparent 58%
+    );
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.46),
+    inset -2px -4px 12px rgba(46, 12, 12, 0.3),
+    inset 2px 2px 7px rgba(255, 255, 255, 0.07);
+}
+.dark .ripe::after {
+  background:
+    radial-gradient(58% 44% at 26% -8%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(20% 18% at 80% 6%, rgba(255, 255, 255, 0.16), transparent 70%),
+    radial-gradient(
+      130% 86% at 50% 124%,
+      color-mix(in srgb, var(--spark) 34%, transparent),
+      transparent 56%
+    );
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.12),
+    inset -2px -4px 14px rgba(0, 0, 0, 0.5),
+    inset 2px 2px 7px rgba(255, 255, 255, 0.04);
+}
+
+/* Chấm chưa đọc = hạt cherry mini */
+.cherry-dot {
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.92), transparent 46%),
+    var(--spark);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--spark) 28%, transparent),
+    0 0 8px -1px color-mix(in srgb, var(--spark) 70%, transparent);
+}
+
+/* Đốm sáng bokeh nhoè — ánh sáng quanh trợ lý (tĩnh, không nhấp nháy) */
+.bokeh {
+  position: relative;
+}
+.bokeh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(80px 80px at 16% 28%, color-mix(in srgb, var(--spark) 26%, transparent), transparent 70%),
+    radial-gradient(64px 64px at 78% 16%, color-mix(in srgb, var(--active) 22%, transparent), transparent 70%),
+    radial-gradient(96px 96px at 88% 70%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 72%);
+  filter: blur(8px);
+}
+.bokeh > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 1 nhịp glow khi vừa xong việc */
+@keyframes ripe-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--success) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent);
+  }
+}
+.ripe-pulse {
+  animation: ripe-pulse 1.1s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ripe-pulse {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   SIGNATURE MOTION (đợt 3)
+   .panel-flash : luồng sáng cherry lan dọc viền panel khi xong việc.
+   View Transitions: morph mượt khi đổi panel phải (detail ↔ chat).
+   ============================================================ */
+@keyframes panel-flash {
+  0% {
+    opacity: 0;
+    box-shadow:
+      inset 0 0 0 1.5px color-mix(in srgb, var(--spark) 0%, transparent),
+      inset 0 0 0 0 transparent;
+  }
+  28% {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 0 1.5px var(--spark),
+      inset 0 0 28px 2px color-mix(in srgb, var(--spark) 55%, transparent);
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      inset 0 0 0 1.5px transparent,
+      inset 0 0 44px 6px transparent;
+  }
+}
+.panel-flash {
+  animation: panel-flash 1.05s ease-out 1;
+}
+
+/* ============================================================
+   LOGIN AMBIENT — quầng sáng "aurora" trôi chậm + glow đi theo con trỏ
+   ============================================================ */
+@keyframes aurora-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(7%, 6%) scale(1.18); }
+}
+@keyframes aurora-b {
+  0%, 100% { transform: translate(0, 0) scale(1.12); }
+  50% { transform: translate(-9%, -5%) scale(0.96); }
+}
+@keyframes aurora-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6%, -8%) scale(1.22); }
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: 0.5;
+  will-change: transform;
+  pointer-events: none;
+}
+/* Hạt nhiễu mịn — chất "premium print", bớt cảm giác phẳng kỹ thuật số */
+.grain-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none !important;
+  }
+}
+
+/* Hạt cherry bay lơ lửng (tàn lửa/bokeh) trên nền login */
+@keyframes cherry-float {
+  0% { transform: translateY(10px) translateX(0); opacity: 0; }
+  12% { opacity: 0.7; }
+  88% { opacity: 0.7; }
+  100% { transform: translateY(-72vh) translateX(var(--drift, 12px)); opacity: 0; }
+}
+.cherry-particle {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cherry-particle {
+    animation: none !important;
+    opacity: 0.22;
+  }
+}
+
+/* Toast — thanh đếm giờ tự tắt (scaleX cho mượt) */
+@keyframes toast-bar {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Voice mode — vòng sóng lan toả quanh orb khi đang nghe */
+@keyframes voice-ring {
+  0% { transform: scale(0.55); opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.voice-ring {
+  animation: voice-ring 2.4s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-ring {
+    animation: none;
+    opacity: 0.18;
+  }
+}
+
+/* Morph panel phải khi đổi giữa chi tiết thư và canvas AI */
+::view-transition-old(rightpanel),
+::view-transition-new(rightpanel) {
+  animation-duration: 0.32s;
+  animation-timing-function: var(--ease-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-flash {
+    animation: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
