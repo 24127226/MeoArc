@@ -1,0 +1,3 @@
+# Bộ tài liệu hợp đồng được publish ở docs/interface/ (gốc repo nhóm),
+# nên KHÔNG kéo docs/ vào src/frontend khi đồng bộ frontend bằng `git archive`.
+/docs export-ignore

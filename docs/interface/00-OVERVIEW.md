@@ -73,6 +73,7 @@ flowchart LR
 
 ## 6. Quy ước chung
 
+- **Vị trí & đường dẫn:** bộ tài liệu này đặt tại `docs/interface/` ở gốc repo nhóm. Mọi đường dẫn code nhắc trong tài liệu tính **từ thư mục frontend** `src/frontend/` — ví dụ `src/lib/agent.ts` = `src/frontend/src/lib/agent.ts` tính từ gốc repo.
 - **Ngôn ngữ tài liệu:** tiếng Việt. **Định danh code (type/field/endpoint):** tiếng Anh, `code style`.
 - **Đơn vị thời gian:** ISO 8601 (`2026-06-21T08:42:00+07:00`) ở tầng API; FE hiển thị dạng thân thiện (`Hôm nay, 08:42`).
 - **i18n:** hỗ trợ `vi` (mặc định) và `en` (UC013). Chuỗi nội dung do BE trả nên kèm khoá hoặc đã địa phương hoá theo `Accept-Language`.
