@@ -52,6 +52,64 @@ export type AgentReply =
       title: string
       items: { id: string; sender: string; subject: string; category: Category; label: string }[]
     }
+  // --- Inbox Autopilot (UC017) — hộp thư tự lái, ambient + reversible ---
+  | { kind: 'autopilot'; intro: string; title: string; plan: AutopilotStep[] }
+
+/** Hành động Mèo tự đề xuất cho từng thư khi tự lái. */
+export type AutopilotAction = 'archive' | 'markRead' | 'flag' | 'reply' | 'keep'
+
+/** Một bước trong kế hoạch tự lái (1 thư → 1 quyết định + lý do). */
+export type AutopilotStep = {
+  id: string
+  sender: string
+  initial: string
+  subject: string
+  tldr: string
+  category: Category
+  label: string
+  action: AutopilotAction
+  reason: string
+  /** true = hành động không hoàn tác (gửi đi) → cần user duyệt. */
+  risky: boolean
+}
+
+/** Ra quyết định cho 1 thư dựa trên priority / category / người gửi. */
+function decideAutopilot(e: Email): { action: AutopilotAction; reason: string; risky: boolean } {
+  const isBot = /(noreply|no-reply|notification|donotreply|do-not-reply)/i.test(e.senderEmail)
+  if (e.priority === 'action') {
+    return isBot
+      ? { action: 'flag', reason: 'Việc cần làm → gắn sao để bạn không quên', risky: false }
+      : { action: 'reply', reason: 'Cần bạn phản hồi → Mèo đã soạn sẵn nháp', risky: true }
+  }
+  if (e.category === 'terra' || e.label === 'Bản tin')
+    return { action: 'archive', reason: 'Bản tin định kỳ → lưu trữ cho gọn', risky: false }
+  if (e.priority === 'waiting')
+    return { action: 'keep', reason: 'Đang chờ phản hồi → giữ lại theo dõi', risky: false }
+  if (e.category === 'sky' || e.label === 'Deploy')
+    return { action: 'archive', reason: 'Thông báo hệ thống đã cũ → lưu trữ', risky: false }
+  if (e.priority === 'fyi')
+    return { action: 'markRead', reason: 'Chỉ để bạn biết → đánh dấu đã đọc', risky: false }
+  return { action: 'keep', reason: 'Cần bạn xem kỹ → giữ lại', risky: false }
+}
+
+/** Dựng kế hoạch tự lái cho 1 tập email. */
+function buildAutopilot(emails: Email[]): AutopilotStep[] {
+  return emails.map((e) => {
+    const d = decideAutopilot(e)
+    return {
+      id: e.id,
+      sender: e.sender,
+      initial: e.senderInitial,
+      subject: e.subject,
+      tldr: e.tldr ?? e.preview,
+      category: e.category,
+      label: e.label ?? CATEGORY_OPTIONS.find((o) => o.key === e.category)?.label ?? 'Khác',
+      action: d.action,
+      reason: d.reason,
+      risky: d.risky,
+    }
+  })
+}
 
 const CAT_KEYWORDS: { re: RegExp; cat: Category }[] = [
   { re: /(quang cao|khuyen mai|promo|ban tin|newsletter)/, cat: 'terra' },
@@ -102,6 +160,19 @@ const fmtNames = (list: Email[]) =>
 /** Diễn giải câu lệnh NL → ý định agent (mock — backend thật dùng LLM + MCP). */
 export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   const q = normalize(raw)
+
+  // --- Inbox Autopilot (UC017) — hộp thư tự lái (đặt trước để không lọt vào nhánh "dọn") ---
+  if (/(tu lai|autopilot|de meo lo|don ca hop thu|don het hop thu|don tu dong|don sach hop thu)/.test(q)) {
+    const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
+    if (!inbox.length) return { kind: 'text', text: 'Hộp thư trống — không có gì để tự lái 🎉' }
+    return {
+      kind: 'autopilot',
+      title: `Tự lái ${inbox.length} thư trong hộp thư`,
+      intro:
+        'Để Mèo lo nhé! Mình lướt từng thư — việc an toàn làm luôn, việc cần gửi đi sẽ hỏi bạn duyệt. Mọi thao tác đều tua lại được.',
+      plan: buildAutopilot(inbox),
+    }
+  }
 
   // --- Daily Digest (UC014) ---
   if (/(digest|diem tin|bao cao|tom luoc ngay)/.test(q)) {

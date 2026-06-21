@@ -34,7 +34,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
 import { VoiceMode } from '@/components/layout/voice-mode'
-import { interpretCommand, type AgentReply, type PlanOp } from '@/lib/agent'
+import { type AgentReply, type PlanOp } from '@/lib/agent'
+import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
+import { api } from '@/lib/api'
 import { normalize } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
@@ -97,6 +99,7 @@ const SUGGESTIONS = ['Tóm tắt thư chưa đọc', 'Lưu trữ thư bản tin'
 
 /** Kỹ năng AI (UC014/015/016/009) — gợi ý nổi bật trên canvas. */
 const SKILLS = [
+  { label: 'Hộp thư tự lái', prompt: 'tự lái hộp thư' },
   { label: 'Digest hôm nay', prompt: 'digest hôm nay' },
   { label: 'Triage hộp thư', prompt: 'triage hộp thư' },
   { label: 'Brief cuộc họp', prompt: 'brief cuộc họp' },
@@ -661,13 +664,22 @@ export function ChatPanel({
     )
     setInput('')
     setThinking(true)
-    const snapshot = emails
-    window.setTimeout(() => {
-      const reply = interpretCommand(text, snapshot)
-      setThinking(false)
-      push({ id: uid(), role: 'agent', reply })
-      if (viaVoice) speak(replyToSpeech(reply))
-    }, 700)
+    // Qua lớp adapter (UC007): mock trả interpretCommand; backend thật gọi POST /agent/chat.
+    api
+      .sendAgentMessage(text, { emails }, { viaVoice })
+      .then((reply) => {
+        setThinking(false)
+        push({ id: uid(), role: 'agent', reply })
+        if (viaVoice) speak(replyToSpeech(reply))
+      })
+      .catch(() => {
+        setThinking(false)
+        push({
+          id: uid(),
+          role: 'agent',
+          reply: { kind: 'text', text: 'Có lỗi khi xử lý yêu cầu. Bạn thử lại giúp mình nhé.' },
+        })
+      })
   }
 
   // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào
@@ -728,6 +740,26 @@ export function ChatPanel({
       id: uid(),
       role: 'agent',
       reply: { kind: 'done', text: `Đã gửi email tới ${to.split('<')[0].trim()}.` },
+    })
+    triggerFlash()
+  }
+
+  // UC017 — áp dụng kết quả tự lái vào hộp thư thật
+  const applyAutopilot = (id: string, r: AutopilotResult) => {
+    if (r.archive.length) actions.removeEmails(r.archive)
+    if (r.markRead.length) actions.markRead(r.markRead, true)
+    if (r.flag.length) actions.setImportant(r.flag, true)
+    markResolved(id)
+    const parts: string[] = []
+    if (r.counts.archive) parts.push(`lưu trữ ${r.counts.archive}`)
+    if (r.counts.markRead) parts.push(`đánh dấu đã đọc ${r.counts.markRead}`)
+    if (r.counts.flag) parts.push(`gắn sao ${r.counts.flag}`)
+    if (r.counts.replied) parts.push(`gửi ${r.counts.replied} trả lời`)
+    const summary = parts.length ? parts.join(', ') : 'không thay đổi gì'
+    push({
+      id: uid(),
+      role: 'agent',
+      reply: { kind: 'done', text: `Mèo đã tự lái xong: ${summary}. Hộp thư gọn hơn rồi ✨` },
     })
     triggerFlash()
   }
@@ -856,6 +888,7 @@ export function ChatPanel({
                   onSendDraft={sendDraft}
                   onResolve={markResolved}
                   onApplyCategorize={applyCategorize}
+                  onAutopilotApply={applyAutopilot}
                 />
               )}
             </div>
@@ -1439,6 +1472,7 @@ function AgentMessage({
   onSendDraft,
   onResolve,
   onApplyCategorize,
+  onAutopilotApply,
 }: {
   message: Extract<Message, { role: 'agent' }>
   exec: { id: string; current: number } | null
@@ -1449,6 +1483,7 @@ function AgentMessage({
   onSendDraft: (id: string, to: string) => void
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
+  onAutopilotApply: (id: string, result: AutopilotResult) => void
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
@@ -1536,6 +1571,20 @@ function AgentMessage({
           id={message.id}
           onApply={onApplyCategorize}
           onReject={onReject}
+        />
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'autopilot') {
+    return (
+      <AgentRow>
+        <AgentText>{reply.intro}</AgentText>
+        <AutopilotWidget
+          reply={reply}
+          resolved={resolved}
+          id={message.id}
+          onApply={onAutopilotApply}
         />
       </AgentRow>
     )
