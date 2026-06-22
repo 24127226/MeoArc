@@ -81,6 +81,7 @@ htmlcov/
 
 # Các file định dạng kiểm tra kiểu dữ liệu trong TypeScript (nếu có)
 **/*.tsbuildinfo
+!src/frontend/src/lib/
 
 # ==========================================
 # 🖥️ OPERATING SYSTEM (HĐH)
@@ -133,9 +134,3 @@ out/
 .env.prod
 *.pem
 *.key
-
-# ==========================================
-# 🩹 FIX MONOREPO: rule 'lib/' (mục Python ở trên) vô tình ignore cả
-# src/frontend/src/lib (mã nguồn React). Mở lại đúng folder này.
-# ==========================================
-!src/frontend/src/lib/
