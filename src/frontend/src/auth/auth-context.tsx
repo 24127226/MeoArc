@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { api, apiBaseUrl } from '@/lib/api'
 
 export type User = {
   name: string
@@ -17,6 +18,9 @@ type AuthContextValue = {
 }
 
 const STORAGE_KEY = 'meoarc-auth'
+
+// Có VITE_API_BASE_URL → dùng backend THẬT; không có → chạy mock như cũ.
+const USE_BACKEND = !!apiBaseUrl
 
 /** Tài khoản demo dùng cho ảnh SRS / demo. */
 const DEMO_USER: User = {
@@ -37,23 +41,48 @@ function readStoredUser(): User | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(readStoredUser)
-  const [isLoading, setIsLoading] = useState(false)
+  const [user, setUser] = useState<User | null>(USE_BACKEND ? null : readStoredUser)
+  // http mode: ban đầu CHƯA biết đã đăng nhập chưa → đang "kiểm tra phiên".
+  const [isLoading, setIsLoading] = useState<boolean>(USE_BACKEND)
 
+  // Chế độ BACKEND THẬT: khi mở app, hỏi /me xem còn phiên đăng nhập không.
   useEffect(() => {
+    if (!USE_BACKEND) return
+    let alive = true
+    api
+      .me()
+      .then((u) => alive && setUser(u))
+      .catch(() => alive && setUser(null))
+      .finally(() => alive && setIsLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // Chế độ MOCK: lưu user vào localStorage như cũ (không có backend).
+  useEffect(() => {
+    if (USE_BACKEND) return
     if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
     else localStorage.removeItem(STORAGE_KEY)
   }, [user])
 
   const loginWithGoogle = async () => {
+    if (USE_BACKEND) {
+      // Đăng nhập THẬT: điều hướng cả trang sang backend → backend đẩy sang Google.
+      window.location.href = `${apiBaseUrl}/auth/google/start`
+      return new Promise<void>(() => {}) // trang sẽ rời đi, không cần resolve
+    }
+    // Mock: giả lập độ trễ redirect OAuth rồi gán tài khoản demo.
     setIsLoading(true)
-    // Giả lập độ trễ redirect OAuth để màn hình trông thật khi demo/chụp.
     await new Promise((r) => setTimeout(r, 1100))
     setUser(DEMO_USER)
     setIsLoading(false)
   }
 
-  const logout = () => setUser(null)
+  const logout = () => {
+    if (USE_BACKEND) void api.logout().catch(() => {})
+    setUser(null)
+  }
 
   return (
     <AuthContext.Provider

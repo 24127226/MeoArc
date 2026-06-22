@@ -198,12 +198,17 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
   }
 
   return {
-    me: () => req<User | null>('/me'),
+    me: async () => {
+      try {
+        return await req<User>('/me')
+      } catch {
+        return null // /me trả 401 = chưa đăng nhập
+      }
+    },
     loginWithGoogle: async () => {
-      // OAuth thật là luồng redirect (GET /auth/google/start). Hàm này chỉ là chỗ giữ.
-      const { authUrl } = await req<{ authUrl: string }>('/auth/google/start')
-      window.location.href = authUrl
-      return new Promise<User>(() => {}) // không resolve — trang đã redirect
+      // Đăng nhập THẬT = điều hướng cả trang tới backend → backend đẩy sang Google.
+      window.location.href = `${base}/auth/google/start`
+      return new Promise<User>(() => {}) // trang sẽ rời đi, không resolve
     },
     logout: () => post<void>('/auth/logout'),
     revokeAccess: () => post<void>('/auth/revoke'),
@@ -237,5 +242,7 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
 /* --------------------------------- Singleton -------------------------------- */
 
 const BASE = import.meta.env.VITE_API_BASE_URL
+/** Có cấu hình backend thật không? (auth-context dùng để biết chế độ mock/thật.) */
+export const apiBaseUrl = BASE
 /** Dùng ở mọi nơi: `import { api } from '@/lib/api'`. Tự chọn mock ↔ http. */
 export const api: MeoArcApi = BASE ? createHttpApi(BASE) : createMockApi()

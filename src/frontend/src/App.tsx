@@ -7,7 +7,15 @@ import { LoginPage } from '@/pages/login'
 
 /** Route được bảo vệ — chưa đăng nhập thì đẩy về /login (UC001). */
 function RequireAuth({ children }: { children: React.ReactElement }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
+  // Đang hỏi backend xem còn phiên không → chờ, đừng vội đẩy về /login (tránh nháy).
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-muted-foreground">
+        Đang kiểm tra phiên…
+      </div>
+    )
+  }
   return isAuthenticated ? children : <Navigate to="/login" replace />
 }
 

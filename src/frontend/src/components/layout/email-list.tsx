@@ -338,12 +338,15 @@ export function EmailList({
   openedId,
   onOpen,
   actions,
+  onSearch,
 }: {
   emails: Email[]
   folder?: string
   openedId: string | null
   onOpen: (id: string) => void
   actions: EmailActions
+  /** Có hàm này = chế độ backend thật → tìm kiếm chạy trên Gmail (server). */
+  onSearch?: (q: string) => void
 }) {
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -396,7 +399,24 @@ export function EmailList({
     window.setTimeout(() => setLoading(false), 700)
   }
 
+  // serverMode = đang nối backend thật → việc tìm kiếm do Gmail (server) làm,
+  // nên KHÔNG lọc theo chữ ở phía trình duyệt nữa (tránh lọc 2 lần, mất kết quả).
+  const serverMode = !!onSearch
   const nl = nlMode && query.trim() ? interpretNL(query) : null
+
+  // UC005 — chế độ server: tự gửi từ khoá sang Gmail sau khi NGỪNG GÕ ~0.45s (debounce)
+  // → khỏi cần nhấn Enter, và không gọi mạng mỗi ký tự. Bỏ qua lần đầu (ô còn trống).
+  const firstSearch = useRef(true)
+  useEffect(() => {
+    if (!serverMode) return
+    if (firstSearch.current) {
+      firstSearch.current = false
+      return
+    }
+    const t = window.setTimeout(() => onSearch?.(query.trim()), 450)
+    return () => window.clearTimeout(t) // gõ tiếp trong 0.45s → huỷ lần gọi cũ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, serverMode])
 
   // Lọc theo thư mục nav (starred = thư gắn sao, trừ thùng rác)
   const folderEmails = useMemo(
@@ -416,7 +436,7 @@ export function EmailList({
       if ((quick.unread || nl?.unread) && !e.unread) return false
       if ((quick.starred || nl?.starred) && !e.starred) return false
       if ((quick.attachment || nl?.attachment) && !e.attachments?.length) return false
-      if (text.trim() && !matchText(emailHaystack(e), text)) return false
+      if (!serverMode && text.trim() && !matchText(emailHaystack(e), text)) return false
       return true
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -578,7 +598,11 @@ export function EmailList({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
-              nlMode ? 'Hỏi: "thư chưa đọc có đính kèm"…' : 'Tìm (phím / để focus)…'
+              serverMode
+                ? 'Tìm trên Gmail (vd: from:github, has:attachment)…'
+                : nlMode
+                  ? 'Hỏi: "thư chưa đọc có đính kèm"…'
+                  : 'Tìm (phím / để focus)…'
             }
             className="border-0 bg-transparent pl-9 pr-10 text-foreground shadow-none glass placeholder:text-foreground/60"
           />
