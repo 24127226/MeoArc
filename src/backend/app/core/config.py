@@ -1,33 +1,34 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ app/core/config.py — CẤU HÌNH (tầng core/)                         ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ MỤC ĐÍCH: gom mọi "thiết lập có thể đổi" (khoá Google, URL...) vào  ║
+# ║ MỘT chỗ, đọc từ file .env.                                         ║
+# ║ QUY CHUẨN VÀNG: KHÔNG hardcode bí mật (client secret) trong code —  ║
+# ║   vì code đẩy lên Git là lộ. Bí mật để trong .env (KHÔNG commit).   ║
+# ║ pydantic-settings: tự đọc .env + kiểm kiểu; thiếu/sai báo ngay khi  ║
+# ║   khởi động (fail fast) thay vì chạy giữa chừng mới lỗi.            ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator
-from typing import Optional
-from pathlib import Path
 
-
-BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-ENV_FILE_PATH = BACKEND_DIR / '.env'
 
 class Settings(BaseSettings):
-    database_url: str
-    model_name: str
-    model_provider: str
-    ai_api_key: Optional[str] = None
-    local_model_base_url: Optional[str] = None
-
+    # Đọc biến từ file .env; biến lạ trong .env thì bỏ qua (extra="ignore").
     model_config = SettingsConfigDict(
-        env_file=str(ENV_FILE_PATH),
-        env_file_encoding='utf-8',
-        extra='ignore'
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    @model_validator(mode='after')
-    def check_api_key_or_local_url(self):
-        if not self.ai_api_key and not self.local_model_base_url:
-            raise ValueError(
-                "Lỗi cấu hình: Bạn phải cung cấp 'ai_api_key' khi dùng Cloud Model, "
-                "hoặc cung cấp 'local_model_base_url' nếu dùng Local Model!"
-            )
-        return self
+    # ── Google OAuth (lấy từ Google Cloud Console — xem hướng dẫn) ──
+    # Tên biến field map với biến .env không phân biệt hoa/thường:
+    #   google_client_id  ← GOOGLE_CLIENT_ID
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+
+    # ── Khác ──
+    frontend_url: str = "http://localhost:5173"  # để redirect FE về sau khi đăng nhập
+    session_ttl_hours: int = 24                  # phiên sống bao lâu trước khi hết hạn
 
 
+# Tạo MỘT instance dùng chung toàn app: `from app.core.config import settings`.
 settings = Settings()
