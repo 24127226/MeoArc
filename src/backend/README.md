@@ -5,7 +5,7 @@ MeoArc/src/backend/
 │
 ├── app/
 │   │
-│   ├── application.py               # FastAPI factory: create_app(), đăng ký lifespan (khởi tạo graph, db pool, redis pool),
+│   ├── app.py                       # FastAPI factory: create_app(), đăng ký lifespan (khởi tạo graph, db pool, redis pool),
 │   │                                # mount FastMCP sub-app tại /mcp, include routers, đăng ký middleware (CORS, logging, rate limit)
 │   │
 │   ├── core/                        # Shared infrastructure — không chứa business logic, được import bởi mọi layer
