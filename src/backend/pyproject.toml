@@ -18,7 +18,9 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.110",          # khung web: định nghĩa route, tự sinh trang /docs
     "httpx>=0.28.1",
+    "psycopg[binary]>=3.2",
     "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.51",
     "uvicorn[standard]>=0.29",  # "động cơ" chạy server (ASGI) — biến code thành web thật
 ]

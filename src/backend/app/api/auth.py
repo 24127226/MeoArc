@@ -48,3 +48,18 @@ def logout(request: Request, db: Session = Depends(get_db)):
     resp = JSONResponse({"message": "Đã đăng xuất"})
     resp.delete_cookie(COOKIE_NAME)              # xoá cookie ở trình duyệt
     return resp
+
+
+@router.post("/revoke")
+def revoke(request: Request, db: Session = Depends(get_db)):
+    """UC002 — THU HỒI quyền Gmail: bảo Google bỏ quyền + xoá phiên + xoá cookie.
+    Mạnh hơn logout: lần sau đăng nhập Google sẽ HỎI ĐỒNG Ý LẠI toàn bộ quyền."""
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        session = session_repo.get_valid_session(db, token)
+        if session and session.google_access_token:
+            auth_service.revoke_google_token(session.google_access_token)  # gọi Google bỏ quyền
+        session_repo.delete_session(db, token)   # xoá phiên phía mình
+    resp = JSONResponse({"message": "Đã thu hồi quyền"})
+    resp.delete_cookie(COOKIE_NAME)
+    return resp

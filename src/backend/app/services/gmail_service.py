@@ -14,6 +14,8 @@ from app.schemas.email import Email
 
 GMAIL_LIST = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 GMAIL_MSG = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"
+# Tải nội dung 1 tệp đính kèm (Gmail tách riêng phần bytes nặng ra endpoint này).
+GMAIL_ATTACH = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}/attachments/{aid}"
 
 # Gmail không có "category màu" như FE → mình gán tạm 1 màu theo id cho danh sách
 # đỡ đơn điệu. (Phân loại thông minh là việc của AI — UC009, để sau.)
@@ -38,6 +40,22 @@ def _cache_get(key: tuple):
 
 def _cache_set(key: tuple, value) -> None:
     _CACHE[key] = (time.time(), value)  # lưu kèm thời điểm để biết khi nào hết hạn
+
+
+def invalidate_cache(access_token: str) -> None:
+    """Xoá MỌI mục cache thuộc về 1 người (nhận diện qua access_token).
+
+    VAI TRÒ: gọi NGAY SAU khi GHI vào Gmail (đánh dấu đọc/gắn sao/lưu trữ/xoá).
+    VÌ SAO BẮT BUỘC: cache giữ lại kết quả đọc cũ tới 60s. Nếu vừa "lưu trữ" 1 thư
+    mà không dọn cache, lần mở lại hộp thư đến trong 60s sẽ vẫn THẤY thư đó (đọc từ
+    cache) → người dùng tưởng hành động thất bại. Dọn cache ép lần đọc kế tiếp phải
+    hỏi lại Gmail để lấy trạng thái MỚI nhất.
+    """
+    # Mọi khoá cache đều có dạng tuple ("list"/"msg", access_token, ...) → phần tử [1]
+    # chính là access_token. Lọc ra những khoá của đúng người này rồi xoá.
+    stale = [k for k in _CACHE if len(k) > 1 and k[1] == access_token]
+    for k in stale:
+        _CACHE.pop(k, None)
 
 
 def _header(msg: dict, name: str) -> str:
@@ -93,39 +111,66 @@ _VALID_TAGS = {"inbox", "sent", "drafts", "archive", "trash"}
 
 
 def list_messages(
-    access_token: str, folder: str = "inbox", q: str | None = None, max_results: int = 30
-) -> list[Email]:
-    """Lấy danh sách thư theo THƯ MỤC (hoặc theo từ khoá tìm kiếm) rồi dịch sang Email.
-    Ánh xạ thư mục → Gmail:
-      • inbox/sent/drafts/trash/starred → nhãn INBOX/SENT/DRAFT/TRASH/STARRED
-      • archive → thư KHÔNG còn trong inbox/trash/spam (Gmail không có nhãn 'archive')
-      • có `q`  → TÌM KIẾM toàn hộp thư (vd "from:github", "has:attachment")
+    access_token: str,
+    folder: str = "inbox",
+    q: str | None = None,
+    unread: bool | None = None,
+    starred: bool | None = None,
+    attachment: bool | None = None,
+    page_token: str | None = None,
+    max_results: int = 30,
+    bypass_cache: bool = False,
+) -> tuple[list[Email], str | None]:
+    """Lấy danh sách thư theo THƯ MỤC + LỌC + PHÂN TRANG, dịch sang Email.
+    Trả về (danh_sách_Email, cursor_trang_kế) — cursor None nghĩa là hết thư.
+
+    Ánh xạ thư mục → Gmail (inbox/sent/drafts/trash/starred → nhãn hệ thống; archive →
+    thư ngoài inbox/trash/spam). Bộ lọc nhanh → toán tử Gmail: is:unread / is:starred /
+    has:attachment (ghép được với cả thư mục lẫn từ khoá). Phân trang dùng pageToken.
     """
-    # CACHE: cùng (người + thư mục + từ khoá) đã lấy trong TTL → trả lại luôn, KHỎI gọi Gmail.
-    cache_key = ("list", access_token, folder, q or "")
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
+    # CACHE: khoá gồm ĐỦ tiêu chí (kể cả lọc + trang) để không trả nhầm kết quả cũ.
+    cache_key = ("list", access_token, folder, q or "",
+                 bool(unread), bool(starred), bool(attachment), page_token or "")
+    # bypass_cache=True (nút "Làm mới") → KHÔNG đọc cache, ép hỏi Gmail lấy bản mới nhất.
+    if not bypass_cache:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
 
     headers = {"Authorization": f"Bearer {access_token}"}
     params: dict = {"maxResults": max_results}
-    if q:
-        params["q"] = q
+    if page_token:
+        params["pageToken"] = page_token
+
+    # Gom các toán tử lọc nhanh → ghép vào q (Gmail cho phép kèm cùng labelIds).
+    extra = []
+    if unread:
+        extra.append("is:unread")
+    if starred:
+        extra.append("is:starred")
+    if attachment:
+        extra.append("has:attachment")
+
+    if q:  # có từ khoá → TÌM trên toàn hộp thư (kèm bộ lọc nếu có)
+        params["q"] = " ".join([q, *extra])
     elif folder == "archive":
-        params["q"] = "-in:inbox -in:trash -in:spam"
+        params["q"] = " ".join(["-in:inbox -in:trash -in:spam", *extra])
     else:
         params["labelIds"] = _FOLDER_LABEL.get(folder, "INBOX")
-        # Mặc định Gmail KHÔNG trả thùng rác/spam → phải bật cờ này cho thùng rác.
-        if params["labelIds"] == "TRASH":
+        if params["labelIds"] == "TRASH":      # Gmail mặc định giấu thùng rác/spam
             params["includeSpamTrash"] = "true"
+        if extra:                               # lọc nhanh trong 1 thư mục cụ thể
+            params["q"] = " ".join(extra)
 
     tag = folder if folder in _VALID_TAGS else "inbox"  # nhãn folder gắn vào mỗi Email
 
     with httpx.Client(timeout=15) as client:
-        # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id, chưa có nội dung).
+        # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()
-        ids = [m["id"] for m in listing.json().get("messages", [])]
+        data = listing.json()
+        ids = [m["id"] for m in data.get("messages", [])]
+        next_cursor = data.get("nextPageToken")  # None khi đã hết thư
 
         # B2: với mỗi id, lấy METADATA (From/Subject/Date + nhãn + snippet).
         emails: list[Email] = []
@@ -137,8 +182,9 @@ def list_messages(
             )
             if r.status_code == 200:
                 emails.append(_to_email(r.json(), tag))
-        _cache_set(cache_key, emails)  # lưu lại để lần sau (trong TTL) khỏi gọi Gmail
-        return emails
+        result = (emails, next_cursor)
+        _cache_set(cache_key, result)  # lưu lại để lần sau (trong TTL) khỏi gọi Gmail
+        return result
 
 
 # ── Lấy chi tiết 1 thư (thân thư đầy đủ + đính kèm) — UC004 ───────────
@@ -237,3 +283,43 @@ def get_message(access_token: str, msg_id: str) -> Email:
     )
     _cache_set(cache_key, email)
     return email
+
+
+# ── Tải 1 tệp đính kèm (UC004 — nút Download) ────────────────────────
+def get_attachment(
+    access_token: str, msg_id: str, filename: str
+) -> tuple[bytes | None, str | None, str | None]:
+    """Lấy BYTES của tệp đính kèm tên `filename` trong thư `msg_id`.
+    Trả (dữ liệu, kiểu MIME, tên tệp) — hoặc (None, None, None) nếu không tìm thấy.
+
+    Hai bước: (1) đọc thư đầy đủ, đi qua các 'mảnh' tìm mảnh có đúng tên tệp để lấy
+    `attachmentId`; (2) gọi endpoint attachments lấy bytes (Gmail trả base64url)."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    found: dict = {"aid": None, "mime": None, "name": None}
+
+    def walk(part: dict) -> None:
+        if found["aid"]:
+            return
+        if part.get("filename") == filename:           # đúng tệp cần
+            found["aid"] = part.get("body", {}).get("attachmentId")
+            found["mime"] = part.get("mimeType")
+            found["name"] = part.get("filename")
+            return
+        for child in part.get("parts", []) or []:
+            walk(child)
+
+    with httpx.Client(timeout=20) as client:
+        r = client.get(GMAIL_MSG.format(id=msg_id), headers=headers, params={"format": "full"})
+        r.raise_for_status()
+        walk(r.json().get("payload", {}))
+        if not found["aid"]:
+            return None, None, None
+        ar = client.get(
+            GMAIL_ATTACH.format(id=msg_id, aid=found["aid"]), headers=headers
+        )
+        ar.raise_for_status()
+        data_b64 = ar.json().get("data", "")
+
+    pad = "=" * (-len(data_b64) % 4)                    # bù cho đủ bội số 4 (yêu cầu base64)
+    raw = base64.urlsafe_b64decode(data_b64 + pad)
+    return raw, found["mime"], found["name"]

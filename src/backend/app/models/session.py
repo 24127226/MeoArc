@@ -25,4 +25,11 @@ class AuthSession(Base):
     #   thời điểm hết hạn — quá hạn thì phiên không còn dùng được.
 
     google_access_token: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
-    #   token Google để GỌI GMAIL (Nấc 5). Lưu theo phiên; hết hạn ~1h → đăng nhập lại.
+    #   token Google để GỌI GMAIL (Nấc 5). Sống ngắn (~1h) → sẽ tự làm mới (Nấc 9).
+
+    google_refresh_token: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    #   token "làm mới" (Nấc 9): SỐNG LÂU, dùng để xin access_token mới khi cái cũ hết hạn
+    #   mà KHÔNG bắt người dùng đăng nhập lại. Google chỉ trả nó khi xin "offline + consent".
+
+    google_token_expiry: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    #   thời điểm access_token hết hạn → biết KHI NÀO cần làm mới (trước khi gọi Gmail).

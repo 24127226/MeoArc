@@ -2,21 +2,26 @@
 # ║ app/core/db.py — KẾT NỐI DATABASE (tầng core/, hạ tầng dùng chung) ║
 # ╠══════════════════════════════════════════════════════════════════╣
 # ║ MỤC ĐÍCH: mở "đường ống" tới database để các tầng repo/ dùng.       ║
-# ║ Ở đây dùng SQLAlchemy (ORM) + SQLite.                              ║
-# ║  • ORM = "người phiên dịch": ta viết object Python, nó dịch ra SQL. ║
-# ║  • SQLite = database nằm trong MỘT FILE (meoarc.db) — không cần     ║
-# ║    cài server DB; rất hợp để học. Lên thật chỉ cần đổi URL.         ║
+# ║ Dùng SQLAlchemy (ORM) — nhờ ORM, code KHÔNG đổi khi đổi loại DB.    ║
+# ║  • Mặc định/commitment: PostgreSQL (đặt DATABASE_URL trong .env).   ║
+# ║  • Chưa cấu hình → tự lùi SQLite (1 file) để máy chưa cài PG vẫn chạy.║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from app.core.config import settings
 
-# Địa chỉ database. "sqlite:///./meoarc.db" = file meoarc.db ngay thư mục dự án.
-# Đổi sang Postgres/Supabase sau này: chỉ thay dòng URL này, phần còn lại giữ nguyên.
-DATABASE_URL = "sqlite:///./meoarc.db"
+# Lấy URL từ cấu hình (.env). Postgres: postgresql+psycopg://...  SQLite: sqlite:///./meoarc.db
+DATABASE_URL = settings.database_url
+_is_sqlite = DATABASE_URL.startswith("sqlite")
 
-# engine = đường ống tới DB. (check_same_thread=False: cần cho SQLite khi web đa luồng.)
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# connect_args chỉ cần cho SQLITE (check_same_thread=False để web đa luồng dùng được).
+# Postgres là server thật, KHÔNG cần (và không hiểu) tham số này → chỉ truyền khi là SQLite.
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
+    pool_pre_ping=not _is_sqlite,  # Postgres: kiểm tra kết nối còn sống trước khi dùng (tránh lỗi "connection đã đóng")
+)
 
 # SessionLocal = "một ca làm việc" với DB. Mỗi request mở 1 session, xong thì đóng.
 # Vì sao không dùng 1 session chung mãi: mỗi request cần giao dịch (transaction) riêng,

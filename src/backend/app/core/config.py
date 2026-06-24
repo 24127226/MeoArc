@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
 
+    # ── Database ──
+    # Nhóm CHỐT dùng PostgreSQL → đặt DATABASE_URL trong .env, vd:
+    #   postgresql+psycopg://USER:PASSWORD@localhost:5432/meoarc
+    # ("+psycopg" = dùng driver psycopg v3). Để TRỐNG (không set trong .env) thì
+    # tự lùi về SQLite file cho máy chưa cài Postgres vẫn chạy được ngay khi học.
+    database_url: str = "sqlite:///./meoarc.db"
+
     # ── Khác ──
     frontend_url: str = "http://localhost:5173"  # để redirect FE về sau khi đăng nhập
     session_ttl_hours: int = 24                  # phiên sống bao lâu trước khi hết hạn
