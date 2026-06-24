@@ -34,6 +34,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
 import { VoiceMode } from '@/components/layout/voice-mode'
+import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { type AgentReply, type PlanOp } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
 import { api } from '@/lib/api'
@@ -175,10 +176,49 @@ function AgentRow({ children }: { children: React.ReactNode }) {
   )
 }
 
+/* (#3) Chữ "giải mã": ký tự random rồi định hình dần về câu thật.
+   Tốc độ co theo độ dài (câu dài vẫn xong ~1.4s). Reduced-motion → hiện thẳng. */
+const SCRAMBLE_CH = 'ABCDEF#@%&*0123456789▓▒░'
+function scrambleAll(t: string): string {
+  let out = ''
+  for (const c of t) out += c === ' ' || c === '\n' ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+  return out
+}
+function ScrambleText({ text }: { text: string }) {
+  const reduce =
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const [display, setDisplay] = useState(() => (reduce ? text : scrambleAll(text)))
+  useEffect(() => {
+    if (reduce) {
+      setDisplay(text)
+      return
+    }
+    let i = 0
+    const step = Math.max(0.5, text.length / 22) // câu dài → lộ nhanh hơn để khỏi lê thê
+    const id = window.setInterval(() => {
+      let out = ''
+      for (let k = 0; k < text.length; k++) {
+        const c = text[k]
+        out += c === ' ' || c === '\n' || k < i ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+      }
+      setDisplay(out)
+      i += step
+      if (i >= text.length) {
+        window.clearInterval(id)
+        setDisplay(text) // chốt câu thật, sạch sẽ
+      }
+    }, 32)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
+  return <>{display}</>
+}
+
 function AgentText({ children }: { children: React.ReactNode }) {
   return (
     <div className="max-w-[88%] break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light glass">
-      {children}
+      {/* Chỉ "giải mã" khi nội dung là chuỗi (text/intro của AI) */}
+      {typeof children === 'string' ? <ScrambleText text={children} /> : children}
     </div>
   )
 }
@@ -800,7 +840,9 @@ export function ChatPanel({
     !!lastMsg.reply.warn
 
   return (
-    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+      {/* Nền sinh động: aurora ấm trôi + quầng nến + tàn lửa (đặt sau nội dung) */}
+      <ChatAmbience />
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
@@ -815,7 +857,7 @@ export function ChatPanel({
           />
         </span>
         <div className="min-w-0">
-          <h2 className="font-serif text-[22px] font-semibold leading-none text-foreground">
+          <h2 className="holo-text font-serif text-[22px] font-semibold leading-none">
             Trợ lý MeoArc
           </h2>
           <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -871,10 +913,7 @@ export function ChatPanel({
       >
         {messages.map((m) => {
           return (
-            <div
-              key={m.id}
-              className="transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
-            >
+            <div key={m.id} className="msg-pop">
               {m.role === 'user' ? (
                 <UserBubble>{m.text}</UserBubble>
               ) : (
