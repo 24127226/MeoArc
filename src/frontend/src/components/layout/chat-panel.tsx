@@ -696,7 +696,7 @@ export function ChatPanel({
     )
 
   const execOp = (op: PlanOp) => {
-    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids)
+    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids, op.type)
     else if (op.type === 'markRead') actions.markRead(op.ids, op.read)
     else if (op.type === 'label') actions.applyLabel(op.ids, op.category, op.label)
     else if (op.type === 'autoLabel')
@@ -746,7 +746,7 @@ export function ChatPanel({
 
   // UC017 — áp dụng kết quả tự lái vào hộp thư thật
   const applyAutopilot = (id: string, r: AutopilotResult) => {
-    if (r.archive.length) actions.removeEmails(r.archive)
+    if (r.archive.length) actions.removeEmails(r.archive, 'archive')
     if (r.markRead.length) actions.markRead(r.markRead, true)
     if (r.flag.length) actions.setImportant(r.flag, true)
     markResolved(id)

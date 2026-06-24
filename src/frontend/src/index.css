@@ -351,6 +351,18 @@
   border-radius: 9999px;
   isolation: isolate;
   overflow: hidden;
+  animation: orb-halo 3.6s ease-in-out infinite;
+}
+/* Quầng sáng thở quanh orb (box-shadow KHÔNG bị overflow:hidden cắt) */
+@keyframes orb-halo {
+  0%, 100% {
+    box-shadow: 0 0 22px 2px color-mix(in srgb, var(--spark) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 42px 9px color-mix(in srgb, var(--spark) 55%, transparent),
+      0 0 0 6px color-mix(in srgb, var(--active) 20%, transparent);
+  }
 }
 .ai-orb::before {
   content: '';
@@ -385,6 +397,7 @@
   animation-duration: 1.1s;
 }
 @media (prefers-reduced-motion: reduce) {
+  .ai-orb,
   .ai-orb::before,
   .ai-orb::after {
     animation: none;
@@ -536,9 +549,9 @@
   border-radius: inherit;
   pointer-events: none;
   background: radial-gradient(
-    130% 92% at 50% -8%,
-    color-mix(in srgb, #ffffff 26%, transparent),
-    transparent 56%
+    130% 96% at 50% -8%,
+    color-mix(in srgb, #ffffff 34%, transparent),
+    transparent 62%
   );
   opacity: 0;
   transition: opacity 0.5s var(--ease-soft);
@@ -663,24 +676,30 @@
   0% {
     opacity: 0;
     box-shadow:
-      inset 0 0 0 1.5px color-mix(in srgb, var(--spark) 0%, transparent),
+      inset 0 0 0 1.5px transparent,
       inset 0 0 0 0 transparent;
   }
-  28% {
+  24% {
     opacity: 1;
     box-shadow:
-      inset 0 0 0 1.5px var(--spark),
-      inset 0 0 28px 2px color-mix(in srgb, var(--spark) 55%, transparent);
+      inset 0 0 0 2px var(--spark),
+      inset 0 0 44px 5px color-mix(in srgb, var(--spark) 68%, transparent);
+  }
+  56% {
+    opacity: 0.92;
+    box-shadow:
+      inset 0 0 0 1.5px color-mix(in srgb, var(--active) 85%, transparent),
+      inset 0 0 38px 4px color-mix(in srgb, var(--active) 48%, transparent);
   }
   100% {
     opacity: 0;
     box-shadow:
       inset 0 0 0 1.5px transparent,
-      inset 0 0 44px 6px transparent;
+      inset 0 0 52px 8px transparent;
   }
 }
 .panel-flash {
-  animation: panel-flash 1.05s ease-out 1;
+  animation: panel-flash 1.3s ease-out 1;
 }
 
 /* ============================================================
@@ -777,5 +796,182 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+
+/* ── Khung kéo–thả tệp "xịn" (compose) — bản nâng cấp hiệu ứng ────────
+   • Idle    : icon trôi nhẹ, khung tĩnh lặng mời gọi.
+   • Rê vào  : ửng màu + glow lớn + ĐÈN VIỀN CHẠY LIÊN TỤC + quầng sáng thở.
+   • Vừa thả : đèn viền chạy nhanh 2 vòng + GỢN SÓNG lan ra + nảy nhẹ. */
+@property --dz-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.drop-zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.6rem 1rem;
+  cursor: pointer;
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 1rem;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  transition:
+    transform 0.3s var(--ease-spring),
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.25s ease,
+    color 0.2s ease;
+}
+.drop-zone:hover {
+  border-color: var(--active);
+  color: var(--foreground);
+}
+/* ĐÈN VIỀN chạy (comet) + glow neon — ẩn lúc idle */
+.drop-zone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--dz-angle),
+    transparent 0%,
+    color-mix(in srgb, var(--spark) 80%, transparent) 8%,
+    var(--active) 20%,
+    color-mix(in srgb, var(--spark) 90%, transparent) 32%,
+    transparent 44%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--active) 65%, transparent));
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Lớp ÁNH SÁNG nền (quầng sáng / gợn sóng) — nằm sau nội dung */
+.drop-zone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+/* —— Đang rê file vào —— */
+.drop-zone.is-dragging {
+  border-color: var(--active);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--active) 15%, transparent);
+  transform: scale(1.025);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--active) 22%, transparent),
+    0 18px 48px color-mix(in srgb, var(--spark) 40%, transparent);
+}
+.drop-zone.is-dragging::before {
+  opacity: 1;
+  animation: dz-run 2.4s linear infinite;
+}
+.drop-zone.is-dragging::after {
+  opacity: 1;
+  background: radial-gradient(
+    58% 58% at 50% 50%,
+    color-mix(in srgb, var(--active) 26%, transparent),
+    transparent 72%
+  );
+  animation: dz-pulse 1.7s ease-in-out infinite;
+}
+/* —— Vừa thả (finale) —— */
+.drop-zone.border-run {
+  animation: dz-pop 0.55s var(--ease-spring);
+}
+.drop-zone.border-run::before {
+  opacity: 1;
+  animation: dz-run 0.55s linear 2;
+}
+.drop-zone.border-run::after {
+  opacity: 1;
+  border: 2px solid color-mix(in srgb, var(--spark) 75%, transparent);
+  animation: dz-ripple 0.85s ease-out;
+}
+/* Icon: trôi nhẹ lúc idle, nảy khi rê vào */
+.dz-icon {
+  animation: dz-float 3.2s ease-in-out infinite;
+}
+.drop-zone.is-dragging .dz-icon {
+  animation: dz-bounce 0.7s ease-in-out infinite;
+}
+@keyframes dz-run {
+  to {
+    --dz-angle: 360deg;
+  }
+}
+@keyframes dz-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+@keyframes dz-ripple {
+  0% { opacity: 0.85; transform: scale(0.92); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+@keyframes dz-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+@keyframes dz-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes dz-bounce {
+  0%, 100% { transform: translateY(0) scale(1.12); }
+  50% { transform: translateY(-6px) scale(1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-zone,
+  .drop-zone.is-dragging,
+  .drop-zone.border-run {
+    transition: none;
+    transform: none;
+    animation: none;
+  }
+  .drop-zone::before,
+  .drop-zone::after,
+  .dz-icon {
+    animation: none !important;
+  }
+}
+
+/* ── Hiệu ứng GỬI thư: máy bay giấy bay đi + gợn sóng xác nhận ───────── */
+.send-plane {
+  animation: send-fly 0.95s var(--ease-spring) both;
+}
+.send-ripple {
+  border: 2px solid color-mix(in srgb, var(--active) 60%, transparent);
+  animation: send-ripple 0.95s ease-out both;
+}
+@keyframes send-fly {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  40% { transform: translate(3px, -3px) rotate(8deg); opacity: 1; }
+  100% { transform: translate(46px, -46px) rotate(20deg); opacity: 0; }
+}
+@keyframes send-ripple {
+  0% { opacity: 0.85; transform: scale(0.45); }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-plane,
+  .send-ripple {
+    animation: none;
   }
 }

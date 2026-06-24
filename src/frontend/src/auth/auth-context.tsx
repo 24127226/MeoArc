@@ -15,6 +15,8 @@ type AuthContextValue = {
   loginWithGoogle: () => Promise<void>
   /** Đăng xuất khỏi phiên (UC002). */
   logout: () => void
+  /** Thu hồi quyền Gmail: gọi Google bỏ quyền + xoá phiên (mạnh hơn logout, UC002). */
+  revokeAccess: () => void
 }
 
 const STORAGE_KEY = 'meoarc-auth'
@@ -84,9 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
+  const revokeAccess = () => {
+    // Khác logout: bảo backend gọi Google THU HỒI quyền Gmail trước khi xoá phiên.
+    if (USE_BACKEND) void api.revokeAccess().catch(() => {})
+    setUser(null)
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, loginWithGoogle, logout }}
+      value={{ user, isAuthenticated: !!user, isLoading, loginWithGoogle, logout, revokeAccess }}
     >
       {children}
     </AuthContext.Provider>

@@ -28,6 +28,11 @@ export type EmailQuery = {
   /** Từ khoá hoặc câu ngôn ngữ tự nhiên (khi nl=true). */
   q?: string
   nl?: boolean
+  /** Phân trang: token trang kế (lấy từ nextCursor lần trước) + số thư mỗi trang. */
+  cursor?: string
+  limit?: number
+  /** Nút "Làm mới": bỏ qua cache backend, ép lấy bản mới nhất từ Gmail. */
+  fresh?: boolean
 }
 
 export type EmailListResult = {
@@ -43,6 +48,8 @@ export type SendEmailInput = {
   bcc?: string[]
   subject: string
   body: string
+  /** id các tệp đã upload qua `uploadFile` → BE lấy bytes đính vào thư. */
+  attachmentIds?: string[]
 }
 
 /** Toàn bộ năng lực backend mà FE cần. Mỗi nhóm map 1-1 với docs/02-API-CONTRACT.md. */
@@ -67,6 +74,8 @@ export interface MeoArcApi {
 
   // Soạn & gửi — UC010
   sendEmail(input: SendEmailInput): Promise<{ id: string }>
+  /** Upload 1 tệp đính kèm lên backend → trả metadata { id, name, size }. */
+  uploadFile(file: File): Promise<{ id: string; name: string; size: string }>
 
   // Agent — UC007 + mọi AI skill (008/009/014/015/016/017)
   sendAgentMessage(
@@ -160,6 +169,11 @@ export function createMockApi(): MeoArcApi {
       await delay(300)
       return { id: `mock-${Date.now()}` }
     },
+    async uploadFile(file) {
+      await delay(250) // mock: không upload thật, chỉ trả metadata
+      const kb = Math.max(1, Math.round(file.size / 1024))
+      return { id: `mock-${Date.now()}`, name: file.name, size: `${kb} KB` }
+    },
 
     async sendAgentMessage(message, ctx) {
       await delay(700) // giả lập "đang nghĩ"
@@ -225,6 +239,19 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
     deleteEmails: (ids) => post<void>('/emails/actions/delete', { ids }),
 
     sendEmail: (input) => post<{ id: string }>('/emails/send', input),
+
+    // Upload tệp = multipart/form-data (KHÔNG đặt Content-Type để trình duyệt tự thêm boundary).
+    uploadFile: async (file) => {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`${base}/uploads`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      if (!res.ok) throw new Error('upload failed')
+      return res.json()
+    },
 
     // Production nên dùng SSE (text/event-stream); ở đây nhận reply cuối dạng JSON cho gọn.
     sendAgentMessage: (message, _ctx, opts) =>

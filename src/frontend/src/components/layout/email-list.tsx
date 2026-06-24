@@ -194,7 +194,7 @@ function EmailCard({
           ? 'shadow-tint-lg ring-2'
           : kbActive
             ? 'shadow-tint-lg ring-2 ring-active'
-            : 'shadow-tint hover:-translate-y-0.5 hover:shadow-tint-lg',
+            : 'shadow-tint hover:-translate-y-1 hover:scale-[1.01] hover:shadow-tint-lg',
       )}
     >
       {/* Sọc category bên trái — bóng như thanh kẹo */}
@@ -339,6 +339,10 @@ export function EmailList({
   onOpen,
   actions,
   onSearch,
+  onLoadMore,
+  loadingMore,
+  onRefresh,
+  refreshing,
 }: {
   emails: Email[]
   folder?: string
@@ -347,6 +351,12 @@ export function EmailList({
   actions: EmailActions
   /** Có hàm này = chế độ backend thật → tìm kiếm chạy trên Gmail (server). */
   onSearch?: (q: string) => void
+  /** Có hàm này = còn thư để tải thêm (phân trang server). */
+  onLoadMore?: () => void
+  loadingMore?: boolean
+  /** Có hàm này = nút "Làm mới" nạp lại từ Gmail (bỏ qua cache). */
+  onRefresh?: () => void
+  refreshing?: boolean
 }) {
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -395,6 +405,11 @@ export function EmailList({
   }
 
   const refresh = () => {
+    // Backend thật → nạp lại từ Gmail (bỏ qua cache). Mock → giả lập quay 700ms như cũ.
+    if (onRefresh) {
+      onRefresh()
+      return
+    }
     setLoading(true)
     window.setTimeout(() => setLoading(false), 700)
   }
@@ -485,7 +500,7 @@ export function EmailList({
 
   // #3 — thao tác nhanh trên 1 thư
   const quickArchive = (id: string) => {
-    actions.removeEmails([id])
+    actions.removeEmails([id], 'archive') // lưu trữ = bỏ nhãn INBOX (khác xoá)
     toast('Đã lưu trữ thư', 'success')
   }
   const quickStar = (e: Email) => {
@@ -529,7 +544,7 @@ export function EmailList({
   const doDelete = () => {
     if (!deleteIds) return
     const n = deleteIds.length
-    actions.removeEmails(deleteIds)
+    actions.removeEmails(deleteIds, 'delete') // xoá = chuyển vào thùng rác
     setDeleteIds(null)
     toast(`Đã xoá ${n} thư`, 'destructive')
     clearSel()
@@ -572,7 +587,7 @@ export function EmailList({
               onClick={refresh}
               className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
-              <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+              <RefreshCw className={cn('size-4', (loading || refreshing) && 'animate-spin')} />
             </button>
             <button
               title="Bộ lọc theo tiêu chí"
@@ -716,22 +731,34 @@ export function EmailList({
             </div>
           ))
         ) : results.length > 0 ? (
-          results.map((email, i) => (
-            <EmailCard
-              key={email.id}
-              email={email}
-              index={i}
-              selected={openedId === email.id}
-              checked={selected.has(email.id)}
-              selectionActive={selected.size > 0}
-              kbActive={kbActive === i}
-              onSelect={() => onOpen(email.id)}
-              onToggleCheck={() => toggleOne(email.id)}
-              onArchive={() => quickArchive(email.id)}
-              onStar={() => quickStar(email)}
-              onDelete={() => setDeleteIds([email.id])}
-            />
-          ))
+          <>
+            {results.map((email, i) => (
+              <EmailCard
+                key={email.id}
+                email={email}
+                index={i}
+                selected={openedId === email.id}
+                checked={selected.has(email.id)}
+                selectionActive={selected.size > 0}
+                kbActive={kbActive === i}
+                onSelect={() => onOpen(email.id)}
+                onToggleCheck={() => toggleOne(email.id)}
+                onArchive={() => quickArchive(email.id)}
+                onStar={() => quickStar(email)}
+                onDelete={() => setDeleteIds([email.id])}
+              />
+            ))}
+            {/* Còn thư trên Gmail (onLoadMore có giá trị) → nút tải trang kế */}
+            {onLoadMore && (
+              <button
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                className="mt-1 w-full rounded-xl glass py-2.5 text-xs font-medium text-foreground shadow-subtle transition-all hover:-translate-y-0.5 disabled:opacity-60"
+              >
+                {loadingMore ? 'Đang tải…' : 'Tải thêm thư'}
+              </button>
+            )}
+          </>
         ) : (
           <div className="mt-10 flex flex-col items-center gap-3 px-6 text-center">
             <div className="relative flex size-20 items-center justify-center">

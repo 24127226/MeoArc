@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { apiBaseUrl } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -100,7 +101,7 @@ export function EmailDetail({
             icon={Archive}
             label="Lưu trữ"
             onClick={() => {
-              actions.removeEmails([id])
+              actions.removeEmails([id], 'archive') // bỏ nhãn INBOX
               toast('Đã lưu trữ thư', 'success')
             }}
           />
@@ -255,6 +256,15 @@ export function EmailDetail({
                 {email.attachments.map((a) => (
                   <button
                     key={a.name}
+                    onClick={() => {
+                      // Chế độ backend thật: mở URL tải đính kèm (cookie phiên tự đính kèm
+                      // → backend xác thực). Mock mode: chưa có tệp thật → bỏ qua.
+                      if (apiBaseUrl)
+                        window.open(
+                          `${apiBaseUrl}/emails/${id}/attachments/${encodeURIComponent(a.name)}`,
+                          '_blank',
+                        )
+                    }}
                     className="group flex items-center gap-2.5 rounded-xl bg-popover px-3 py-2 text-left shadow-subtle transition-all hover:-translate-y-0.5 hover:shadow-soft"
                   >
                     <span
@@ -324,7 +334,7 @@ export function EmailDetail({
               variant="destructive"
               onClick={() => {
                 setConfirmDelete(false)
-                actions.removeEmails([id])
+                actions.removeEmails([id], 'delete') // vào thùng rác
                 toast('Đã xoá thư', 'destructive')
               }}
             >
