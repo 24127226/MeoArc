@@ -1,0 +1,11 @@
+# Môi trường ảo + cache do Python/uv sinh ra — KHÔNG commit (giống node_modules bên FE)
+.venv/
+__pycache__/
+*.pyc
+
+# File biến môi trường chứa bí mật
+.env
+.env.local
+
+# Database SQLite cục bộ — dữ liệu máy bạn, không commit
+meoarc.db

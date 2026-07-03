@@ -28,6 +28,11 @@ export type EmailQuery = {
   /** Từ khoá hoặc câu ngôn ngữ tự nhiên (khi nl=true). */
   q?: string
   nl?: boolean
+  /** Phân trang: token trang kế (lấy từ nextCursor lần trước) + số thư mỗi trang. */
+  cursor?: string
+  limit?: number
+  /** Nút "Làm mới": bỏ qua cache backend, ép lấy bản mới nhất từ Gmail. */
+  fresh?: boolean
 }
 
 export type EmailListResult = {
@@ -43,6 +48,37 @@ export type SendEmailInput = {
   bcc?: string[]
   subject: string
   body: string
+  /** id các tệp đã upload qua `uploadFile` → BE lấy bytes đính vào thư. */
+  attachmentIds?: string[]
+}
+
+/* --- UC011: lịch sử hội thoại ------------------------------------------------ */
+/** AgentReply kèm id phiên do BE trả về (để FE bám đúng cuộc trò chuyện). */
+export type AgentReplyWithId = AgentReply & { conversationId?: string }
+
+/** 1 tin trong lịch sử đã lưu (khuôn BE: user text HOẶC thẻ agent). */
+export type StoredMessage =
+  | { role: 'user'; text: string }
+  | { role: 'agent'; reply: AgentReply }
+
+/** 1 dòng ở drawer lịch sử (danh sách, không kèm toàn bộ tin nhắn). */
+export type ConversationSummary = {
+  id: string
+  title: string
+  pinned: boolean
+  updatedAt: string
+  messageCount: number
+  preview: string
+}
+
+/** Mở 1 phiên: kèm messages để vẽ lại / tiếp tục. */
+export type ConversationDetail = {
+  id: string
+  title: string
+  pinned: boolean
+  createdAt: string
+  updatedAt: string
+  messages: StoredMessage[]
 }
 
 /** Toàn bộ năng lực backend mà FE cần. Mỗi nhóm map 1-1 với docs/02-API-CONTRACT.md. */
@@ -67,17 +103,29 @@ export interface MeoArcApi {
 
   // Soạn & gửi — UC010
   sendEmail(input: SendEmailInput): Promise<{ id: string }>
+  /** Upload 1 tệp đính kèm lên backend → trả metadata { id, name, size }. */
+  uploadFile(file: File): Promise<{ id: string; name: string; size: string }>
 
   // Agent — UC007 + mọi AI skill (008/009/014/015/016/017)
   sendAgentMessage(
     message: string,
     ctx: { emails: Email[] },
     opts?: { sessionId?: string; viaVoice?: boolean },
-  ): Promise<AgentReply>
+  ): Promise<AgentReplyWithId>
   /** Thực thi 1 PlanOp sau khi user Approve (UC006/007). */
   executePlan(op: PlanOp): Promise<void>
   /** Áp dụng kết quả tự lái vào hộp thư (UC017). */
   applyAutopilot(result: AutopilotResult): Promise<void>
+
+  // Lịch sử hội thoại — UC011
+  /** Danh sách phiên đã lưu (ghim trước, mới nhất trước). */
+  listConversations(): Promise<ConversationSummary[]>
+  /** Mở 1 phiên (kèm messages) để xem lại / tiếp tục. */
+  getConversation(id: string): Promise<ConversationDetail>
+  /** Đổi tên và/hoặc ghim 1 phiên. */
+  updateConversation(id: string, patch: { title?: string; pinned?: boolean }): Promise<void>
+  /** Xoá 1 phiên. */
+  deleteConversation(id: string): Promise<void>
 }
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -160,6 +208,11 @@ export function createMockApi(): MeoArcApi {
       await delay(300)
       return { id: `mock-${Date.now()}` }
     },
+    async uploadFile(file) {
+      await delay(250) // mock: không upload thật, chỉ trả metadata
+      const kb = Math.max(1, Math.round(file.size / 1024))
+      return { id: `mock-${Date.now()}`, name: file.name, size: `${kb} KB` }
+    },
 
     async sendAgentMessage(message, ctx) {
       await delay(700) // giả lập "đang nghĩ"
@@ -167,6 +220,16 @@ export function createMockApi(): MeoArcApi {
     },
     async executePlan() {},
     async applyAutopilot() {},
+
+    // UC011 (mock): để FE tự quản lịch sử cục bộ (demo SRS). Trả rỗng → ChatPanel giữ initSessions.
+    async listConversations() {
+      return []
+    },
+    async getConversation(id) {
+      return { id, title: '', pinned: false, createdAt: '', updatedAt: '', messages: [] }
+    },
+    async updateConversation() {},
+    async deleteConversation() {},
   }
 }
 
@@ -226,9 +289,22 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
 
     sendEmail: (input) => post<{ id: string }>('/emails/send', input),
 
+    // Upload tệp = multipart/form-data (KHÔNG đặt Content-Type để trình duyệt tự thêm boundary).
+    uploadFile: async (file) => {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`${base}/uploads`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      if (!res.ok) throw new Error('upload failed')
+      return res.json()
+    },
+
     // Production nên dùng SSE (text/event-stream); ở đây nhận reply cuối dạng JSON cho gọn.
     sendAgentMessage: (message, _ctx, opts) =>
-      post<AgentReply>('/agent/chat', { message, ...opts }),
+      post<AgentReplyWithId>('/agent/chat', { message, ...opts }),
     executePlan: (op) => post<void>('/agent/plan/execute', { op }),
     applyAutopilot: (result) =>
       post<void>('/agent/autopilot/apply', {
@@ -236,6 +312,16 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
         markRead: result.markRead,
         flag: result.flag,
       }),
+
+    // Lịch sử hội thoại — UC011
+    listConversations: () => req<ConversationSummary[]>('/agent/conversations'),
+    getConversation: (id) => req<ConversationDetail>(`/agent/conversations/${id}`),
+    updateConversation: (id, patch) =>
+      req<void>(`/agent/conversations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    deleteConversation: (id) => req<void>(`/agent/conversations/${id}`, { method: 'DELETE' }),
   }
 }
 

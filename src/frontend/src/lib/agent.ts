@@ -10,11 +10,21 @@ export type PlanOp =
   | { type: 'label'; ids: string[]; category: Category; label: string }
   | { type: 'autoLabel'; items: { id: string; category: Category; label: string }[] }
 
+/** Một thư THẬT do backend đính kèm reply → FE render thẻ bấm-được (mở thẳng thư). */
+export type EmailRef = {
+  id: string
+  sender: string
+  initial: string
+  subject: string
+  snippet: string
+  unread: boolean
+}
+
 /** Phản hồi của agent — quyết định canvas hiển thị gì. */
 export type AgentReply =
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; emails?: EmailRef[] }
   | { kind: 'done'; text: string }
-  | { kind: 'result'; title: string; intro: string; lines: string[] }
+  | { kind: 'result'; title: string; intro: string; lines: string[]; emails?: EmailRef[] }
   | { kind: 'plan'; intro: string; steps: string[]; warn?: string; confirmLabel: string; op: PlanOp }
   | { kind: 'draft'; intro: string; to: string; subject: string; body: string }
   // --- Generative widgets (UC014/015/016) — render bento tương tác ---

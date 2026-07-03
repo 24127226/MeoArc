@@ -134,3 +134,7 @@ out/
 .env.prod
 *.pem
 *.key
+.vs/
+**/logs/
+**/.pytest_cache/
+**/meoarc.db

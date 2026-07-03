@@ -27,6 +27,7 @@ import {
   Mic,
   Volume2,
   VolumeX,
+  ArrowUpRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -34,9 +35,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
 import { VoiceMode } from '@/components/layout/voice-mode'
-import { type AgentReply, type PlanOp } from '@/lib/agent'
+import { ChatAmbience } from '@/components/layout/chat-ambience'
+import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
-import { api } from '@/lib/api'
+import { api, type StoredMessage } from '@/lib/api'
 import { normalize } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
@@ -46,8 +48,17 @@ type Message =
   | { id: string; role: 'user'; text: string }
   | { id: string; role: 'agent'; reply: AgentReply; resolved?: boolean }
 
-/** Một phiên hội thoại đã lưu (UC011). */
-type Session = { id: string; title: string; time: string; messages: Message[]; pinned?: boolean }
+/** Một phiên hội thoại đã lưu (UC011).
+ *  `backendId` = id phiên trong DB (có khi đã lưu xuống backend); dùng để gọi API
+ *  list/get/rename/delete + gửi kèm chat. Phiên mới chưa gửi thì chưa có backendId. */
+type Session = {
+  id: string
+  title: string
+  time: string
+  messages: Message[]
+  pinned?: boolean
+  backendId?: string
+}
 
 const RENAME_MAX = 60
 
@@ -105,6 +116,27 @@ const SKILLS = [
   { label: 'Brief cuộc họp', prompt: 'brief cuộc họp' },
   { label: 'Phân loại tự động', prompt: 'phân loại tự động toàn bộ' },
 ]
+
+/** Khuôn tin BE (StoredMessage) → Message của FE (thêm id cục bộ để React render). */
+function toLocalMsg(m: StoredMessage): Message {
+  return m.role === 'user'
+    ? { id: uid(), role: 'user', text: m.text }
+    : { id: uid(), role: 'agent', reply: m.reply }
+}
+
+/** ISO time (BE) → nhãn 'time' mà drawer hiểu (timeBucket đọc 'Hôm nay'/'Hôm qua'). */
+function relTime(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const y = new Date(now)
+  y.setDate(now.getDate() - 1)
+  const hhmm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Hôm nay ${hhmm}`
+  if (d.toDateString() === y.toDateString()) return 'Hôm qua'
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
 
 /** Dòng preview ngắn của 1 phiên (lấy tin cuối). */
 function previewOf(s: Session): string {
@@ -175,10 +207,51 @@ function AgentRow({ children }: { children: React.ReactNode }) {
   )
 }
 
+/* (#3) Chữ "giải mã": ký tự random rồi định hình dần về câu thật.
+   Tốc độ co theo độ dài (câu dài vẫn xong ~1.4s). Reduced-motion → hiện thẳng. */
+const SCRAMBLE_CH = 'ABCDEF#@%&*0123456789▓▒░'
+function scrambleAll(t: string): string {
+  let out = ''
+  for (const c of t) out += c === ' ' || c === '\n' ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+  return out
+}
+function ScrambleText({ text }: { text: string }) {
+  const reduce =
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const [display, setDisplay] = useState(() => (reduce ? text : scrambleAll(text)))
+  useEffect(() => {
+    if (reduce) {
+      setDisplay(text)
+      return
+    }
+    let i = 0
+    const step = Math.max(0.5, text.length / 22) // câu dài → lộ nhanh hơn để khỏi lê thê
+    const id = window.setInterval(() => {
+      let out = ''
+      for (let k = 0; k < text.length; k++) {
+        const c = text[k]
+        out += c === ' ' || c === '\n' || k < i ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+      }
+      setDisplay(out)
+      i += step
+      if (i >= text.length) {
+        window.clearInterval(id)
+        setDisplay(text) // chốt câu thật, sạch sẽ
+      }
+    }, 32)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
+  return <>{display}</>
+}
+
 function AgentText({ children }: { children: React.ReactNode }) {
   return (
-    <div className="max-w-[88%] break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light glass">
-      {children}
+    // whitespace-pre-line: GIỮ xuống dòng + gạch đầu dòng của AI → câu trả lời có bố cục,
+    // không bị dồn thành một đoạn dài (trông chỉn chu hơn hẳn).
+    <div className="max-w-[88%] whitespace-pre-line break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light glass">
+      {/* Chỉ "giải mã" khi nội dung là chuỗi (text/intro của AI) */}
+      {typeof children === 'string' ? <ScrambleText text={children} /> : children}
     </div>
   )
 }
@@ -252,6 +325,39 @@ function MiniAvatar({ initial }: { initial: string }) {
     <span className="gloss flex size-7 shrink-0 items-center justify-center rounded-full bg-emphasis font-serif text-xs font-semibold text-emphasis-foreground ring-1 ring-inset ring-accent/40">
       {initial}
     </span>
+  )
+}
+
+/** Danh sách thư THẬT (bấm để mở thẳng thư) — dùng dưới kết quả AI. UI/UX: mỗi thư 1 hàng
+ *  avatar + người gửi + tiêu đề + snippet + chấm chưa đọc; bấm → onOpen(id) mở chi tiết. */
+function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: string) => void }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {emails.map((e) => (
+        <button
+          key={e.id}
+          type="button"
+          onClick={() => onOpen?.(e.id)}
+          disabled={!onOpen}
+          className="group/mail flex w-full items-center gap-2.5 rounded-xl bg-popover-foreground/5 p-2 text-left transition-colors hover:bg-popover-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-default disabled:hover:bg-popover-foreground/5"
+        >
+          <MiniAvatar initial={e.initial} />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+              {e.unread && <span className="size-1.5 shrink-0 rounded-full cherry-dot" />}
+              <span className="truncate">{e.sender}</span>
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{e.subject}</p>
+            {e.snippet && (
+              <p className="truncate text-[11px] text-muted-foreground/70">{e.snippet}</p>
+            )}
+          </div>
+          {onOpen && (
+            <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/mail:opacity-100" />
+          )}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -505,11 +611,14 @@ export function ChatPanel({
   actions,
   injectedCommand,
   onInjectConsumed,
+  onOpenEmail,
 }: {
   emails: Email[]
   actions: EmailActions
   injectedCommand?: string | null
   onInjectConsumed?: () => void
+  /** Mở 1 thư (chuyển panel phải sang chi tiết) — dùng khi bấm thư trong kết quả AI. */
+  onOpenEmail?: (id: string) => void
 }) {
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
@@ -601,9 +710,56 @@ export function ChatPanel({
     setCurrentId(s.id)
   }
 
-  // ---- UC011: Pin / Rename / Delete ----
-  const togglePin = (id: string) =>
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s)))
+  // UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP). Mock trả [] → giữ initSessions (demo SRS).
+  // Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation phiên đó.
+  useEffect(() => {
+    let alive = true
+    api
+      .listConversations()
+      .then((list) => {
+        if (!alive || list.length === 0) return
+        const loaded: Session[] = list.map((c) => ({
+          id: c.id,
+          backendId: c.id,
+          title: c.title,
+          time: relTime(c.updatedAt),
+          pinned: c.pinned,
+          messages: [],
+        }))
+        const fresh = freshSession()
+        setSessions([fresh, ...loaded]) // thêm 1 phiên mới ở đầu để chat ngay
+        setCurrentId(fresh.id)
+      })
+      .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ---- UC011: Mở / Pin / Rename / Delete (đều LƯU xuống backend nếu phiên đã có backendId) ----
+  // Mở 1 phiên ở drawer: chuyển sang phiên đó; nếu mới có metadata (messages rỗng) thì tải đầy đủ.
+  const openSession = (s: Session) => {
+    setCurrentId(s.id)
+    setHistoryOpen(false)
+    if (s.backendId && s.messages.length === 0) {
+      api
+        .getConversation(s.backendId)
+        .then((detail) => {
+          setSessions((prev) =>
+            prev.map((x) => (x.id === s.id ? { ...x, messages: detail.messages.map(toLocalMsg) } : x)),
+          )
+        })
+        .catch(() => {})
+    }
+  }
+
+  const togglePin = (id: string) => {
+    const s = sessions.find((x) => x.id === id)
+    const next = !s?.pinned
+    setSessions((prev) => prev.map((x) => (x.id === id ? { ...x, pinned: next } : x)))
+    if (s?.backendId) api.updateConversation(s.backendId, { pinned: next }).catch(() => {})
+  }
 
   const startRename = (s: Session) => {
     setRenamingId(s.id)
@@ -612,16 +768,20 @@ export function ChatPanel({
   const commitRename = () => {
     const title = renameValue.trim()
     if (!title || title.length > RENAME_MAX) return // A4 — rename không hợp lệ: giữ ô mở
-    setSessions((prev) => prev.map((s) => (s.id === renamingId ? { ...s, title } : s)))
+    const s = sessions.find((x) => x.id === renamingId)
+    setSessions((prev) => prev.map((x) => (x.id === renamingId ? { ...x, title } : x)))
+    if (s?.backendId) api.updateConversation(s.backendId, { title }).catch(() => {})
     setRenamingId(null)
   }
 
   const deleteSession = (id: string) => {
-    const next = sessions.filter((s) => s.id !== id)
+    const s = sessions.find((x) => x.id === id)
+    if (s?.backendId) api.deleteConversation(s.backendId).catch(() => {})
+    const next = sessions.filter((x) => x.id !== id)
     if (next.length === 0) {
-      const s = freshSession()
-      setSessions([s])
-      setCurrentId(s.id)
+      const fresh = freshSession()
+      setSessions([fresh])
+      setCurrentId(fresh.id)
     } else {
       setSessions(next)
       if (id === currentId) setCurrentId(next[0].id)
@@ -664,11 +824,20 @@ export function ChatPanel({
     )
     setInput('')
     setThinking(true)
+    // Gửi kèm backendId của phiên hiện tại (nếu đã lưu) để agent NHỚ đúng cuộc trò chuyện (UC011).
+    const sid = currentId
+    const backendId = sessions.find((s) => s.id === sid)?.backendId
     // Qua lớp adapter (UC007): mock trả interpretCommand; backend thật gọi POST /agent/chat.
     api
-      .sendAgentMessage(text, { emails }, { viaVoice })
+      .sendAgentMessage(text, { emails }, { viaVoice, sessionId: backendId })
       .then((reply) => {
         setThinking(false)
+        // Lần đầu của phiên mới: BE trả conversationId → gắn vào phiên để các lượt sau bám đúng.
+        if (reply.conversationId) {
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sid ? { ...s, backendId: reply.conversationId } : s)),
+          )
+        }
         push({ id: uid(), role: 'agent', reply })
         if (viaVoice) speak(replyToSpeech(reply))
       })
@@ -696,7 +865,7 @@ export function ChatPanel({
     )
 
   const execOp = (op: PlanOp) => {
-    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids)
+    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids, op.type)
     else if (op.type === 'markRead') actions.markRead(op.ids, op.read)
     else if (op.type === 'label') actions.applyLabel(op.ids, op.category, op.label)
     else if (op.type === 'autoLabel')
@@ -746,7 +915,7 @@ export function ChatPanel({
 
   // UC017 — áp dụng kết quả tự lái vào hộp thư thật
   const applyAutopilot = (id: string, r: AutopilotResult) => {
-    if (r.archive.length) actions.removeEmails(r.archive)
+    if (r.archive.length) actions.removeEmails(r.archive, 'archive')
     if (r.markRead.length) actions.markRead(r.markRead, true)
     if (r.flag.length) actions.setImportant(r.flag, true)
     markResolved(id)
@@ -800,7 +969,9 @@ export function ChatPanel({
     !!lastMsg.reply.warn
 
   return (
-    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+      {/* Nền sinh động: aurora ấm trôi + quầng nến + tàn lửa (đặt sau nội dung) */}
+      <ChatAmbience />
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
@@ -815,7 +986,7 @@ export function ChatPanel({
           />
         </span>
         <div className="min-w-0">
-          <h2 className="font-serif text-[22px] font-semibold leading-none text-foreground">
+          <h2 className="holo-text font-serif text-[22px] font-semibold leading-none">
             Trợ lý MeoArc
           </h2>
           <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -871,10 +1042,7 @@ export function ChatPanel({
       >
         {messages.map((m) => {
           return (
-            <div
-              key={m.id}
-              className="transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
-            >
+            <div key={m.id} className="msg-pop">
               {m.role === 'user' ? (
                 <UserBubble>{m.text}</UserBubble>
               ) : (
@@ -889,6 +1057,7 @@ export function ChatPanel({
                   onResolve={markResolved}
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
+                  onOpenEmail={onOpenEmail}
                 />
               )}
             </div>
@@ -1125,10 +1294,7 @@ export function ChatPanel({
                             />
                           ) : (
                             <button
-                              onClick={() => {
-                                setCurrentId(s.id)
-                                setHistoryOpen(false)
-                              }}
+                              onClick={() => openSession(s)}
                               className="block w-full text-left"
                             >
                               <span className="flex items-center gap-2">
@@ -1473,6 +1639,7 @@ function AgentMessage({
   onResolve,
   onApplyCategorize,
   onAutopilotApply,
+  onOpenEmail,
 }: {
   message: Extract<Message, { role: 'agent' }>
   exec: { id: string; current: number } | null
@@ -1484,6 +1651,7 @@ function AgentMessage({
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
+  onOpenEmail?: (id: string) => void
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
@@ -1494,6 +1662,9 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.text}</AgentText>
+        {reply.emails && reply.emails.length > 0 && (
+          <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
+        )}
       </AgentRow>
     )
   }
@@ -1520,13 +1691,21 @@ function AgentMessage({
               {reply.title}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 pt-2">
-            {reply.lines.map((l, i) => (
-              <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
-                <span className="text-muted-foreground">•</span>
-                <span className="min-w-0 break-words">{l}</span>
+          <CardContent className="pt-2">
+            {reply.emails && reply.emails.length > 0 ? (
+              // Có dữ liệu thư THẬT (id) → hàng BẤM ĐƯỢC mở thẳng thư.
+              <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
+            ) : (
+              // Thoái lui: chỉ có text (vd quota lỗi) → vẫn hiện gạch đầu dòng như cũ.
+              <div className="space-y-2">
+                {reply.lines.map((l, i) => (
+                  <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
+                    <span className="text-muted-foreground">•</span>
+                    <span className="min-w-0 break-words">{l}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </AgentRow>

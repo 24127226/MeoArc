@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 
 export function AccountMenu() {
-  const { user, logout } = useAuth()
+  const { user, logout, revokeAccess } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'menu' | 'revoke'>('menu')
@@ -28,9 +28,9 @@ export function AccountMenu() {
   }
 
   const handleRevoke = () => {
-    // Mock: thu hồi quyền = xoá phiên + (backend thật) gọi Google revoke token.
+    // Thu hồi quyền = backend gọi Google bỏ quyền Gmail + xoá phiên (khác hẳn logout).
     setOpen(false)
-    logout()
+    revokeAccess()
     navigate('/login', { replace: true })
   }
 
