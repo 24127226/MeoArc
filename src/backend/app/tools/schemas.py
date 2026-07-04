@@ -149,6 +149,36 @@ class SearchEmailsOutput(ToolResult):
     total_found: int = 0
 
 
+class CategorizeEmailsInput(BaseModel):
+    """Input for categorize_emails — tự ĐỀ XUẤT nhãn cho các thư gần nhất (UC009).
+    KHÔNG áp nhãn ngay: chỉ trả đề xuất để người dùng duyệt (human-in-the-loop)."""
+
+    limit: Annotated[int, Field(
+        ge=1, le=50,
+        description="Số thư gần nhất cần phân loại. Mặc định 20.",
+    )] = 20
+
+    query: Annotated[str, Field(
+        description="Lọc trước bằng cú pháp Gmail (rỗng = hộp thư đến gần nhất).",
+    )] = ""
+
+
+class CategorizedItem(BaseModel):
+    id: str
+    thread_id: str
+    sender: str
+    subject: str
+    label: str          # tên nhãn ĐỀ XUẤT (chính là tên nhãn sẽ áp lên Gmail)
+    category: str       # màu chip FE: moss/sea/sun/cherry/sky/terra/wine
+    confidence: str     # high | medium | low
+    reason: str         # vì sao đề xuất nhãn này (để người dùng tin/sửa)
+
+
+class CategorizeEmailsOutput(ToolResult):
+    data: list[CategorizedItem] = []
+    summary: dict[str, int] = {}   # đếm số thư theo từng nhãn
+
+
 class GetEmailInput(BaseModel):
     email_id: Annotated[str, Field(
         description="Gmail message ID or Outlook message ID. "

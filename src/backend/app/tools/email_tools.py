@@ -18,6 +18,7 @@ from app.tools.registry import tool_registry, ToolCategory, RequestContext
 from app.tools.schemas import (
     SearchEmailsInput, SearchEmailsOutput, EmailSummary,
     SemanticSearchInput,
+    CategorizeEmailsInput, CategorizeEmailsOutput, CategorizedItem,
     GetEmailInput, GetEmailOutput, EmailDetail,
     SendEmailInput, SendEmailOutput,
     ReplyEmailInput, ReplyEmailOutput,
@@ -25,6 +26,7 @@ from app.tools.schemas import (
     BulkActionInput, BulkActionOutput, BulkAction,
     ListLabelsInput, ListLabelsOutput,
 )
+from app.core import labeling
 
 _SYSTEM_LABELS = {"UNREAD", "STARRED", "INBOX", "IMPORTANT", "SPAM", "TRASH"}
 
@@ -71,6 +73,35 @@ async def search_emails(inp: SearchEmailsInput, ctx: RequestContext) -> SearchEm
     items = [_to_summary(e) for e in emails]
     return SearchEmailsOutput(
         success=True, message=f"Tìm thấy {len(items)} thư.", data=items, total_found=len(items),
+    )
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=CategorizeEmailsInput)
+async def categorize_emails(inp: CategorizeEmailsInput, ctx: RequestContext) -> CategorizeEmailsOutput:
+    """TỰ PHÂN LOẠI (UC009): đề xuất nhãn cho các thư gần nhất theo người gửi + nội dung
+    (Học tập / Công việc / Tài chính / Mạng xã hội / Mua sắm & Ưu đãi / Cập nhật & Hệ thống /
+    Cá nhân). CHỈ ĐỀ XUẤT — không áp nhãn ngay; người dùng duyệt/sửa rồi mới áp (human-in-the-loop).
+    Đây là tool ĐỌC, chạy tất định (0 quota), nhanh."""
+    emails, _ = await asyncio.to_thread(
+        gmail_service.list_messages, ctx.access_token,
+        q=(inp.query or None), max_results=inp.limit,
+    )
+    items: list[CategorizedItem] = []
+    summary: dict[str, int] = {}
+    for e in emails:
+        # Phân loại từ EMAIL người gửi (tín hiệu mạnh nhất) + tên + tiêu đề + snippet.
+        c = labeling.classify(e.senderEmail, e.sender, e.subject, e.preview)
+        items.append(CategorizedItem(
+            id=e.id, thread_id=(e.threadId or e.id),
+            sender=e.sender, subject=e.subject,
+            label=c.category.label, category=c.category.color,
+            confidence=c.confidence, reason=c.reason,
+        ))
+        summary[c.category.label] = summary.get(c.category.label, 0) + 1
+    return CategorizeEmailsOutput(
+        success=True,
+        message=f"Đã đề xuất nhãn cho {len(items)} thư ({len(summary)} nhóm).",
+        data=items, summary=summary,
     )
 
 

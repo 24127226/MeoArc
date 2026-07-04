@@ -415,6 +415,39 @@ def _emails_from_search(messages: list, cap: int = 15) -> list:
     return []
 
 
+def _categorize_card(messages: list) -> dict | None:
+    """UC009: dựng thẻ 'categorize' cho FE từ kết quả categorize_emails CỦA LƯỢT NÀY.
+    Tất định (id + nhãn lấy thẳng từ tool) → không nhờ LLM nên không sai nhãn/ id.
+    Trả None nếu lượt này không phân loại."""
+    import json
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    for m in reversed(messages[last_human:]):
+        if getattr(m, "type", None) == "tool" and getattr(m, "name", None) == "categorize_emails":
+            try:
+                data = json.loads(m.content)
+            except Exception:
+                return None
+            raw = data.get("data") or []
+            items = [{
+                "id": str(it["id"]), "sender": it.get("sender", ""),
+                "subject": it.get("subject", "(không tiêu đề)"),
+                "category": it.get("category", "cherry"),   # màu chip FE
+                "label": it.get("label", "Cá nhân"),
+            } for it in raw if isinstance(it, dict) and it.get("id")]
+            if not items:
+                return None
+            summary = data.get("summary") or {}
+            gist = " · ".join(f"{v} {k}" for k, v in summary.items())
+            return {
+                "kind": "categorize",
+                "intro": "Mình đã tự phân loại giúp bạn — xem lại/sửa nhãn từng thư rồi bấm Áp dụng nhé:",
+                "title": f"Đề xuất nhãn cho {len(items)} thư" + (f" ({gist})" if gist else ""),
+                "items": items,
+            }
+    return None
+
+
 def _preview_of(display_messages: list) -> str:
     """Vài chữ của TIN GẦN NHẤT (cho drawer xem lướt). Tin agent là thẻ → rút text/intro."""
     for m in reversed(display_messages or []):
@@ -510,6 +543,13 @@ async def agent_chat(
             # coerce_text: content có thể là LIST part (tuỳ model Gemini) → ép về chuỗi chuẩn cho FE.
             last_text = coerce_text(last_ai.content).strip() if last_ai else ""
             out = {"kind": "text", "text": last_text or "Mình đã xử lý xong."}
+
+        # UC009: nếu lượt này có gọi categorize_emails → ÉP thành thẻ 'categorize' (widget FE cho
+        # sửa nhãn từng thư rồi Áp dụng). Xây TẤT ĐỊNH từ dữ liệu tool (id + nhãn), KHÔNG nhờ LLM
+        # → nhãn/ id luôn chuẩn. Đặt TRƯỚC phần đính emails để không lẫn 2 loại thẻ.
+        cat_card = _categorize_card(result["messages"])
+        if cat_card:
+            out = cat_card
 
         # UI/UX: đính danh sách thư THẬT (bấm mở được) từ search_emails CỦA LƯỢT NÀY → FE render
         # thẻ clickable. Lưu luôn vào display_messages nên phiên cũ mở lại vẫn bấm được.

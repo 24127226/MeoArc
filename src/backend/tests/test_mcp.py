@@ -117,7 +117,7 @@ def test_loi_tool_tra_phong_bi_json(monkeypatch):
 def test_mcp_phoi_du_tool_hat_min_va_khong_co_tool_to():
     tools = asyncio.run(mcp_server.mcp.list_tools())
     names = set(tools.keys() if isinstance(tools, dict) else [t.name for t in tools])
-    required = {"search_emails", "semantic_search", "get_email", "list_labels",
+    required = {"search_emails", "semantic_search", "categorize_emails", "get_email", "list_labels",
                 "send_email", "reply_email", "apply_labels", "bulk_action"}
     assert required <= names, f"Thiếu tool hạt mịn: {required - names}"
     # Q&A thầy: tool "to" gộp suy luận (summarize/process/auto) là rớt xuống 9đ

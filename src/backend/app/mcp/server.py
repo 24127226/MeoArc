@@ -151,6 +151,14 @@ async def semantic_search(query: str, limit: int = 5, pool: int = 30) -> dict:
     return await _call("semantic_search", {"query": query, "limit": limit, "pool": pool})
 
 
+async def categorize_emails(limit: int = 20, query: str = "") -> dict:
+    """Tự ĐỀ XUẤT nhãn cho các thư gần nhất (Học tập/Công việc/Tài chính/Mạng xã hội/
+    Mua sắm & Ưu đãi/Cập nhật & Hệ thống/Cá nhân) theo người gửi + nội dung. CHỈ đề xuất —
+    trả {id, label, reason}; muốn ÁP thì gọi apply_labels với các id + label đó SAU KHI
+    người dùng duyệt."""
+    return await _call("categorize_emails", {"limit": limit, "query": query})
+
+
 async def get_email(email_id: str) -> dict:
     """Lấy nội dung ĐẦY ĐỦ (thân thư + tên tệp đính kèm) của 1 email theo id (lấy id từ search_emails)."""
     return await _call("get_email", {"email_id": email_id})
@@ -209,8 +217,8 @@ async def bulk_action(email_ids: list[str], action: str, label_name: str | None 
 
 
 # Đăng ký tool với MCP — giữ hàm gốc ở module-level để test gọi thẳng được.
-for _fn in (search_emails, semantic_search, get_email, list_labels, send_email,
-            reply_email, apply_labels, bulk_action):
+for _fn in (search_emails, semantic_search, categorize_emails, get_email, list_labels,
+            send_email, reply_email, apply_labels, bulk_action):
     mcp.tool()(_fn)
 
 
