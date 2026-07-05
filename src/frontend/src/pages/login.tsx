@@ -5,6 +5,10 @@ import { useAuth } from '@/auth/auth-context'
 import { LogoMark } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 
+// Import cả 2 ảnh nền tương ứng cho 2 chế độ (Đang cố định dùng bgLight nịnh mắt cho cả hai)
+import bgLight from '@/assets/login-light.jpg' // Ảnh cho Light Mode
+import bgDark from '@/assets/login-dark.jpg'   // Ảnh cho Dark Mode
+
 /** Logo Google nhiều màu cho nút đăng nhập. */
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -57,7 +61,7 @@ export function LoginPage() {
     if (card) card.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg)'
   }
 
-  // Vài hạt cherry bay (vị trí/nhịp khác nhau cho tự nhiên)
+  // Vài hạt cherry bay
   const particles = [
     { left: '14%', size: 7, dur: 15, delay: 0, drift: '18px' },
     { left: '28%', size: 5, dur: 19, delay: 4, drift: '-14px' },
@@ -71,68 +75,28 @@ export function LoginPage() {
     <div
       onPointerMove={onPointerMove}
       onPointerLeave={resetTilt}
-      className="ai-panel-bg relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4"
+      className="fixed inset-0 flex items-center justify-center overflow-hidden bg-black px-4 w-screen h-screen"
     >
-      {/* Nền mesh aurora — trôi chậm, phủ đều, phối nhiều sắc cherry */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* LAYER 0: HỆ THỐNG NỀN ĐÃ KHỬ QUẦNG SÁNG VÀ DIỆT MÉP TRẮNG */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 select-none z-0 overflow-hidden w-full h-full">
+        {/* Ảnh nền phủ tràn tuyệt đối */}
         <div
-          className="aurora-blob left-[-12%] top-[-14%] size-[48vw]"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--spark) 55%, transparent), transparent 70%)',
-            animation: 'aurora-a 24s ease-in-out infinite',
-          }}
+          className="absolute inset-0 bg-cover bg-center scale-105 w-full h-full"
+          style={{ backgroundImage: `url(${bgLight})` }}
         />
-        <div
-          className="aurora-blob right-[-14%] bottom-[-16%] size-[44vw]"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--active) 48%, transparent), transparent 70%)',
-            animation: 'aurora-b 29s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="aurora-blob left-[8%] bottom-[-6%] size-[34vw]"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--accent) 40%, transparent), transparent 70%)',
-            animation: 'aurora-c 33s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="aurora-blob right-[6%] top-[-8%] size-[30vw]"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--destructive) 42%, transparent), transparent 70%)',
-            animation: 'aurora-b 26s ease-in-out infinite reverse',
-          }}
-        />
+        
+        {/* LỚP MASK ĐẦM MÀU: Xóa bỏ màu kem sáng gây quầng đục, thay bằng đỏ mận tối để ảnh sâu và nét chữ nổi bật hẳn lên */}
+        <div className="absolute inset-0 mix-blend-multiply bg-[#1a0505]/45 w-full h-full" />
+        
+        {/* LỚP PHỦ LÀM MỜ: Đẩy scale lên 125% để phần mờ tràn hẳn ra ngoài viewport, dứt điểm mép xám trắng */}
+        <div className="absolute inset-0 backdrop-blur-[6px] scale-125 w-full h-full" />
+        
+        {/* Hạt nhiễu mịn phủ trên cùng nền */}
+        <div className="grain-overlay absolute inset-0 w-full h-full" />
       </div>
-      {/* Halo dịu sau card — neo điểm nhìn vào giữa */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(46vw 40vw at 50% 42%, color-mix(in srgb, var(--spark) 14%, transparent), transparent 70%)',
-        }}
-      />
-      {/* Vignette — tối nhẹ mép, dồn sáng vào giữa */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(120% 85% at 50% 38%, transparent 42%, color-mix(in srgb, var(--background) 35%, #000) 100%)',
-          opacity: 0.6,
-        }}
-      />
-      {/* Sao mờ tĩnh (chỉ hiện ở dark) */}
-      <div aria-hidden className="stars-faint absolute inset-0" />
-      {/* Hạt nhiễu mịn phủ trên cùng nền */}
-      <div aria-hidden className="grain-overlay" />
-      {/* Hạt cherry bay lơ lửng */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+
+      {/* LAYER 1: CHỈ GIỮ LẠI HẠT CHERRY BAY TỪ DƯỚI LÊN */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden z-10 w-full h-full">
         {particles.map((p, i) => (
           <span
             key={i}
@@ -148,8 +112,8 @@ export function LoginPage() {
         ))}
       </div>
 
-      {/* Toggle theme góc trên phải */}
-      <div className="absolute right-5 top-5 z-10">
+      {/* LAYER 2: INTERFACE ĐĂNG NHẬP CHÍNH (z-20) */}
+      <div className="absolute right-5 top-5 z-20">
         <ThemeToggle />
       </div>
 
@@ -157,7 +121,7 @@ export function LoginPage() {
       <div
         ref={cardRef}
         style={{ transition: 'transform 0.25s var(--ease-soft)' }}
-        className="glass relative z-10 w-full max-w-md rounded-2xl p-8 shadow-float edge-light"
+        className="glass relative z-20 w-full max-w-md rounded-2xl p-8 shadow-float edge-light"
       >
         {/* Logo orb phát sáng */}
         <div className="flex flex-col items-center text-center">
@@ -206,7 +170,7 @@ export function LoginPage() {
       </div>
 
       {/* Chân trang */}
-      <p className="absolute bottom-5 text-center text-[11px] text-muted-foreground">
+      <p className="absolute bottom-5 text-center text-[11px] text-muted-foreground z-20">
         MeoArc · Đồ án Nhập môn CNPM — HCMUS, Nhóm 7
       </p>
     </div>

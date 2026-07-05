@@ -36,7 +36,6 @@ import type { EmailActions } from '@/lib/email-actions'
 import { CATEGORY } from '@/data/categories'
 import type { Category, Email } from '@/data/emails'
 
-/* Chip lọc theo category — khoe đủ sắc palette */
 const FILTERS: { key: Category | 'all'; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
   { key: 'moss', label: 'Học tập' },
@@ -45,14 +44,11 @@ const FILTERS: { key: Category | 'all'; label: string }[] = [
   { key: 'sky', label: 'Deploy' },
 ]
 
-/* AI Triage badge (UC015) — chỉ hiện cho action/waiting; fyi để yên cho gọn.
-   Dùng token cherry/active nên tự đổi theo theme. */
 const PRIORITY: Record<'action' | 'waiting', { label: string; cls: string; dot: string }> = {
   action: { label: 'Cần xử lý', cls: 'bg-spark/20 text-foreground', dot: 'cherry-dot' },
   waiting: { label: 'Đang đợi', cls: 'bg-active/20 text-foreground', dot: 'bg-active' },
 }
 
-/* Bộ lọc nhanh theo tiêu chí (UC005) */
 const QUICK = [
   { key: 'unread', label: 'Chưa đọc' },
   { key: 'starred', label: 'Gắn sao' },
@@ -60,7 +56,6 @@ const QUICK = [
 ] as const
 type QuickKey = (typeof QUICK)[number]['key']
 
-/* #4 — số đếm trượt mượt khi giá trị đổi */
 function AnimatedNumber({ value }: { value: number }) {
   const [display, setDisplay] = useState(value)
   const fromRef = useRef(value)
@@ -86,7 +81,6 @@ function AnimatedNumber({ value }: { value: number }) {
   return <>{display}</>
 }
 
-/* #3 — nút thao tác nhanh hiện khi hover thẻ (span role=button để không lồng <button>) */
 function CardAction({
   icon: Icon,
   title,
@@ -120,7 +114,6 @@ function CardAction({
   )
 }
 
-/* Nút icon cho thanh thao tác hàng loạt (UC006) */
 function IconBtn({
   icon: Icon,
   title,
@@ -174,14 +167,10 @@ function EmailCard({
   onDelete: () => void
 }) {
   const c = CATEGORY[email.category]
-
-  // Kính NHUỐM màu category: lớp gradient màu phủ lên nền kính tối của .glass
   const cardStyle: CSSProperties = {
-    backgroundImage: `linear-gradient(135deg, ${c.bar}40, ${c.bar}14)`,
+    backgroundImage: `linear-gradient(135deg, ${c.bar}35, ${c.bar}0f)`,
   }
-  // --tint: màu category → colored shadow (specular ambient occlusion)
   ;(cardStyle as Record<string, string>)['--tint'] = c.bar
-  if (selected) (cardStyle as Record<string, string>)['--tw-ring-color'] = c.bar
 
   return (
     <button
@@ -189,25 +178,23 @@ function EmailCard({
       data-idx={index}
       style={cardStyle}
       className={cn(
-        'group relative w-full overflow-hidden rounded-2xl p-4 pl-5 text-left transition-all duration-300 ease-soft ripe bloom-hover glass active:scale-[0.985]',
+        'group relative w-full overflow-hidden rounded-xl p-4 pl-5 text-left transition-all duration-300 ease-soft ripe bloom-hover glass active:scale-[0.99]',
         selected
-          ? 'shadow-tint-lg ring-2'
+          ? 'shadow-[inset_0_4px_12px_rgba(0,0,0,0.35)] bg-black/20 border-t border-black/30 border-b border-white/5 scale-[0.995]'
           : kbActive
-            ? 'shadow-tint-lg ring-2 ring-active'
-            : 'shadow-tint hover:-translate-y-1 hover:scale-[1.01] hover:shadow-tint-lg',
+            ? 'shadow-tint-lg ring-1 ring-active'
+            : 'shadow-[0_2px_6px_rgba(0,0,0,0.12)] border border-white/[0.03] hover:-translate-y-0.5 hover:scale-[1.005] hover:shadow-tint-lg',
       )}
     >
-      {/* Sọc category bên trái — bóng như thanh kẹo */}
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-1.5 rounded-r-full"
+        className="absolute inset-y-0 left-0 w-1 rounded-r-full"
         style={{
           backgroundColor: c.bar,
           backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.45), transparent 45%)',
         }}
       />
 
-      {/* #3 — thao tác nhanh khi hover (ẩn khi đang ở chế độ chọn nhiều) */}
       {!selectionActive && (
         <span className="absolute right-2 top-2 z-10 hidden items-center gap-0.5 rounded-lg bg-popover/85 p-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
           <CardAction icon={Archive} title="Lưu trữ" onClick={onArchive} />
@@ -217,7 +204,6 @@ function EmailCard({
       )}
 
       <div className="flex items-start gap-3.5">
-        {/* Avatar + checkbox chọn (hiện khi hover hoặc đang chọn) */}
         <div className="relative size-9 shrink-0">
           <div
             className="gloss flex size-9 items-center justify-center rounded-full font-serif text-sm font-semibold ring-1 ring-inset"
@@ -260,20 +246,20 @@ function EmailCard({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                'truncate text-sm',
-                email.unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80',
+                'truncate font-serif tracking-wide text-[14.5px]',
+                email.unread ? 'font-bold text-foreground' : 'font-medium text-foreground/80',
               )}
             >
               {email.sender}
             </span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">{email.time}</span>
+            <span className="ml-auto shrink-0 text-xs font-mono text-muted-foreground/70">{email.time}</span>
           </div>
 
-          <div className="mt-0.5 flex items-center gap-1.5">
-            {email.unread && <span className="cherry-dot size-2 shrink-0 rounded-full" />}
+          <div className="mt-1 flex items-center gap-1.5">
+            {email.unread && <span className="cherry-dot size-1.5 shrink-0 rounded-full" />}
             <span
               className={cn(
-                'truncate text-sm',
+                'truncate text-sm tracking-tight',
                 email.unread ? 'font-medium text-foreground' : 'text-muted-foreground',
               )}
             >
@@ -284,14 +270,14 @@ function EmailCard({
             )}
           </div>
 
-          <p className="mt-1 truncate text-xs text-muted-foreground">{email.preview}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground/80 leading-relaxed">{email.preview}</p>
 
           {(email.label || (email.priority && email.priority !== 'fyi')) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
               {email.priority && email.priority !== 'fyi' && (
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
                     PRIORITY[email.priority].cls,
                   )}
                 >
@@ -301,8 +287,8 @@ function EmailCard({
               )}
               {email.label && (
                 <span
-                  className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                  style={{ backgroundColor: c.soft, color: c.ink }}
+                  className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ backgroundColor: `color-mix(in srgb, ${c.soft} 40%, transparent)`, color: c.ink }}
                 >
                   {email.label}
                 </span>
@@ -315,14 +301,12 @@ function EmailCard({
   )
 }
 
-/* Co giãn độ rộng dải hộp thư — kẹp trong khoảng hợp lý, nhớ qua localStorage */
 const MIN_W = 300
 const MAX_W = 560
 const DEFAULT_W = 384
 const WIDTH_KEY = 'meoarc:listWidth'
 const clampW = (n: number) => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)))
 
-/* Tên thư mục để hiển thị tiêu đề cột */
 const FOLDER_TITLES: Record<string, string> = {
   inbox: 'Hộp thư',
   starred: 'Gắn sao',
@@ -349,12 +333,9 @@ export function EmailList({
   openedId: string | null
   onOpen: (id: string) => void
   actions: EmailActions
-  /** Có hàm này = chế độ backend thật → tìm kiếm chạy trên Gmail (server). */
   onSearch?: (q: string) => void
-  /** Có hàm này = còn thư để tải thêm (phân trang server). */
   onLoadMore?: () => void
   loadingMore?: boolean
-  /** Có hàm này = nút "Làm mới" nạp lại từ Gmail (bỏ qua cache). */
   onRefresh?: () => void
   refreshing?: boolean
 }) {
@@ -368,16 +349,14 @@ export function EmailList({
     attachment: false,
   })
 
-  // Lựa chọn nhiều (UC006)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [labelOpen, setLabelOpen] = useState(false)
-  const [deleteIds, setDeleteIds] = useState<string[] | null>(null) // xác nhận xoá (bulk hoặc 1 thư)
+  const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(false)
-  const [kbActive, setKbActive] = useState(-1) // #2 — chỉ mục đang chọn bằng phím
+  const [kbActive, setKbActive] = useState(-1)
   const listRef = useRef<HTMLDivElement>(null)
   const toast = useToast()
 
-  // ---- Co giãn độ rộng (drag handle ở mép phải) ----
   const sectionRef = useRef<HTMLElement>(null)
   const dragging = useRef(false)
   const [width, setWidth] = useState<number>(() => {
@@ -405,7 +384,6 @@ export function EmailList({
   }
 
   const refresh = () => {
-    // Backend thật → nạp lại từ Gmail (bỏ qua cache). Mock → giả lập quay 700ms như cũ.
     if (onRefresh) {
       onRefresh()
       return
@@ -414,13 +392,9 @@ export function EmailList({
     window.setTimeout(() => setLoading(false), 700)
   }
 
-  // serverMode = đang nối backend thật → việc tìm kiếm do Gmail (server) làm,
-  // nên KHÔNG lọc theo chữ ở phía trình duyệt nữa (tránh lọc 2 lần, mất kết quả).
   const serverMode = !!onSearch
   const nl = nlMode && query.trim() ? interpretNL(query) : null
 
-  // UC005 — chế độ server: tự gửi từ khoá sang Gmail sau khi NGỪNG GÕ ~0.45s (debounce)
-  // → khỏi cần nhấn Enter, và không gọi mạng mỗi ký tự. Bỏ qua lần đầu (ô còn trống).
   const firstSearch = useRef(true)
   useEffect(() => {
     if (!serverMode) return
@@ -429,11 +403,9 @@ export function EmailList({
       return
     }
     const t = window.setTimeout(() => onSearch?.(query.trim()), 450)
-    return () => window.clearTimeout(t) // gõ tiếp trong 0.45s → huỷ lần gọi cũ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => window.clearTimeout(t)
   }, [query, serverMode])
 
-  // Lọc theo thư mục nav (starred = thư gắn sao, trừ thùng rác)
   const folderEmails = useMemo(
     () =>
       emails.filter((e) => {
@@ -454,12 +426,10 @@ export function EmailList({
       if (!serverMode && text.trim() && !matchText(emailHaystack(e), text)) return false
       return true
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderEmails, filter, query, nlMode, quick])
 
   const unreadCount = folderEmails.filter((e) => e.unread).length
 
-  // #2 — phím tắt: / focus tìm kiếm · j/k duyệt · Enter mở · Esc bỏ chọn
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -488,7 +458,6 @@ export function EmailList({
     return () => window.removeEventListener('keydown', onKey)
   }, [results, kbActive, onOpen])
 
-  // Cuộn thẻ đang chọn (phím) vào tầm nhìn; kẹp lại nếu danh sách đổi
   useEffect(() => {
     if (kbActive >= results.length) setKbActive(results.length ? results.length - 1 : -1)
   }, [results.length, kbActive])
@@ -498,9 +467,8 @@ export function EmailList({
     node?.scrollIntoView({ block: 'nearest' })
   }, [kbActive])
 
-  // #3 — thao tác nhanh trên 1 thư
   const quickArchive = (id: string) => {
-    actions.removeEmails([id], 'archive') // lưu trữ = bỏ nhãn INBOX (khác xoá)
+    actions.removeEmails([id], 'archive')
     toast('Đã lưu trữ thư', 'success')
   }
   const quickStar = (e: Email) => {
@@ -517,7 +485,6 @@ export function EmailList({
     setQuick({ unread: false, starred: false, attachment: false })
   }
 
-  // ---- Selection helpers ----
   const ids = Array.from(selected)
   const clearSel = () => setSelected(new Set())
   const toggleOne = (id: string) =>
@@ -544,7 +511,7 @@ export function EmailList({
   const doDelete = () => {
     if (!deleteIds) return
     const n = deleteIds.length
-    actions.removeEmails(deleteIds, 'delete') // xoá = chuyển vào thùng rác
+    actions.removeEmails(deleteIds, 'delete')
     setDeleteIds(null)
     toast(`Đã xoá ${n} thư`, 'destructive')
     clearSel()
@@ -553,29 +520,28 @@ export function EmailList({
   return (
     <section
       ref={sectionRef}
-      style={{ width }}
-      className="relative z-10 flex h-full shrink-0 flex-col bg-list"
+      style={{ 
+        width, 
+        backgroundColor: 'color-mix(in srgb, var(--rail) 65%, #050103)',
+        boxShadow: 'inset -1px 0 0 0 rgba(0,0,0,0.2)'
+      }}
+      className="relative z-10 flex h-full shrink-0 flex-col transition-all duration-300"
     >
-      {/* Header */}
-      <header className="flex flex-col gap-4 border-b border-border/60 px-6 py-5">
+      {/* [OLD MONEY FIX] Đã xóa bỏ hoàn toàn dải sơn chảy rớt cờ Pháp để tránh tranh chấp visual */}
+
+      <header className="flex flex-col gap-4 px-6 pt-8 pb-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-serif text-[27px] font-semibold leading-none text-foreground">
+            <h1 className="font-serif text-[27px] font-semibold leading-none tracking-wide text-foreground">
               {FOLDER_TITLES[folder] ?? 'Hộp thư'}
             </h1>
-            <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="mt-1.5 text-[10px] font-mono font-medium uppercase tracking-[0.18em] text-muted-foreground/50">
               {isFiltering ? (
-                <>
-                  <AnimatedNumber value={results.length} /> kết quả
-                </>
+                <><AnimatedNumber value={results.length} /> kết quả</>
               ) : folder === 'inbox' ? (
-                <>
-                  <AnimatedNumber value={unreadCount} /> thư chưa đọc · MeoArc
-                </>
+                <><AnimatedNumber value={unreadCount} /> thư chưa đọc · MeoArc</>
               ) : (
-                <>
-                  <AnimatedNumber value={folderEmails.length} /> thư
-                </>
+                <><AnimatedNumber value={folderEmails.length} /> thư</>
               )}
             </p>
           </div>
@@ -585,7 +551,7 @@ export function EmailList({
               title="Làm mới"
               aria-label="Làm mới hộp thư"
               onClick={refresh}
-              className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="flex size-9 items-center justify-center rounded-xl text-muted-foreground/60 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
             >
               <RefreshCw className={cn('size-4', (loading || refreshing) && 'animate-spin')} />
             </button>
@@ -593,10 +559,10 @@ export function EmailList({
               title="Bộ lọc theo tiêu chí"
               onClick={() => setShowFilters((v) => !v)}
               className={cn(
-                'flex size-9 items-center justify-center rounded-xl transition-colors',
+                'flex size-9 items-center justify-center rounded-xl transition-colors border border-transparent',
                 showFilters
                   ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  : 'text-muted-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground',
               )}
             >
               <SlidersHorizontal className="size-4" />
@@ -604,9 +570,9 @@ export function EmailList({
           </div>
         </div>
 
-        {/* Ô tìm kiếm + nút bật chế độ ngôn ngữ tự nhiên */}
+        {/* Khung tìm kiếm pha lê */}
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-foreground/40" />
           <Input
             id="meoarc-search"
             type="text"
@@ -619,33 +585,21 @@ export function EmailList({
                   ? 'Hỏi: "thư chưa đọc có đính kèm"…'
                   : 'Tìm (phím / để focus)…'
             }
-            className="border-0 bg-transparent pl-9 pr-10 text-foreground shadow-none glass placeholder:text-foreground/60"
+            className="border border-foreground/[0.08] bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 shadow-[0_4px_12px_rgba(0,0,0,0.12)] backdrop-blur-xl ring-1 ring-foreground/[0.04] focus-visible:ring-gold/40 focus-visible:from-foreground/[0.09]"
           />
           <button
             onClick={() => setNlMode((v) => !v)}
             title={nlMode ? 'Tắt tìm theo ngôn ngữ tự nhiên' : 'Tìm bằng ngôn ngữ tự nhiên'}
             className={cn(
               'absolute right-2 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg transition-colors',
-              nlMode ? 'bg-active text-active-foreground' : 'text-muted-foreground hover:text-foreground',
+              nlMode ? 'bg-active text-active-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             <Sparkles className="size-4" />
           </button>
         </div>
 
-        {/* Tiêu chí NL đã "hiểu" */}
-        {nl && nl.criteria.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Đã hiểu:</span>
-            {nl.criteria.map((c) => (
-              <span key={c} className="rounded-full bg-active/20 px-2 py-0.5 font-medium text-foreground">
-                {c}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Chip lọc theo category */}
+        {/* Các Tag danh mục Sơn mài */}
         <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
           {FILTERS.map((f) => {
             const active = filter === f.key
@@ -655,20 +609,19 @@ export function EmailList({
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={cn(
-                  'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all duration-200',
+                  'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-serif tracking-wide transition-all duration-300 border',
                   active
-                    ? 'bg-foreground text-background shadow-subtle'
-                    : 'glass text-foreground/80 shadow-subtle hover:text-foreground',
+                    ? 'bg-foreground text-background border-transparent shadow-md font-semibold scale-105'
+                    : 'bg-foreground/[0.03] border-foreground/[0.05] text-foreground/70 hover:bg-foreground/[0.08] hover:border-gold/30 hover:text-foreground active:scale-95',
                 )}
               >
-                {dot && <span className="size-2 rounded-full" style={{ backgroundColor: dot }} />}
+                {dot && <span className="size-1.5 rounded-full shadow-sm" style={{ backgroundColor: dot }} />}
                 {f.label}
               </button>
             )
           })}
         </div>
 
-        {/* Bộ lọc nhanh theo tiêu chí */}
         {showFilters && (
           <div className="flex flex-wrap gap-2">
             {QUICK.map((q) => {
@@ -678,10 +631,10 @@ export function EmailList({
                   key={q.key}
                   onClick={() => setQuick((s) => ({ ...s, [q.key]: !s[q.key] }))}
                   className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all duration-200',
+                    'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-serif transition-all duration-200',
                     active
-                      ? 'bg-accent text-accent-foreground shadow-subtle'
-                      : 'glass text-foreground/80 shadow-subtle hover:text-foreground',
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-foreground/[0.03] text-foreground/70 hover:bg-foreground/[0.08]',
                   )}
                 >
                   {q.label}
@@ -692,13 +645,12 @@ export function EmailList({
         )}
       </header>
 
-      {/* Thanh thao tác hàng loạt (UC006) */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+        <div className="flex items-center gap-2 border-y border-foreground/[0.04] bg-foreground/[0.01] px-4 py-2.5">
           <button
             onClick={toggleSelectAll}
             title={allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-            className="flex size-8 items-center justify-center rounded-lg text-active transition-colors hover:bg-secondary"
+            className="flex size-8 items-center justify-center rounded-lg text-active transition-colors hover:bg-foreground/[0.04]"
           >
             {allSelected ? <CheckSquare className="size-5" /> : <Square className="size-5" />}
           </button>
@@ -714,83 +666,103 @@ export function EmailList({
         </div>
       )}
 
-      {/* Danh sách card / trạng thái rỗng */}
-      <div ref={listRef} className="scrollbar-thin fade-y flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {loading ? (
-          // Skeleton khi làm mới
-          [0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl glass p-4 pl-5 shadow-soft">
-              <div className="flex items-start gap-3.5">
-                <div className="skeleton size-9 shrink-0 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <div className="skeleton h-3.5 w-2/5 rounded" />
-                  <div className="skeleton h-3 w-4/5 rounded" />
-                  <div className="skeleton h-2.5 w-3/5 rounded" />
+      {/* HỐC VẢI LỤA SATIN - Tích hợp cấu trúc dệt gân nổi thẳng đứng (Bespoke Ribbed Knit) từ image_73098b.jpg */}
+      <div className="px-3 pb-3 flex-1 min-h-0">
+        <div 
+          ref={listRef} 
+          style={{ 
+            backgroundColor: 'var(--list)',
+            /* Sử dụng color-mix nương theo foreground hệ thống để Light Mode dệt chỉ tối, Dark Mode tráng chỉ bạc phát quang */
+            backgroundImage: `
+              linear-gradient(90deg, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 0, 0, 0.15) 1px, transparent 1px),
+              repeating-linear-gradient(90deg, 
+                transparent, 
+                transparent 26px, 
+                color-mix(in srgb, var(--foreground) 8%, transparent) 26px, 
+                color-mix(in srgb, var(--foreground) 8%, transparent) 27px, 
+                color-mix(in srgb, var(--background) 15%, transparent) 27px, 
+                color-mix(in srgb, var(--background) 15%, transparent) 28px
+              )
+            `,
+            backgroundPosition: '0 0, 1px 0, 0 0',
+            backgroundSize: '100% 100%'
+          }}
+          className="w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin shadow-[inset_0_5px_16px_rgba(0,0,0,0.28)] border border-foreground/[0.08]"
+        >
+          {loading ? (
+            [0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl glass p-4 pl-5 shadow-soft">
+                <div className="flex items-start gap-3.5">
+                  <div className="skeleton size-9 shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-3.5 w-2/5 rounded" />
+                    <div className="skeleton h-3 w-4/5 rounded" />
+                    <div className="skeleton h-2.5 w-3/5 rounded" />
+                  </div>
                 </div>
               </div>
+            ))
+          ) : results.length > 0 ? (
+            <>
+              {results.map((email, i) => (
+                <EmailCard
+                  key={email.id}
+                  email={email}
+                  index={i}
+                  selected={openedId === email.id}
+                  checked={selected.has(email.id)}
+                  selectionActive={selected.size > 0}
+                  kbActive={kbActive === i}
+                  onSelect={() => onOpen(email.id)}
+                  onToggleCheck={() => toggleOne(email.id)}
+                  onArchive={() => quickArchive(email.id)}
+                  onStar={() => quickStar(email)}
+                  onDelete={() => setDeleteIds([email.id])}
+                />
+              ))}
+              {onLoadMore && (
+                <button
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="mt-1 w-full rounded-xl glass py-2.5 text-xs font-medium text-foreground shadow-subtle transition-all hover:-translate-y-0.5 disabled:opacity-60"
+                >
+                  {loadingMore ? 'Đang tải…' : 'Tải thêm thư'}
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="mt-14 flex flex-col items-center gap-3 px-6 text-center">
+              <div className="relative flex size-20 items-center justify-center">
+                <span className="bokeh flex size-16 items-center justify-center">
+                  <MeoMascot className="size-16" />
+                </span>
+                <span className="absolute bottom-0 right-0 flex size-7 items-center justify-center rounded-full glass text-muted-foreground shadow-subtle">
+                  <SearchX className="size-3.5" />
+                </span>
+              </div>
+              <p className="text-sm font-medium text-foreground">
+                {isFiltering ? 'Không tìm thấy thư nào' : `Mục “${FOLDER_TITLES[folder] ?? ''}” đang trống`}
+              </p>
+              <p className="text-xs text-muted-foreground/60">
+                {isFiltering
+                  ? 'Thử đổi từ khoá hoặc bỏ bớt bộ lọc đang áp dụng.'
+                  : 'Chưa có thư nào ở đây.'}
+              </p>
+              {isFiltering && (
+                <button
+                  onClick={clearAll}
+                  className="mt-1 flex items-center gap-1.5 rounded-full glass px-3 py-1 text-xs font-medium text-foreground shadow-subtle hover:-translate-y-0.5"
+                >
+                  <X className="size-3.5" />
+                  Xoá bộ lọc
+                </button>
+              )}
             </div>
-          ))
-        ) : results.length > 0 ? (
-          <>
-            {results.map((email, i) => (
-              <EmailCard
-                key={email.id}
-                email={email}
-                index={i}
-                selected={openedId === email.id}
-                checked={selected.has(email.id)}
-                selectionActive={selected.size > 0}
-                kbActive={kbActive === i}
-                onSelect={() => onOpen(email.id)}
-                onToggleCheck={() => toggleOne(email.id)}
-                onArchive={() => quickArchive(email.id)}
-                onStar={() => quickStar(email)}
-                onDelete={() => setDeleteIds([email.id])}
-              />
-            ))}
-            {/* Còn thư trên Gmail (onLoadMore có giá trị) → nút tải trang kế */}
-            {onLoadMore && (
-              <button
-                onClick={onLoadMore}
-                disabled={loadingMore}
-                className="mt-1 w-full rounded-xl glass py-2.5 text-xs font-medium text-foreground shadow-subtle transition-all hover:-translate-y-0.5 disabled:opacity-60"
-              >
-                {loadingMore ? 'Đang tải…' : 'Tải thêm thư'}
-              </button>
-            )}
-          </>
-        ) : (
-          <div className="mt-10 flex flex-col items-center gap-3 px-6 text-center">
-            <div className="relative flex size-20 items-center justify-center">
-              <span className="bokeh flex size-16 items-center justify-center">
-                <MeoMascot className="size-16" />
-              </span>
-              <span className="absolute bottom-0 right-0 flex size-7 items-center justify-center rounded-full glass text-muted-foreground shadow-subtle">
-                <SearchX className="size-3.5" />
-              </span>
-            </div>
-            <p className="text-sm font-medium text-foreground">
-              {isFiltering ? 'Không tìm thấy thư nào' : `Mục “${FOLDER_TITLES[folder] ?? ''}” đang trống`}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {isFiltering
-                ? 'Thử đổi từ khoá hoặc bỏ bớt bộ lọc đang áp dụng.'
-                : 'Chưa có thư nào ở đây.'}
-            </p>
-            {isFiltering && (
-              <button
-                onClick={clearAll}
-                className="mt-1 flex items-center gap-1.5 rounded-full glass px-3 py-1 text-xs font-medium text-foreground shadow-subtle hover:-translate-y-0.5"
-              >
-                <X className="size-3.5" />
-                Xoá bộ lọc
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Dialog gắn nhãn */}
       <LabelDialog
         open={labelOpen}
         onOpenChange={setLabelOpen}
@@ -802,7 +774,6 @@ export function EmailList({
         }}
       />
 
-      {/* Dialog xác nhận xoá (bulk hoặc 1 thư khi hover) */}
       <Dialog open={deleteIds !== null} onOpenChange={(o) => !o && setDeleteIds(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -827,7 +798,6 @@ export function EmailList({
         </DialogContent>
       </Dialog>
 
-      {/* Tay nắm kéo giãn độ rộng — đường mảnh + grip hạt cherry khi hover/focus */}
       <div
         role="separator"
         aria-orientation="vertical"
@@ -846,13 +816,12 @@ export function EmailList({
             setWidth((w) => clampW(w - 16))
           } else if (e.key === 'ArrowRight') {
             e.preventDefault()
-            setWidth((w) => clampW(w + 16))
           }
         }}
         title="Kéo để chỉnh độ rộng · double-click để khôi phục"
         className="group absolute inset-y-0 -right-2 z-30 flex w-4 cursor-col-resize touch-none items-center justify-center"
       >
-        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/50 transition-colors group-hover:bg-active group-focus-visible:bg-active" />
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/20 transition-colors group-hover:bg-active group-focus-visible:bg-active" />
         <span className="cherry-dot relative h-10 w-1.5 rounded-full opacity-0 shadow-subtle transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
       </div>
     </section>

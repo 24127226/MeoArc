@@ -249,7 +249,7 @@ function AgentText({ children }: { children: React.ReactNode }) {
   return (
     // whitespace-pre-line: GIỮ xuống dòng + gạch đầu dòng của AI → câu trả lời có bố cục,
     // không bị dồn thành một đoạn dài (trông chỉn chu hơn hẳn).
-    <div className="max-w-[88%] whitespace-pre-line break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light glass">
+    <div className="max-w-[88%] whitespace-pre-line break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light rose-glass">
       {/* Chỉ "giải mã" khi nội dung là chuỗi (text/intro của AI) */}
       {typeof children === 'string' ? <ScrambleText text={children} /> : children}
     </div>
@@ -339,7 +339,7 @@ function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: st
           type="button"
           onClick={() => onOpen?.(e.id)}
           disabled={!onOpen}
-          className="group/mail flex w-full items-center gap-2.5 rounded-xl bg-popover-foreground/5 p-2 text-left transition-colors hover:bg-popover-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-default disabled:hover:bg-popover-foreground/5"
+          className="group/mail flex w-full items-center gap-2.5 rounded-xl bg-[#452216]/5 dark:bg-white/5 p-2 text-left transition-colors hover:bg-[#452216]/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <MiniAvatar initial={e.initial} />
           <div className="min-w-0 flex-1">
@@ -372,7 +372,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
       return next
     })
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <CalendarClock className="size-4 text-primary" />
@@ -382,7 +382,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
       <CardContent className="space-y-3 pt-2">
         {/* Hàng bento: thời gian · người tham gia */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-popover-foreground/5 p-3">
+          <div className="rounded-xl bg-[#452216]/5 dark:bg-white/5 p-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Clock className="size-3.5" />
               Thời gian
@@ -394,7 +394,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
               </p>
             )}
           </div>
-          <div className="rounded-xl bg-popover-foreground/5 p-3">
+          <div className="rounded-xl bg-[#452216]/5 dark:bg-white/5 p-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Users className="size-3.5" />
               Tham gia
@@ -473,7 +473,7 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
       return next
     })
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="size-4 text-primary" />
@@ -545,7 +545,7 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
 function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }> }) {
   const max = Math.max(1, ...reply.breakdown.map((b) => b.count))
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <BarChart3 className="size-4 text-primary" />
@@ -605,6 +605,97 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 }
 
 /* ---------- Panel ---------- */
+
+/** Dòng sơn chảy xuống — SINH ĐỘNG: chạy dài xuống gần đáy màn hình rồi tan.
+ *  Đặt trong đúng lane từng màu (khớp dải header). Nằm SAU bong bóng chat (z-0) nên KHÔNG
+ *  che chữ. --pc = màu sơn; --fall = quãng rơi (vh). */
+const S_NAVY = '#0b1d3a'
+const S_WHITE = '#e9e3d6'
+const S_RED = '#b0302e'
+const PAINT_STREAKS: { x: string; c: string; w: number; len: number; dur: number; delay: number; fall: number }[] = [
+  { x: '5%', c: S_NAVY, w: 5, len: 20, dur: 5.5, delay: 0.0, fall: 72 },
+  { x: '13%', c: S_NAVY, w: 4, len: 15, dur: 7.2, delay: 2.4, fall: 60 },
+  { x: '20%', c: S_NAVY, w: 5, len: 22, dur: 6.0, delay: 3.6, fall: 78 },
+  { x: '27%', c: S_WHITE, w: 4, len: 17, dur: 6.6, delay: 1.1, fall: 66 },
+  { x: '31%', c: S_WHITE, w: 5, len: 23, dur: 5.8, delay: 3.0, fall: 74 },
+  { x: '38%', c: S_RED, w: 6, len: 26, dur: 5.0, delay: 0.5, fall: 82 },
+  { x: '43%', c: S_RED, w: 5, len: 19, dur: 6.3, delay: 2.7, fall: 70 },
+  { x: '58%', c: S_RED, w: 6, len: 26, dur: 5.3, delay: 1.5, fall: 82 },
+  { x: '63%', c: S_RED, w: 5, len: 18, dur: 6.9, delay: 3.3, fall: 68 },
+  { x: '69%', c: S_WHITE, w: 5, len: 21, dur: 6.0, delay: 0.8, fall: 74 },
+  { x: '73%', c: S_WHITE, w: 4, len: 15, dur: 7.4, delay: 2.5, fall: 62 },
+  { x: '80%', c: S_NAVY, w: 5, len: 21, dur: 5.6, delay: 1.0, fall: 76 },
+  { x: '88%', c: S_NAVY, w: 4, len: 14, dur: 6.7, delay: 3.5, fall: 60 },
+  { x: '95%', c: S_NAVY, w: 5, len: 19, dur: 6.1, delay: 2.0, fall: 78 },
+]
+
+/** MeltingWave — sơn tan chảy theo ĐÚNG LANE từng dải màu header (dùng lại viewBox 320 →
+ *  khớp x 1-1). Mép dưới lượn KHÔNG ĐỀU (bất đối xứng, nhiều bướu) cho tự nhiên. Kèm dòng
+ *  sơn chảy dài xuống gần đáy. ĐẶT SAU bong bóng chat (z-0) để không che tin nhắn. */
+function MeltingWave() {
+  return (
+    <div aria-hidden className="pointer-events-none relative z-0 h-0 select-none">
+      {/* Dòng sơn chảy (sau band) — chạy dài xuống dưới */}
+      {PAINT_STREAKS.map((s, i) => (
+        <span
+          key={i}
+          className="paint-stream"
+          style={
+            {
+              left: s.x,
+              width: s.w,
+              height: s.len,
+              ['--pc' as string]: s.c,
+              ['--fall' as string]: `${s.fall}vh`,
+              animationDuration: `${s.dur}s`,
+              animationDelay: `${s.delay}s`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+
+      {/* Band sơn ở mép header — drop-shadow đổ bóng xuống mặt chat */}
+      <div className="absolute inset-x-0 top-[-2px] h-[62px] filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.32)]">
+        <svg
+          className="h-full w-full"
+          viewBox="0 0 320 80"
+          preserveAspectRatio="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <linearGradient id="mw-navy" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#1b3a63" />
+              <stop offset="0.5" stopColor="#0b1d3a" />
+              <stop offset="1" stopColor="#050f22" />
+            </linearGradient>
+            <linearGradient id="mw-white" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="0.5" stopColor="#f1ece1" />
+              <stop offset="1" stopColor="#d9d1c2" />
+            </linearGradient>
+            <linearGradient id="mw-red" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#c8413c" />
+              <stop offset="0.5" stopColor="#a62b2b" />
+              <stop offset="1" stopColor="#7c1c1c" />
+            </linearGradient>
+          </defs>
+
+          {/* ── LANE NAVY (0–75 & 245–320) ── mép lượn KHÔNG ĐỀU (bướu lệch, sâu nông khác nhau) */}
+          <path fill="url(#mw-navy)" d="M0,0 L75,0 C75,18 71,44 63,52 C56,58 52,40 43,50 C33,60 24,70 13,57 C7,49 2,20 0,0 Z" />
+          <path fill="url(#mw-navy)" d="M245,0 L320,0 C320,20 316,52 306,58 C299,62 296,45 286,52 C276,60 264,49 255,58 C250,50 246,18 245,0 Z" />
+
+          {/* ── LANE TRẮNG NGÀ (75–110 & 210–245) ── opacity 0.9 để khúc xạ nền chat */}
+          <path fill="url(#mw-white)" opacity="0.9" d="M75,0 L110,0 C110,5 107,55 99,48 C93,53 89,37 82,46 C79,50 76,18 75,0 Z" />
+          <path fill="url(#mw-white)" opacity="0.9" d="M210,0 L245,0 C245,14 242,46 235,50 C229,55 225,39 218,48 C214,52 211,16 210,0 Z" />
+
+          {/* ── LANE ĐỎ MẬN (110–145 & 175–210) ── TRĨU NẶNG nhất, bướu lệch, sườn dốc sắc */}
+          <path fill="url(#mw-red)" d="M110,0 L145,0 C145,66 142,75 133,66 C127,72 123,50 117,61 C114,66 111,24 110,0 Z" />
+          <path fill="url(#mw-red)" d="M175,0 L210,0 C210,24 205,60 198,66 C193,70 189,50 183,62 C179,66 176,22 175,0 Z" />
+        </svg>
+      </div>
+    </div>
+  )
+}
 
 export function ChatPanel({
   emails,
@@ -972,73 +1063,185 @@ export function ChatPanel({
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
       {/* Nền sinh động: aurora ấm trôi + quầng nến + tàn lửa (đặt sau nội dung) */}
       <ChatAmbience />
+      {/* Watermark maison — Phiên bản SÁNG BÓNG ÁNH KIM cho Dark Mode, chốt hạ bài toán tàng hình */}
+      <div aria-hidden className="maison-watermark relative z-[2]">
+        <style>{`
+          .wm-title {
+            font-family: var(--font-display);
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            /* Light Mode: Giữ độ nét thanh lịch, xám Champagne dập khối tinh tế */
+            color: color-mix(in srgb, var(--foreground) 16%, transparent);
+            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.45);
+            transition: all 0.3s ease;
+          }
+          
+          .dark .wm-title {
+            /* Dark Mode lột xác: Đẩy mạnh lên 38% để sắc trắng bạc ánh kim lộ diện rực rỡ */
+            color: color-mix(in srgb, var(--foreground) 38%, #ffffff);
+            /* Quầng sáng neon bóng bẩy hắt ra từ lòng chữ, giả lập hiệu ứng kim loại bóng loáng phản quang dưới ánh đèn */
+            text-shadow: 
+              0 0 1px rgba(255, 255, 255, 0.6),
+              0 0 8px color-mix(in srgb, var(--active) 30%, transparent),
+              1px 2px 3px rgba(0, 0, 0, 0.7);
+          }
+
+          .wm-sign span {
+            font-family: var(--font-serif);
+            font-style: italic;
+            color: color-mix(in srgb, var(--foreground) 18%, transparent);
+            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+          }
+          
+          .dark .wm-sign span {
+            /* Chữ ký phụ cũng được tráng bạc nhạt mờ ảo để không bị chìm nghỉm */
+            color: color-mix(in srgb, var(--foreground) 24%, #ffffff);
+            text-shadow: 0 0 4px rgba(255, 255, 255, 0.2), 1px 1px 2px rgba(0, 0, 0, 0.5);
+          }
+        `}</style>
+
+        <div className="wm-title">MEOARC</div>
+        <div className="wm-sign">
+          <span>Designed by Eugene</span>
+        </div>
+      </div>
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
       <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} onResult={(t) => send(t, true)} />
-      {/* Header */}
-      <header className="stars-faint flex items-center gap-3 border-b border-border/50 px-6 py-5">
-        <span className="bokeh flex size-11 shrink-0 items-center justify-center">
-          <MeoMascot
-            thinking={thinking || speaking}
-            mood={thinking || speaking ? 'thinking' : worried ? 'worry' : mood}
-            className="size-11"
-          />
-        </span>
-        <div className="min-w-0">
-          <h2 className="holo-text font-serif text-[22px] font-semibold leading-none">
-            Trợ lý MeoArc
-          </h2>
-          <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            <span className="size-1.5 shrink-0 rounded-full bg-success" />
-            Sẵn sàng · ngôn ngữ tự nhiên
-          </p>
+      
+      {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
+      <header className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
+        
+        {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
+          {/* Đường hairline trắng gắt giả lập ánh sáng khúc xạ qua khe cắt kính */}
+          <div className="w-full h-[1px] bg-background/50 border-t border-white/[0.08]" />
+          {/* Rãnh cắt tối dập chìm, hắt bóng xuống lòng khung chat bên dưới */}
+          <div className="w-full h-[1px] bg-[#000000]/40 shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
         </div>
-        <div className="ml-auto flex items-center gap-0.5">
-          <kbd
-            title="Mở bảng lệnh"
-            className="mr-1 hidden items-center gap-0.5 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground lg:flex"
-          >
-            ⌘K
-          </kbd>
-          <button
-            onClick={() => {
-              setTtsOn((v) => {
-                if (v && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-                setSpeaking(false)
-                return !v
-              })
-            }}
-            title={ttsOn ? 'Tắt đọc câu trả lời' : 'Bật đọc câu trả lời'}
-            aria-label={ttsOn ? 'Tắt giọng đọc' : 'Bật giọng đọc'}
-            className={cn(
-              'flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-secondary',
-              ttsOn ? 'text-active' : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {ttsOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-          </button>
-          <button
-            onClick={newChat}
-            title="Cuộc trò chuyện mới"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <SquarePen className="size-4" />
-          </button>
-          <button
-            onClick={() => setHistoryOpen(true)}
-            title="Lịch sử trò chuyện"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <History className="size-4" />
-          </button>
+
+        {/* ĐỒ HỌA SVG CHUẨN MÃ OTO: Đuôi lớp đa giác nối tiếp, sửa lỗi đè sọc Trắng và chốt khối Tam giác Navy ngoài góc */}
+        <div className="absolute inset-0 pointer-events-none z-0">
+          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 320 90">
+            <defs>
+              <linearGradient id="french-glow-edge-left" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+              <linearGradient id="french-glow-edge-right" x1="100%" y1="0%" x2="0%" y2="0%">
+                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+            </defs>
+
+            {/* CÁNH TRÁI: Xuất phát từ góc trên cùng, phủ kín góc bằng Navy và tăng độ dày Trắng-Đỏ */}
+            <path d="M 0,0 L 25,0 L 75,90 L 0,90 Z" fill="#0b1d3a" opacity="0.95" />
+            <path d="M 25,0 L 60,0 L 110,90 L 75,90 Z" fill="#ffffff" opacity="1" />
+            <path d="M 60,0 L 95,0 L 145,90 L 110,90 Z" fill="#a62b2b" opacity="0.95" />
+            <path d="M 95,0 L 115,0 L 165,90 L 145,90 Z" fill="url(#french-glow-edge-left)" opacity="0.35" />
+
+            {/* CÁNH PHẢI: Đối xứng trục tuyệt đối qua tâm diện (320px) */}
+            <path d="M 320,0 L 295,0 L 245,90 L 320,90 Z" fill="#0b1d3a" opacity="0.95" />
+            <path d="M 295,0 L 260,0 L 210,90 L 245,90 Z" fill="#ffffff" opacity="1" />
+            <path d="M 260,0 L 225,0 L 175,90 L 210,90 Z" fill="#a62b2b" opacity="0.95" />
+            <path d="M 225,0 L 205,0 L 155,90 L 175,90 Z" fill="url(#french-glow-edge-right)" opacity="0.35" />
+          </svg>
+        </div>
+
+        {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
+        <div className="relative flex items-center justify-between w-full z-10">
+          <div className="flex items-center shrink-0 ml-12">
+            <span className="bokeh flex size-10 shrink-0 items-center justify-center bg-background/50 backdrop-blur-md rounded-xl border border-foreground/[0.04] shadow-sm">
+              <MeoMascot
+                thinking={thinking || speaking}
+                mood={thinking || speaking ? 'thinking' : worried ? 'worry' : mood}
+                className="size-10"
+              />
+            </span>
+          </div>
+
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none">
+            <h2 
+              className="font-serif text-[23px] font-black uppercase text-foreground leading-none tracking-[0.4em] transition-all duration-700 group-hover:scale-[1.02] group-hover:tracking-[0.44em]"
+              style={{ 
+                textShadow: '0 1px 1px rgba(255,255,255,0.22), inset 0 1px 2px rgba(0,0,0,0.28)',
+                letterSpacing: '0.4em'
+              }}
+            >
+              Trợ lý MeoArc
+            </h2>
+            <p className="mt-2.5 text-[8.5px] font-serif tracking-[0.28em] italic text-muted-foreground/50">
+              Maison de L'intellect
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 mr-12">
+            <button
+              onClick={() => setHistoryOpen((v) => !v)}
+              title="Kích hoạt dải phím thao tác"
+              className={cn(
+                "flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-gold/40 hover:text-foreground shadow-sm",
+                historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
+              )}
+            >
+              <Sparkles className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* KHAY CHỨA NÚT CƠ KHÍ: Trượt lướt mượt mà khi được kích hoạt */}
+        <div 
+          className={cn(
+            "relative z-10 flex items-center justify-center gap-4 w-full border-t border-foreground/[0.04] bg-foreground/[0.01] mt-4 pt-3 transition-all duration-500 ease-soft",
+            historyOpen 
+              ? "max-h-12 opacity-100 translate-y-0" 
+              : "max-h-0 opacity-0 -translate-y-4 pointer-events-none overflow-hidden mt-0 pt-0 border-t-0"
+          )}
+        >
+          <div className="flex items-center gap-2 px-4 py-1 rounded-full bg-background/60 backdrop-blur-md border border-foreground/[0.05] shadow-inner">
+            <kbd className="hidden items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-background px-1.5 py-0.5 text-[9px] font-mono font-medium text-muted-foreground/70 lg:flex">
+              ⌘K
+            </kbd>
+
+            <button
+              onClick={() => {
+                setTtsOn((v) => {
+                  if (v && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+                  setSpeaking(false)
+                  return !v
+                })
+              }}
+              title={ttsOn ? 'Tắt đọc câu trả lời' : 'Bật đọc câu trả lời'}
+              className={cn(
+                'flex size-8 items-center justify-center rounded-lg transition-colors',
+                ttsOn ? 'text-active bg-background shadow-sm' : 'text-muted-foreground hover:bg-background/40 hover:text-foreground',
+              )}
+            >
+              {ttsOn ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+            </button>
+
+            <button
+              onClick={newChat}
+              title="Cuộc trò chuyện mới"
+              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background/40 hover:text-foreground"
+            >
+              <SquarePen className="size-3.5" />
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* Làn sóng sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header, trĩu xuống đè
+          lên khung chat. Lớp h-0 ngay sau header nên bám đúng mép dưới, không bị
+          overflow-hidden của header cắt. */}
+      <MeltingWave />
 
       {/* Canvas hội thoại */}
       <div
         ref={scrollRef}
-        className="scrollbar-thin fade-y flex-1 space-y-5 overflow-y-auto px-6 py-6"
+        className="scrollbar-thin fade-y relative z-[1] flex-1 space-y-5 overflow-y-auto px-6 py-6"
       >
         {messages.map((m) => {
           return (
@@ -1131,7 +1334,6 @@ export function ChatPanel({
       </div>
 
       {/* Lịch sử trò chuyện (UC011) — drawer trượt từ phải */}
-      {/* Lớp nền mờ */}
       <div
         aria-hidden
         onClick={() => setHistoryOpen(false)}
@@ -1140,7 +1342,6 @@ export function ChatPanel({
           historyOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
-      {/* Ngăn kéo */}
       <div
         role="dialog"
         aria-label="Lịch sử trò chuyện"
@@ -1151,7 +1352,6 @@ export function ChatPanel({
           historyOpen ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        {/* Header */}
         <div className="flex items-center gap-3 border-b border-border/40 px-5 py-4">
           <span className="bokeh flex size-9 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
             <History className="size-4" />
@@ -1174,7 +1374,6 @@ export function ChatPanel({
           </button>
         </div>
 
-        {/* Tạo mới + tìm kiếm */}
         <div className="space-y-2.5 px-5 py-3">
           <button
             onClick={() => {
@@ -1197,7 +1396,6 @@ export function ChatPanel({
           </div>
         </div>
 
-        {/* Danh sách theo nhóm thời gian */}
         <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4">
           {historyGroups.length === 0 ? (
             <div className="mt-14 flex flex-col items-center gap-3 px-6 text-center">
@@ -1220,7 +1418,6 @@ export function ChatPanel({
                     const active = s.id === currentId
                     const renaming = renamingId === s.id
 
-                    // Dải xác nhận xoá (hành động không hoàn tác — UC011 bước 6)
                     if (deletingId === s.id) {
                       return (
                         <div
@@ -1260,7 +1457,6 @@ export function ChatPanel({
                         {active && (
                           <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-active" />
                         )}
-                        {/* Ghim hoặc hạt cherry/chấm mờ */}
                         <span className="mt-1 flex size-2 shrink-0 items-center justify-center">
                           {s.pinned ? (
                             <Pin className="size-3 text-active" />
@@ -1312,7 +1508,6 @@ export function ChatPanel({
                           )}
                         </div>
 
-                        {/* Hành động hiện khi hover (UC011: Pin · Rename · Delete) */}
                         {!renaming && (
                           <div className="absolute right-2 top-1.5 hidden items-center gap-0.5 rounded-lg bg-popover/90 px-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
                             <HistAction
@@ -1342,7 +1537,6 @@ export function ChatPanel({
   )
 }
 
-/** Mock "viết lại" draft theo gợi ý (backend thật dùng LLM). */
 function rewriteVariant(base: string, instr: string): string {
   const i = normalize(instr)
   if (/(ngan|short|gon|suc tich)/.test(i))
@@ -1354,7 +1548,6 @@ function rewriteVariant(base: string, instr: string): string {
   return `${base}${instr ? `\n\n(Đã điều chỉnh theo: “${instr}”.)` : '\n\n(Đã viết lại.)'}`
 }
 
-/** Bản nháp trả lời (UC010) — 4 hành động: Gửi · Chỉnh sửa (inline) · Viết lại · Huỷ. */
 function DraftCard({
   reply,
   resolved,
@@ -1394,16 +1587,22 @@ function DraftCard({
 
   if (done || resolved) {
     return (
-      <Card className="bg-transparent shadow-float glass">
+      <Card className="rose-glass shadow-float overflow-hidden relative">
+        {done === 'sent' && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex size-12 items-center justify-center rounded-full bg-[#a8392f] text-[#fbf0e2] font-serif font-bold text-lg border-2 border-[#f2dcc0]/40 shadow-md rotate-[-12deg] opacity-80 animate-in fade-in zoom-in duration-500">
+            M
+            <div className="absolute inset-0.5 rounded-full border border-dashed border-[#fbf0e2]/30" />
+          </div>
+        )}
         <CardHeader>
           <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Mail className="size-4 text-primary" />
             Bản nháp trả lời
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            {done === 'cancelled' ? 'Đã huỷ' : 'Đã gửi ✓'}
+        <CardContent className="pt-2 pr-20">
+          <span className="text-xs font-serif font-semibold uppercase tracking-wider text-foreground/80">
+            {done === 'cancelled' ? 'Đã huỷ thư' : 'Đã niêm phong mật thư ✓'}
           </span>
         </CardContent>
       </Card>
@@ -1411,7 +1610,7 @@ function DraftCard({
   }
 
   return (
-    <Card className={cn('bg-transparent shadow-float glass transition-all', spotCls)}>
+    <Card className={cn('rose-glass shadow-float transition-all overflow-hidden', spotCls)}>
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Mail className="size-4 text-primary" />
@@ -1428,18 +1627,18 @@ function DraftCard({
               onChange={(e) => setSubject(e.target.value)}
             />
             <textarea
-              className={cn(fieldCls, 'min-h-28 resize-none leading-relaxed')}
+              className={cn(fieldCls, 'min-h-28 resize-none font-serif leading-relaxed bg-[#fbf0e2]/90 text-[#3a1414] shadow-inner')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
           </div>
         ) : (
           <>
-            <p className="text-muted-foreground">
-              <span className="text-foreground">Tới:</span> {to}
+            <p className="text-muted-foreground text-xs">
+              <span className="text-foreground font-medium">Tới:</span> {to}
             </p>
-            <p className="text-muted-foreground">
-              <span className="text-foreground">Chủ đề:</span> {subject}
+            <p className="text-muted-foreground text-xs">
+              <span className="text-foreground font-medium">Chủ đề:</span> {subject}
             </p>
             {rewriting ? (
               <div className="mt-2 space-y-2 rounded-xl bg-popover px-3.5 py-3 shadow-subtle">
@@ -1448,14 +1647,13 @@ function DraftCard({
                 <div className="skeleton h-3 w-2/3 rounded" />
               </div>
             ) : (
-              <div className="mt-2 whitespace-pre-line rounded-xl bg-popover px-3.5 py-3 leading-relaxed text-popover-foreground shadow-subtle">
+              <div className="mt-2 whitespace-pre-line rounded-xl bg-[#f7ebd9] px-4 py-3.5 font-serif text-[14px] leading-relaxed text-[#3e1717] shadow-[inset_0_1px_3px_rgba(0,0,0,0.1),_0_4px_12px_rgba(0,0,0,0.08)] border border-[#e5d4bc]">
                 {body}
               </div>
             )}
           </>
         )}
 
-        {/* Ô gợi ý "viết lại" */}
         {rwOpen && (
           <div className="flex items-center gap-1.5 pt-1">
             <input
@@ -1472,7 +1670,7 @@ function DraftCard({
           </div>
         )}
       </CardContent>
-      <CardFooter className="flex-wrap gap-2">
+      <CardFooter className="flex-wrap gap-2 border-t border-border/10 pt-3 mt-2">
         <Button
           variant="primary"
           size="sm"
@@ -1481,9 +1679,10 @@ function DraftCard({
             setDone('sent')
             onSendDraft(id, to)
           }}
+          className="relative overflow-hidden group/btn"
         >
-          <Send className="size-4" />
-          Gửi
+          <Send className="size-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+          Niêm phong & Gửi
         </Button>
         <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>
           <Pencil className="size-4" />
@@ -1508,7 +1707,6 @@ function DraftCard({
   )
 }
 
-/** Categorize (UC009) — checklist: chỉnh nhãn từng thư + bỏ chọn, rồi mới áp dụng. */
 function CategorizeWidget({
   reply,
   resolved,
@@ -1547,7 +1745,7 @@ function CategorizeWidget({
   const included = rows.filter((r) => !excluded.has(r.id))
 
   return (
-    <Card className={cn('overflow-hidden bg-transparent shadow-float glass transition-all', spotCls)}>
+    <Card className={cn('overflow-hidden rose-glass shadow-float transition-all', spotCls)}>
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="size-4 text-primary" />
@@ -1581,14 +1779,21 @@ function CategorizeWidget({
                 onClick={() => cycleLabel(r.id)}
                 disabled={resolved || off}
                 title="Bấm để đổi nhãn"
-                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-foreground ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#452216] dark:text-[#f7e4d7] ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
                 style={
                   {
-                    backgroundColor: `color-mix(in srgb, ${c.bar} 24%, transparent)`,
-                    ['--tw-ring-color']: `color-mix(in srgb, ${c.bar} 50%, transparent)`,
+                    // Sử dụng Tailwind CSS Variable hoặc phối trực tiếp:
+                    backgroundColor: `color-mix(in srgb, ${c.bar} 75%, #fbf5eb)`, // Khóa độ đục ban ngày bằng nền cát ấm
+                    ['--tw-ring-color']: c.bar, // Viền đặc màu nhãn không loãng
                   } as CSSProperties
                 }
               >
+                {/* Thêm một mẹo nhỏ đè class cho Dark Mode bằng Tailwind nếu muốn tùy biến sâu hơn: */}
+                <style>{`
+                  .dark .dark\\:bg-dark-tag {
+                    background-color: color-mix(in srgb, ${c.bar} 40%, #3c050f) !important;
+                  }
+                `}</style>
                 <span className="size-1.5 rounded-full" style={{ backgroundColor: c.bar }} />
                 {r.label}
               </button>
@@ -1655,7 +1860,6 @@ function AgentMessage({
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
-  // Lớp nhấn khi card đang là confirmation chờ duyệt (#8)
   const spotCls = spotlight ? 'ring-2 ring-spark/50 shadow-float' : ''
 
   if (reply.kind === 'text') {
@@ -1684,7 +1888,7 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <Card className="bg-transparent shadow-float glass">
+        <Card className="rose-glass shadow-float">
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <FileText className="size-4 text-primary" />
@@ -1693,10 +1897,8 @@ function AgentMessage({
           </CardHeader>
           <CardContent className="pt-2">
             {reply.emails && reply.emails.length > 0 ? (
-              // Có dữ liệu thư THẬT (id) → hàng BẤM ĐƯỢC mở thẳng thư.
               <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
             ) : (
-              // Thoái lui: chỉ có text (vd quota lỗi) → vẫn hiện gạch đầu dòng như cũ.
               <div className="space-y-2">
                 {reply.lines.map((l, i) => (
                   <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
@@ -1770,7 +1972,6 @@ function AgentMessage({
   }
 
   if (reply.kind === 'plan') {
-    // Trạng thái từng bước: done / running / pending (#7)
     const stepStatus = (i: number): 'done' | 'running' | 'pending' => {
       if (running) {
         if (i < exec!.current) return 'done'
@@ -1782,7 +1983,7 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <Card className={cn('bg-transparent shadow-float glass transition-all', spotCls)}>
+        <Card className={cn('rose-glass shadow-float transition-all', spotCls)}>
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <ListChecks className="size-4 text-primary" />
@@ -1790,7 +1991,6 @@ function AgentMessage({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
-            {/* Thought-map: sơ đồ node tiến trình của agent (#3) */}
             {reply.steps.length > 1 && (
               <div className="flex items-center px-1 pb-1">
                 {reply.steps.map((_s, i) => {
@@ -1901,7 +2101,6 @@ function AgentMessage({
     )
   }
 
-  // draft
   return (
     <AgentRow>
       <AgentText>{reply.intro}</AgentText>

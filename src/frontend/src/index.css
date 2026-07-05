@@ -79,6 +79,19 @@
   --glass-bg: rgba(74, 20, 20, 0.3);
   --glass-border: rgba(255, 240, 226, 0.18);
 
+  /* AUBERGINE GLEAM — dải màu "loang" (marbled) cho khối kính chat (.rose-glass).
+     Tông theo PANTONE 20-0124 "Aubergine Gleam" (#301728): cà tím sẫm ánh kim.
+     Bề mặt ĐẶC (bớt trong) + vệt loang GHÌ TRẦM (bỏ hồng/trắng chói) cho êm mắt. */
+  --rose-aubergine: #301728; /* Aubergine Gleam — nền chủ đạo */
+  --rose-ink: #3a071f;       /* Rose Ink / blackberry — hốc sâu */
+  --rose-wine: #6f1f3b;      /* Blush Wine — mận */
+  --rose-petal: #9c6079;     /* Petal Dust (đã ghì trầm cho bớt chói) */
+  --rose-powder: #c78fa4;    /* Powder Rose (dịu) */
+  --rose-ivory: #fff0f5;     /* Ivory Bloom — chỉ dùng cho ánh kim mảnh */
+  --rose-glass-bg: rgba(48, 23, 40, 0.62);      /* aubergine — ĐẶC hơn, bớt trong */
+  --rose-glass-brd: rgba(240, 225, 232, 0.16);  /* ánh kim mảnh */
+  --rose-marble-op: 0.32;                        /* vệt loang chìm, không chọi mắt */
+
   /* Bóng sâu (tông đỏ sẫm) để glass nổi rõ trên nền đỏ */
   --shadow-sm: 0 1px 2px rgba(60, 12, 12, 0.18), 0 1px 3px rgba(60, 12, 12, 0.14);
   --shadow-md: 0 1px 2px rgba(60, 12, 12, 0.16), 0 6px 12px -4px rgba(60, 12, 12, 0.22),
@@ -144,6 +157,11 @@
   --glass-bg: rgba(28, 2, 10, 0.4);
   --glass-border: rgba(255, 220, 220, 0.1);
 
+  /* AUBERGINE GLEAM (dark) — nền cà tím ĐẶC, bong bóng bớt trong hẳn; loang chìm */
+  --rose-glass-bg: rgba(48, 23, 40, 0.80);      /* aubergine đậm — bớt trong rõ rệt */
+  --rose-glass-brd: rgba(240, 225, 232, 0.10);  /* ánh kim mảnh */
+  --rose-marble-op: 0.42;                        /* loang êm, sang & dịu mắt */
+
   /* Dark cần bóng sâu hơn, tông đen */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 16px -4px rgba(0, 0, 0, 0.45),
@@ -158,6 +176,9 @@
 @theme inline {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  /* Display "maison" — chữ khắc thời trang cao cấp: watermark, masthead, số liệu lớn.
+     Cormorant Garamond (thanh mảnh, tương phản cao) = chất Vogue/old-money. */
+  --font-display: 'Cormorant Garamond', 'Playfair Display', ui-serif, Georgia, serif;
 
   /* Easing vật lý — "tactile". spring = nảy nhẹ (overshoot); soft = giảm tốc mượt.
      Dùng class ease-spring / ease-soft cho hover/press/panel. */
@@ -260,6 +281,44 @@
     backdrop-filter: blur(14px) saturate(1.1);
     -webkit-backdrop-filter: blur(14px) saturate(1.1);
     border: 1px solid var(--glass-border);
+  }
+
+  /* Kính "loang" Rosé — CHỮ luôn NÉT: nội dung nằm trên, vệt marbled ở ::before.
+     ::before z-index:-1 + isolation ⇒ opacity/vệt chỉ chạm NỀN, không đụng chữ, kể cả
+     khi chữ là text-node trần (ScrambleText). KHÔNG set border-radius để kế thừa bo góc
+     từ rounded-* của khối; overflow:hidden cắt vệt loang theo đúng bo góc đó. */
+  .rose-glass {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--rose-glass-bg);
+    backdrop-filter: blur(14px) saturate(1.25);
+    -webkit-backdrop-filter: blur(14px) saturate(1.25);
+    border: 1px solid var(--rose-glass-brd);
+    overflow: hidden;
+  }
+  .rose-glass::before {
+    content: '';
+    position: absolute;
+    inset: -30%;
+    z-index: -1;
+    background:
+      radial-gradient(50% 52% at 24% 22%, color-mix(in oklab, var(--rose-petal) 24%, transparent), transparent 72%),
+      radial-gradient(52% 56% at 80% 30%, color-mix(in oklab, var(--rose-wine) 40%, transparent), transparent 74%),
+      radial-gradient(58% 58% at 58% 86%, color-mix(in oklab, var(--rose-ink) 52%, transparent), transparent 76%),
+      radial-gradient(66% 66% at 92% 90%, color-mix(in oklab, var(--rose-aubergine) 72%, transparent), transparent 78%);
+    background-repeat: no-repeat;
+    filter: blur(20px);
+    opacity: var(--rose-marble-op);
+    pointer-events: none;
+    animation: rose-drift 26s ease-in-out infinite alternate;
+  }
+  @keyframes rose-drift {
+    0%   { transform: translate3d(0, 0, 0) scale(1.06) rotate(0deg); }
+    50%  { transform: translate3d(2%, -2%, 0) scale(1.13) rotate(2deg); }
+    100% { transform: translate3d(-2%, 1%, 0) scale(1.09) rotate(-2deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rose-glass::before { animation: none; }
   }
 
   /* Panel AI: nền riêng (champagne light / surface dark), khác list email.
@@ -1103,4 +1162,187 @@
   .send-ripple {
     animation: none;
   }
+}
+
+/* ============================================================
+   HIỆU ỨNG XOAY KIM ĐỒNG HỒ CƠ (MẸO CLAUDE)
+   Quay liên tục một vòng tròn 360 độ từ góc ban đầu
+   ============================================================ */
+@keyframes clock-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Ép các kim nhận đúng biến thời gian từ React truyền xuống */
+.clock-hand {
+  animation-name: clock-sweep;
+  animation-duration: var(--period);
+  animation-delay: var(--delay);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+/* ============================================================
+   MAISON — CHI TIẾT THỜI TRANG CAO CẤP (watermark · drip · masthead)
+   ============================================================ */
+
+/* 1) WATERMARK khung chat — chữ MEOARC khắc chìm giữa canvas, "Designed by Eugene"
+      kẹp giữa hai gạch mảnh. Non-interactive, đứng sau tin nhắn, không cuộn. */
+.maison-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  gap: 0.6rem;
+}
+.maison-watermark .wm-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(3.5rem, 11vw, 8.5rem);
+  line-height: 0.9;
+  letter-spacing: 0.14em;
+  padding-left: 0.14em; /* bù letter-spacing để CĂN GIỮA quang học */
+  color: color-mix(in srgb, var(--foreground) 100%, transparent);
+  opacity: 0.05;
+}
+.maison-watermark .wm-sign {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  opacity: 0.11;
+}
+.maison-watermark .wm-sign::before,
+.maison-watermark .wm-sign::after {
+  content: '';
+  width: clamp(28px, 6vw, 64px);
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--gold, #d4af37) 90%, transparent),
+    transparent
+  );
+}
+.maison-watermark .wm-sign span {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(0.8rem, 1.6vw, 1.05rem);
+  letter-spacing: 0.32em;
+  padding-left: 0.32em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--gold, #d4af37) 85%, var(--foreground));
+}
+
+/* 2) DRIP — giọt sơn RỚT khỏi dải ruy-băng tam sắc (rơi + dài ra + tan dần).
+      Mỗi giọt là 1 ellipse nhỏ dưới band; animation lệch pha cho tự nhiên. */
+@keyframes paint-drip {
+  0% { transform: translateY(0) scaleY(0.6); opacity: 0; }
+  12% { opacity: 0.9; }
+  55% { transform: translateY(14px) scaleY(1.5); opacity: 0.85; }
+  100% { transform: translateY(30px) scaleY(2.4); opacity: 0; }
+}
+.paint-drop {
+  transform-origin: top center;
+  animation: paint-drip var(--drip-dur, 6s) ease-in var(--drip-delay, 0s) infinite;
+}
+
+/* 3) MASTHEAD — biển hiệu tiêu đề Trợ lý: bề mặt riêng + hairline vàng + tên khắc.
+      Tách bạch tuyệt đối với canvas chat bên dưới. */
+.masthead {
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--rail) 92%, #000) 0%,
+      color-mix(in srgb, var(--rail) 78%, #000) 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--gold, #d4af37) 30%, transparent);
+  box-shadow: 0 6px 22px -8px rgba(0, 0, 0, 0.5);
+}
+/* HOLLYWOOD — 2 luồng đèn sân khấu hắt NGƯỢC LÊN từ thanh ngăn cách đáy,
+   rọi vào tên "Trợ lý MeoArc". Nón sáng vàng champagne + tán mềm, đứng sau chữ. */
+.masthead::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* nón trái */
+    radial-gradient(58% 150% at 30% 118%,
+      color-mix(in srgb, var(--gold, #d4af37) 34%, transparent) 0%,
+      transparent 62%),
+    /* nón phải */
+    radial-gradient(58% 150% at 70% 118%,
+      color-mix(in srgb, var(--gold, #d4af37) 30%, transparent) 0%,
+      transparent 62%),
+    /* vệt sáng gắt sát mép thanh ngăn (chân đèn) */
+    linear-gradient(0deg,
+      color-mix(in srgb, var(--gold, #d4af37) 26%, transparent) 0%,
+      transparent 22%);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+}
+/* Nội dung header nổi trên luồng sáng */
+.masthead > * {
+  position: relative;
+  z-index: 1;
+}
+/* Vệt loé mảnh chạy dọc trên thanh ngăn (điểm sáng đèn) — tôn "sân khấu" */
+.masthead::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  height: 2px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--gold, #d4af37) 85%, #fff) 50%,
+    transparent);
+  filter: blur(0.4px);
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paint-drop { animation: none; opacity: 0; }
+}
+
+/* ══════════════ DÒNG SƠN CHẢY XUỐNG (paint streams) ══════════════
+   Dòng sơn thuôn dài chảy từ band ở header xuống gần đáy màn hình rồi tan.
+   Nằm SAU bong bóng chat (z-0) → sinh động mà không che chữ. Chỉ transform/opacity. */
+.paint-stream {
+  position: absolute;
+  top: 2px;
+  border-radius: 45% 45% 50% 50% / 28% 28% 62% 62%;   /* thuôn giọt, đầu dưới tròn */
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--pc) 78%, #fff) 0%,
+    var(--pc) 55%,
+    color-mix(in srgb, var(--pc) 82%, #000) 100%);
+  box-shadow: inset 1px 0 0.5px rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  animation-name: paint-stream-fall;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.85, 0.5);   /* rơi tăng tốc như trọng lực */
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes paint-stream-fall {
+  0%   { transform: translateY(0) scaleY(0.55); opacity: 0; }
+  9%   { opacity: 0.92; }                         /* nhú ra khỏi band */
+  72%  { opacity: 0.82; }
+  100% { transform: translateY(var(--fall, 72vh)) scaleY(1.35); opacity: 0; }  /* chảy dài xuống + tan */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paint-stream { animation: none; opacity: 0; }
 }
