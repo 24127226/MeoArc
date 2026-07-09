@@ -33,7 +33,14 @@ def create_llm():
         "model": settings.model_name,
         "model_provider": settings.model_provider,
         # ── Reliability (NFR) ──
-        # max_retries: tự thử lại (có exponential backoff sẵn) khi Gemini trả lỗi chớp nhoáng
+        # temperature=0: XÁC ĐỊNH, bám schema tool chặt. QUAN TRỌNG với Groq/Llama —
+        #   temperature cao khiến model hay sinh cú gọi hàm SAI cú pháp (vd
+        #   <function=search_emails({"limit":"5","is_read":"false"})>) → Groq trả 400
+        #   tool_use_failed. Về 0 thì bám đúng JSON tool-call hơn hẳn. Gemini cũng
+        #   ổn định hơn cho tác vụ chọn tool. Đổi qua .env (AGENT_TEMPERATURE) nếu
+        #   muốn câu trả lời "bay" hơn — nhưng tool calling thì càng thấp càng chắc.
+        "temperature": settings.agent_temperature,
+        # max_retries: tự thử lại (có exponential backoff sẵn) khi model trả lỗi chớp nhoáng
         #   (429 theo phút / 5xx / timeout mạng). Lưu ý: hết quota theo NGÀY thì retry KHÔNG cứu được.
         # timeout: cắt lệnh gọi treo quá 60s để không "kẹt" cả vòng agent.
         "max_retries": 3,

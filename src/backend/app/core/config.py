@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     model_name: str = "gemini-2.0-flash"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
+    #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
+    #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
+    #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.
+    agent_temperature: float = 0.0
 
     # ── Observability: LangSmith tracing (đúng proposal — opt-in, tắt mặc định) ──
     # langsmith_api_key ← LANGSMITH_API_KEY : điền key (free ở smith.langchain.com) là BẬT

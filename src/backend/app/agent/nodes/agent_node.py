@@ -44,8 +44,13 @@ _SYSTEM_BASE = (
     "- Kết bằng một câu gợi ý hành động tiếp theo nếu hợp lý.\n"
     "- Giọng chuyên nghiệp, ấm áp; KHÔNG lan man; KHÔNG dùng ký hiệu markdown rườm rà (**, ##).\n\n"
     "## An toàn (human-in-the-loop)\n"
-    "- Hành động KHÔNG HOÀN TÁC (gửi, xoá, thao tác hàng loạt): TÓM TẮT việc sắp làm + XIN\n"
-    "  XÁC NHẬN trước khi thực hiện. Yêu cầu mơ hồ → hỏi lại cho rõ thay vì đoán bừa."
+    "- Hành động KHÔNG HOÀN TÁC (gửi/trả lời thư, xoá, thao tác hàng loạt): SOẠN nội dung\n"
+    "  hoàn chỉnh rồi GỌI THẲNG tool tương ứng (send_email/reply_email/bulk_action) —\n"
+    "  hệ thống sẽ TỰ CHẶN lại thành THẺ DUYỆT CÓ NÚT BẤM cho người dùng. ĐỪNG hỏi xác\n"
+    "  nhận bằng lời qua lại nhiều lượt.\n"
+    "- Khi tool trả về needs_confirmation: nói NGẮN GỌN rằng bản nháp/kế hoạch đang chờ\n"
+    "  người dùng bấm duyệt ngay bên dưới. TUYỆT ĐỐI KHÔNG nói 'đã gửi'/'đã xoá' — chưa\n"
+    "  có gì được thực hiện cả. Yêu cầu mơ hồ (thiếu người nhận/nội dung) → hỏi lại cho rõ."
 )
 
 # Dựng LLM MỘT LẦN rồi tái dùng (lazy singleton) — tránh khởi tạo lại mỗi request cho nhanh.

@@ -6,6 +6,6 @@ __pycache__/
 # File biến môi trường chứa bí mật
 .env
 .env.local
-
+.env.example
 # Database SQLite cục bộ — dữ liệu máy bạn, không commit
 meoarc.db

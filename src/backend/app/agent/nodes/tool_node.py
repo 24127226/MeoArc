@@ -21,6 +21,31 @@ async def _run_one(call: dict, ctx) -> ToolMessage:
     name = call.get("name", "")
     args = call.get("args", {}) or {}
     call_id = call.get("id", "")
+
+    # ── CONFIRM GATE (human-in-the-loop — UC007/UC010) ────────────────────
+    # Tool KHÔNG HOÀN TÁC (send_email/reply_email/bulk_action — requires_confirmation
+    # theo category trong registry) bị CHẶN TẠI ĐÂY, không chạy thật. Trả payload
+    # needs_confirmation kèm ĐỦ args → app.py dựng thẻ draft/plan có NÚT DUYỆT cho FE;
+    # người dùng bấm nút mới gửi/xoá thật (qua endpoint tất định, không qua LLM).
+    # Trước đây thiếu cổng này: LLM gọi send_email là đi thẳng — không ai duyệt,
+    # và LLM có thể nói "đã gửi" dù tool lỗi. (MCP có cổng confirm RIÊNG ở mcp/server.py
+    # — gate này chỉ nằm trên đường LangGraph nên không ảnh hưởng MCP.)
+    try:
+        needs_confirm = bool(tool_registry.get_spec(name).requires_confirmation)
+    except Exception:
+        needs_confirm = False  # registry giả trong test / tool lạ → không gate
+    if needs_confirm:
+        content = json.dumps({
+            "success": False,
+            "needs_confirmation": True,
+            "action": name,
+            "args": args,
+            "message": ("ĐÃ CHẶN chờ người dùng DUYỆT trên giao diện. Hãy nói ngắn gọn rằng "
+                        "bản nháp/kế hoạch đang chờ họ bấm nút xác nhận ngay bên dưới — "
+                        "TUYỆT ĐỐI KHÔNG nói rằng đã gửi/đã thực hiện."),
+        }, ensure_ascii=False)
+        return ToolMessage(content=content, name=name, tool_call_id=call_id)
+
     try:
         result = await tool_registry.call(name, args, ctx)   # CHẠY tool thật
         # Kết quả là Pydantic model (vd SearchEmailsOutput) → đổi sang dict rồi JSON

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from app.schemas.email import Email
 from app.core.retry import gmail_read_retry  # NFR-Reliability: tự thử lại lỗi mạng/429 (chỉ ĐỌC)
+from app.core.labeling import classify  # UC009: gán category+label TẤT ĐỊNH theo nội dung (không băm ngẫu nhiên)
 
 # Gmail trả giờ theo MÚI GIỜ trong header (thường UTC). Phải đổi sang giờ VIỆT NAM
 # thì người dùng mới thấy ĐÚNG đồng hồ của mình (vd 06:21 UTC → 13:21 giờ VN).
@@ -84,26 +85,40 @@ def _header(msg: dict, name: str) -> str:
 
 def _to_email(msg: dict, folder: str = "inbox") -> Email:
     name, addr = parseaddr(_header(msg, "From"))  # tách "Tên <email>" → (tên, email)
+    to_name, to_addr = parseaddr(_header(msg, "To"))
     sender = name or addr or "(không tên)"
+    # Thư MÌNH GỬI (sent/drafts): From = chính mình → card phải hiện NGƯỜI NHẬN
+    # (như Gmail thật hiện "Tới: X"). Trước đây luôn lấy From nên mọi thẻ ở mục
+    # Đã gửi đều mang tên tài khoản của mình — trông như "MeoArc gửi MeoArc".
+    display = sender
+    display_email = addr
+    if folder in ("sent", "drafts"):
+        display = to_name or to_addr or "(chưa có người nhận)"
+        display_email = to_addr
     raw_date = _header(msg, "Date")
     time_s, date_s = _fmt_local(raw_date)   # giờ hiển thị THEO GIỜ VN (đã sửa lệch múi giờ)
     labels = msg.get("labelIds", [])
     snippet = msg.get("snippet", "")
-    cat = _CATS[sum(ord(c) for c in msg["id"]) % len(_CATS)]
+    raw_subject = _header(msg, "Subject") or ""
+    # UC009: phân loại TẤT ĐỊNH theo người gửi + tiêu đề + snippet (engine rule-based).
+    # Thay cho băm id ngẫu nhiên trước đây → mỗi lần fetch cho ĐÚNG MỘT category/label
+    # (nhãn không "biến mất" sau khi làm mới), và khớp y hệt nhãn UC009 đề xuất/áp.
+    cls = classify(addr, name, raw_subject, snippet)
     return Email(
         id=msg["id"],
-        sender=sender,
-        senderEmail=addr,
-        senderInitial=(sender[:1].upper() or "?"),
-        to="",                      # danh sách chưa cần người nhận
-        subject=_header(msg, "Subject") or "(không tiêu đề)",
+        sender=display,
+        senderEmail=display_email,
+        senderInitial=(display.lstrip("(")[:1].upper() or "?"),
+        to=to_addr,                 # người nhận thật (detail/FE dùng được)
+        subject=raw_subject or "(không tiêu đề)",
         preview=snippet,
         body=[snippet],             # nấc này chỉ lấy snippet; body đầy đủ để sau
         time=time_s,
         date=date_s,
         unread=("UNREAD" in labels),
         starred=("STARRED" in labels),
-        category=cat,               # type: ignore[arg-type]  (cat luôn là 1 trong 7 key hợp lệ)
+        category=cls.category.color,   # type: ignore[arg-type]  (1 trong 7 màu chip FE)
+        label=cls.category.label,      # tên nhãn tiếng Việt (Học tập/Công việc/…) hiện trên card
         folder=folder,              # type: ignore[arg-type]  (gắn đúng thư mục đang xem)
         threadId=msg.get("threadId"),  # id luồng THẬT từ Gmail (đóng nợ INTEGRATION #3)
     )
@@ -191,7 +206,7 @@ def list_messages(
             r = client.get(
                 GMAIL_MSG.format(id=mid), headers=headers,
                 params={"format": "metadata",
-                        "metadataHeaders": ["From", "Subject", "Date"]},
+                        "metadataHeaders": ["From", "To", "Subject", "Date"]},
             )
             if r.status_code == 200:
                 emails.append(_to_email(r.json(), tag))
@@ -274,20 +289,23 @@ def get_message(access_token: str, msg_id: str) -> Email:
     raw_date = _header(msg, "Date")
     _, date_s = _fmt_local(raw_date)        # giờ VN (đồng nhất với danh sách)
     labels = msg.get("labelIds", [])
+    raw_subject = _header(msg, "Subject") or ""
+    cls = classify(addr, name, raw_subject, msg.get("snippet", ""))  # UC009: cùng engine với danh sách
     email = Email(
         id=msg["id"],
         sender=sender,
         senderEmail=addr,
         senderInitial=(sender[:1].upper() or "?"),
         to=_header(msg, "To"),
-        subject=_header(msg, "Subject") or "(không tiêu đề)",
+        subject=raw_subject or "(không tiêu đề)",
         preview=msg.get("snippet", ""),
         body=paragraphs,
         time=date_s,
         date=date_s,
         unread=("UNREAD" in labels),
         starred=("STARRED" in labels),
-        category=_CATS[sum(ord(c) for c in msg["id"]) % len(_CATS)],  # type: ignore[arg-type]
+        category=cls.category.color,   # type: ignore[arg-type]
+        label=cls.category.label,      # nhãn khớp danh sách → mở chi tiết không "nhảy màu"
         attachments=([{"name": a["name"], "size": a["size"]} for a in attachments] or None),  # type: ignore[arg-type]
         folder="inbox",
     )

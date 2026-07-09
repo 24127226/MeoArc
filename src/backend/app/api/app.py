@@ -448,6 +448,71 @@ def _categorize_card(messages: list) -> dict | None:
     return None
 
 
+def _confirm_card(messages: list) -> dict | None:
+    """Human-in-the-loop (UC007/UC010): tool KHÔNG HOÀN TÁC bị tool_node CHẶN (payload
+    needs_confirmation) → dựng thẻ CÓ NÚT DUYỆT cho FE: 'draft' (gửi/trả lời — nút
+    Niêm phong & Gửi) hoặc 'plan' (hàng loạt — nút Duyệt/Từ chối). Dựng TẤT ĐỊNH từ
+    args tool (không nhờ LLM) → nội dung thẻ chính là thứ sẽ thực thi, không sai lệch.
+    Trả None nếu lượt này không có tool nào bị chặn."""
+    import json
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    for m in reversed(messages[last_human:]):
+        if getattr(m, "type", None) != "tool":
+            continue
+        try:
+            data = json.loads(m.content)
+        except Exception:
+            continue
+        if not (isinstance(data, dict) and data.get("needs_confirmation")):
+            continue
+        args = data.get("args") or {}
+        name = getattr(m, "name", "")
+
+        if name == "send_email":
+            to = args.get("to") or []
+            return {
+                "kind": "draft",
+                "intro": "Mình đã soạn xong — bạn xem lại rồi bấm gửi nhé:",
+                "to": ", ".join(to) if isinstance(to, list) else str(to),
+                "subject": args.get("subject") or "(không tiêu đề)",
+                "body": args.get("body") or "",
+            }
+        if name == "reply_email":
+            return {
+                "kind": "draft",
+                "intro": "Bản nháp trả lời đã sẵn sàng — bạn duyệt là mình gửi trong đúng luồng thư:",
+                "to": "(người gửi thư gốc — trả lời trong luồng)",
+                "subject": "Re: (thư gốc)",
+                "body": args.get("instructions") or "",
+                "replyToId": args.get("email_id") or "",
+            }
+        if name == "bulk_action":
+            ids = [str(x) for x in (args.get("email_ids") or [])]
+            act = str(args.get("action") or "").lower()
+            op = None
+            if "delete" in act:
+                op = {"type": "delete", "ids": ids}
+            elif "unread" in act:
+                op = {"type": "markRead", "ids": ids, "read": False}
+            elif "read" in act:
+                op = {"type": "markRead", "ids": ids, "read": True}
+            if op:
+                verb = {"delete": "Xoá", "markRead": "Đánh dấu"}[op["type"]]
+                card = {
+                    "kind": "plan",
+                    "intro": "Mình đã lên kế hoạch — bạn duyệt là chạy ngay:",
+                    "steps": [f"Chọn {len(ids)} thư theo yêu cầu", f"{verb} {len(ids)} thư"],
+                    "confirmLabel": f"{verb} {len(ids)} thư",
+                    "op": op,
+                }
+                if op["type"] == "delete":
+                    card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
+                return card
+        return None  # tool destructive khác: chưa có thẻ riêng → giữ câu trả lời của agent
+    return None
+
+
 def _preview_of(display_messages: list) -> str:
     """Vài chữ của TIN GẦN NHẤT (cho drawer xem lướt). Tin agent là thẻ → rút text/intro."""
     for m in reversed(display_messages or []):
@@ -551,6 +616,13 @@ async def agent_chat(
         if cat_card:
             out = cat_card
 
+        # HUMAN-IN-THE-LOOP: lượt này có tool không-hoàn-tác bị CHẶN chờ duyệt →
+        # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,
+        # không phải câu chữ của LLM).
+        confirm_card = _confirm_card(result["messages"])
+        if confirm_card:
+            out = confirm_card
+
         # UI/UX: đính danh sách thư THẬT (bấm mở được) từ search_emails CỦA LƯỢT NÀY → FE render
         # thẻ clickable. Lưu luôn vào display_messages nên phiên cũ mở lại vẫn bấm được.
         # Chỉ đính cho kind 'text'/'result' — 2 kind FE có render danh sách này (digest/triage
@@ -595,6 +667,13 @@ async def agent_chat(
         elif "permission" in low or "403" in text or "invalid_grant" in low or "unauthorized" in low:
             msg = ("🔑 Phiên Gmail có thể đã hết hạn hoặc thiếu quyền. Bạn đăng xuất rồi đăng nhập "
                    "lại bằng Google để cấp quyền mới giúp mình nhé.")
+        elif "tool_use_failed" in low or "failed to call a function" in low or "failed_generation" in low:
+            # Model (thường Llama-trên-Groq) sinh cú gọi tool SAI cú pháp → nhà cung cấp
+            # từ chối. Là lỗi CHẤT LƯỢNG MODEL, không phải hộp thư. Thử lại thường qua
+            # (do lấy mẫu ngẫu nhiên); dai dẳng thì đổi model tool tốt hơn / hạ nhiệt độ.
+            msg = ("🤖 Model AI vừa tạo lệnh gọi công cụ chưa đúng chuẩn (hay gặp với Llama trên "
+                   "Groq). Bạn thử gửi lại — thường lần sau là được. Nếu lặp nhiều, đổi sang "
+                   "model gọi-tool ổn hơn (vd llama-3.3-70b-versatile) hoặc đặt AGENT_TEMPERATURE=0.")
         else:
             msg = f"Xin lỗi, agent đang gặp trục trặc: {exc}"
 
