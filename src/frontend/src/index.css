@@ -92,6 +92,10 @@
   --rose-glass-brd: rgba(240, 225, 232, 0.16);  /* ánh kim mảnh */
   --rose-marble-op: 0.32;                        /* vệt loang chìm, không chọi mắt */
 
+  /* SƠN SIÊU XE — màu khung cột thư. LIGHT: hồng candy sáng + chữ wine sẫm (đọc rõ). */
+  --sc-base: #e56b97; /* hồng sáng — bề mặt sơn (light) */
+  --sc-ink: #3d0a1f;  /* chữ/icon wine sẫm nổi trên hồng sáng */
+
   /* Bóng sâu (tông đỏ sẫm) để glass nổi rõ trên nền đỏ */
   --shadow-sm: 0 1px 2px rgba(60, 12, 12, 0.18), 0 1px 3px rgba(60, 12, 12, 0.14);
   --shadow-md: 0 1px 2px rgba(60, 12, 12, 0.16), 0 6px 12px -4px rgba(60, 12, 12, 0.22),
@@ -161,6 +165,10 @@
   --rose-glass-bg: rgba(48, 23, 40, 0.80);      /* aubergine đậm — bớt trong rõ rệt */
   --rose-glass-brd: rgba(240, 225, 232, 0.10);  /* ánh kim mảnh */
   --rose-marble-op: 0.42;                        /* loang êm, sang & dịu mắt */
+
+  /* SƠN SIÊU XE — DARK: plum sẫm + chữ kem rosé (poster Desert Rose) */
+  --sc-base: #2a0d14; /* plum sẫm — bề mặt sơn (dark) */
+  --sc-ink: #f0c9a6;  /* chữ/icon kem hồng cát */
 
   /* Dark cần bóng sâu hơn, tông đen */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -319,6 +327,198 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .rose-glass::before { animation: none; }
+  }
+
+  /* Kính GÂN DỌC (fluted glass) v2 — theo hướng "progressive dissolve" của
+     liquid-glass (header iOS): KHÔNG viền đáy, KHÔNG bóng đổ (2 thứ tạo vạch
+     phân tách cứng với vùng mail), gân kính ĐẬM RÕ ở đỉnh rồi TAN DẦN mượt
+     xuống danh sách thư → nổi khối mà vẫn liền một dải. Cạnh gân pha VÀNG ĐỒNG
+     (champagne chrome) + vệt sáng chéo tĩnh lướt ngang các gân làm điểm nhấn.
+     Gân ở ::before/::after z-index:-1 (SAU chữ — học từ .rose-glass). */
+  .fluted-glass {
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 3%, transparent) 50%,
+      transparent 96%
+    );
+  }
+  .fluted-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gold) 38%, rgba(255, 255, 255, 0.16)) 0 1px,
+      rgba(255, 255, 255, 0.05) 1px 5px,
+      rgba(0, 0, 0, 0.09) 8px 11px,
+      rgba(255, 255, 255, 0.08) 11px 12px
+    );
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.5) 55%, transparent 94%);
+    mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.5) 55%, transparent 94%);
+    pointer-events: none;
+  }
+  .fluted-glass::after {
+    /* Vệt sáng chéo tĩnh — ánh đèn lướt ngang mặt kính gân */
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(115deg, transparent 22%, rgba(255, 255, 255, 0.12) 40%, transparent 58%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 90%);
+    mask-image: linear-gradient(180deg, #000 0%, transparent 90%);
+    pointer-events: none;
+  }
+  /* Dark: cạnh gân vàng đồng đậm hơn để bắt đèn trên nền vang sẫm */
+  .dark .fluted-glass::before {
+    background: repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--gold) 45%, rgba(255, 255, 255, 0.18)) 0 1px,
+      rgba(255, 255, 255, 0.045) 1px 5px,
+      rgba(0, 0, 0, 0.22) 8px 11px,
+      rgba(255, 255, 255, 0.09) 11px 12px
+    );
+  }
+
+  /* "MÁI NHÀ" khu nhập liệu (.roof-ledge) — đường kẻ cách điệu nơi giọt sơn đáp:
+     hairline VÀNG ĐỒNG sáng dồn vào giữa + quầng glow nhẹ (đèn viền dưới mái)
+     + gờ kính mỏng phía dưới → thấy rõ MẶT MÁI, sang hơn hẳn border thô. */
+  .roof-ledge {
+    position: relative;
+  }
+  .roof-ledge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--gold) 50%, transparent) 14%,
+      color-mix(in srgb, var(--gold) 90%, #fff) 50%,
+      color-mix(in srgb, var(--gold) 50%, transparent) 86%,
+      transparent
+    );
+    box-shadow: 0 1px 7px color-mix(in srgb, var(--gold) 38%, transparent);
+    pointer-events: none;
+  }
+  .roof-ledge::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 6%;
+    right: 6%;
+    height: 8px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
+    pointer-events: none;
+  }
+
+  /* MẶT HỒ lượn sóng ở dải phân cách chat↔composer — 2 lớp sóng SVG trôi NGƯỢC
+     CHIỀU nhau (thị sai → có chiều sâu mặt nước). Giọt sơn rơi đáp đúng lên đây
+     + ripple loang sẵn có = "mưa rơi mặt hồ". Neo tại top của .roof-ledge (đúng
+     --roof-y) nên composer co/giãn thì mặt hồ dịch theo, giọt vẫn đáp trúng
+     (ResizeObserver lo cập nhật --roof-y). pointer-events-none: chỉ trang trí. */
+  .water-surface {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -9px;
+    height: 20px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .water-wave {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200%;   /* 2× khung → dịch -50% = tròn 1 nhịp lặp, cuộn liền mạch */
+    height: 100%;
+    will-change: transform;
+  }
+  .water-wave--a { animation: water-drift-a 9s linear infinite; }
+  .water-wave--b { animation: water-drift-b 13s linear infinite; opacity: 0.6; }
+  @keyframes water-drift-a {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+  @keyframes water-drift-b {
+    from { transform: translate3d(-50%, 0, 0); }
+    to   { transform: translate3d(0, 0, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .water-wave { animation: none; }
+  }
+
+  /* SƠN SIÊU XE (supercar gloss) — bề mặt sơn bóng nước cho KHUNG cột thư.
+     4 lớp chồng: (1) clear-coat sheen dồn sáng đỉnh, cong tối dần xuống đáy;
+     (2) quầng kim loại ấm hắt từ góc; (3) VỆT ĐÈN specular lướt chéo chậm (blend
+     screen) như đèn trôi trên thân xe; (4) nhũ kim loại li ti + rim sáng mép
+     trên. Đặt trên <section>: header để TRONG SUỐT nên nó và khung-dưới-mail
+     cùng ăn màu này → 2 khung đồng nhất, khối mail inset như màn hình lắp chìm. */
+  .supercar-gloss {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--sc-base, #2a0d14);
+    background-image:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.18) 0%,
+        rgba(255, 255, 255, 0.04) 11%,
+        transparent 30%,
+        rgba(0, 0, 0, 0.22) 100%
+      ),
+      radial-gradient(150% 82% at 16% -12%, rgba(255, 255, 255, 0.13), transparent 52%);
+    box-shadow:
+      inset -1px 0 0 0 rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  }
+  .supercar-gloss::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      112deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.05) 46%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0.05) 54%,
+      transparent 60%
+    );
+    background-size: 240% 100%;
+    background-repeat: no-repeat;
+    mix-blend-mode: screen;
+    animation: supercar-sweep 7.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .supercar-gloss::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      radial-gradient(0.6px 0.6px at 20% 30%, rgba(255, 255, 255, 0.5), transparent),
+      radial-gradient(0.6px 0.6px at 70% 22%, rgba(255, 255, 255, 0.4), transparent),
+      radial-gradient(0.5px 0.5px at 44% 68%, rgba(255, 255, 255, 0.45), transparent),
+      radial-gradient(0.6px 0.6px at 85% 58%, rgba(255, 255, 255, 0.35), transparent),
+      radial-gradient(0.5px 0.5px at 12% 82%, rgba(255, 255, 255, 0.4), transparent),
+      radial-gradient(0.5px 0.5px at 58% 90%, rgba(255, 255, 255, 0.35), transparent);
+    background-repeat: no-repeat;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  @keyframes supercar-sweep {
+    0% { background-position: 150% 0; }
+    55%, 100% { background-position: -50% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .supercar-gloss::before { animation: none; }
   }
 
   /* Panel AI: nền riêng (champagne light / surface dark), khác list email.
@@ -1317,32 +1517,190 @@
   .paint-drop { animation: none; opacity: 0; }
 }
 
-/* ══════════════ DÒNG SƠN CHẢY XUỐNG (paint streams) ══════════════
-   Dòng sơn thuôn dài chảy từ band ở header xuống gần đáy màn hình rồi tan.
-   Nằm SAU bong bóng chat (z-0) → sinh động mà không che chữ. Chỉ transform/opacity. */
-.paint-stream {
+/* ══════════════ GIỌT SƠN RƠI (paint drops) ══════════════
+   Giọt sơn HÌNH CẦU phồng ra từ band header, rơi xuống ĐẬP lên "mái nhà" =
+   mép trên khu nhập liệu (--roof-y do MeltingWave đo bằng ResizeObserver).
+   Chuỗi sự kiện đúng vật lý giọt nước: đập bẹp → cột nước bật lên giữa
+   (Worthington jet) → GIỌT CON tròn văng vòng cung ra HAI BÊN, đáp xuống
+   mái rồi lăn tăn nảy dần ra xa → vòng ripple loang ngang → tan.
+   Nằm SAU bong bóng chat (z-0) → không che chữ. Chỉ transform/opacity. */
+.paint-drop {
   position: absolute;
   top: 2px;
-  border-radius: 45% 45% 50% 50% / 28% 28% 62% 62%;   /* thuôn giọt, đầu dưới tròn */
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--pc) 78%, #fff) 0%,
-    var(--pc) 55%,
-    color-mix(in srgb, var(--pc) 82%, #000) 100%);
-  box-shadow: inset 1px 0 0.5px rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transform-origin: center bottom;   /* chạm mái thì bẹp từ đáy lên */
+  border-radius: 50%;                /* GIỌT CẦU tròn trịa */
+  background: radial-gradient(circle at 32% 28%,
+    color-mix(in srgb, var(--pc) 45%, #fff) 0%,
+    var(--pc) 48%,
+    color-mix(in srgb, var(--pc) 70%, #000) 100%);   /* đổ khối cầu: specular + core + đáy tối */
+  box-shadow:
+    inset -1px -1px 1.5px rgba(0, 0, 0, 0.28),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.3);
   opacity: 0;
-  animation-name: paint-stream-fall;
+  animation-name: paint-drop-fall;
   animation-timing-function: cubic-bezier(0.45, 0, 0.85, 0.5);   /* rơi tăng tốc như trọng lực */
   animation-iteration-count: infinite;
   will-change: transform, opacity;
 }
 
-@keyframes paint-stream-fall {
-  0%   { transform: translateY(0) scaleY(0.55); opacity: 0; }
-  9%   { opacity: 0.92; }                         /* nhú ra khỏi band */
-  72%  { opacity: 0.82; }
-  100% { transform: translateY(var(--fall, 72vh)) scaleY(1.35); opacity: 0; }  /* chảy dài xuống + tan */
+/* translateY % = đường kính CHÍNH giọt → calc(roof - 100%) đặt ĐÁY giọt đúng mép mái.
+   Chuỗi giọt nước thật: phồng ra ở band → rơi (hơi kéo dãn dọc vì tốc độ) →
+   ĐẬP BẸP thành bánh mỏng → biến mất, "khối lượng" chuyển hết sang cột jet +
+   giọt con văng hai bên + vòng ripple (các phần tử splash đồng pha bên dưới). */
+@keyframes paint-drop-fall {
+  0%   { transform: translateY(0) scale(0.4); opacity: 0; }      /* phồng ra từ band */
+  8%   { transform: translateY(4px) scale(0.9); opacity: 0.95; }
+  56%  { transform: translateY(calc((var(--roof-y, 68vh) - 100%) * 0.97)) scale(0.93, 1.16); opacity: 0.95; animation-timing-function: ease-in; }  /* rơi nhanh: hơi dãn dọc */
+  62%  { transform: translateY(calc(var(--roof-y, 68vh) - 100%)) scale(1.7, 0.22); opacity: 0.85; animation-timing-function: ease-out; }           /* ĐẬP: bẹp thành bánh */
+  67%, 100% { transform: translateY(calc(var(--roof-y, 68vh) - 100%)) scale(2.1, 0.1); opacity: 0; }                                              /* tan → jet + giọt con + ripple */
+}
+
+/* Splash "mưa đáp mái" — wrapper TĨNH neo tại mép mái; không tự animate, chỉ giữ
+   animation-duration/delay (inline, trùng với giọt) cho ::before/::after inherit
+   → ripple + hạt nảy ĐỒNG PHA với đúng giọt của nó. */
+.paint-splash {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 6px;
+  margin-left: -6px;                                        /* căn tâm lên vệt sơn */
+  transform: translateY(calc(var(--roof-y, 68vh) - 3px));   /* tâm ellipse đúng mép mái */
+  pointer-events: none;
+}
+.paint-splash::before {          /* vòng ripple loang ra */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--pc) 80%, #fff);
+  transform: scale(0.25);
+  opacity: 0;
+  animation-name: paint-splash-ring;
+  animation-duration: inherit;
+  animation-delay: inherit;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-out;
+}
+.paint-splash::after {           /* cột jet bật thẳng lên giữa điểm chạm (Worthington) */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 3px;
+  height: 9px;
+  margin-left: -1.5px;
+  border-radius: 45% 45% 50% 50% / 62% 62% 38% 38%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 60%, #fff), var(--pc));
+  transform-origin: center bottom;
+  opacity: 0;
+  animation-name: paint-jet;
+  animation-duration: inherit;
+  animation-delay: inherit;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-out;
+}
+
+/* Giọt con văng ra hai bên — con thật (span) để mỗi giọt có quỹ đạo --dx riêng.
+   inherit duration/delay từ wrapper → đồng pha với đúng giọt mẹ của nó. */
+.paint-splat {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 3.5px;
+  height: 3.5px;
+  margin-left: -1.75px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%,
+    color-mix(in srgb, var(--pc) 55%, #fff),
+    var(--pc) 70%);
+  opacity: 0;
+  animation-name: paint-splat-arc;
+  animation-duration: inherit;
+  animation-delay: inherit;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+.paint-splat:nth-child(odd) { width: 2.5px; height: 2.5px; }   /* to nhỏ xen kẽ cho tự nhiên */
+/* Đồng hồ chung với giọt mẹ: ĐẬP ở 62% chu kỳ → mọi thứ nổ ra từ mốc đó.
+   Ripple loang NGANG nhiều hơn dọc (scale x > y) như sóng nước trên mặt phẳng. */
+@keyframes paint-splash-ring {
+  0%, 61% { transform: scale(0.25, 0.4); opacity: 0; }
+  64%     { opacity: 0.9; }
+  76%     { transform: scale(1.6, 1.05); opacity: 0.35; }
+  92%, 100% { transform: scale(2.3, 1.35); opacity: 0; }
+}
+/* Cột jet: bật thẳng lên ngay sau cú đập, rồi tụt xuống tan */
+@keyframes paint-jet {
+  0%, 62% { transform: translateY(2px) scaleY(0.2); opacity: 0; }
+  66%     { transform: translateY(-9px) scaleY(1.3); opacity: 0.9; }   /* bật cột lên */
+  71%     { transform: translateY(-3px) scaleY(0.85); opacity: 0.65; }
+  76%, 100% { transform: translateY(1px) scaleY(0.2); opacity: 0; }
+}
+/* Giọt con: văng VÒNG CUNG ra bên (--dx) → đáp xuống mái → lăn tăn nảy nhỏ dần
+   ra xa thêm → bẹp tan. ease-out lúc bay lên, ease-in lúc rơi = parabol thật. */
+@keyframes paint-splat-arc {
+  0%, 61% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+  63%     { transform: translate(calc(var(--dx, 14px) * 0.25), -9px) scale(1); opacity: 0.95; animation-timing-function: ease-out; }
+  69%     { transform: translate(calc(var(--dx, 14px) * 0.7), -12px); animation-timing-function: ease-in; }    /* đỉnh vòng cung */
+  75%     { transform: translate(var(--dx, 14px), 0) scale(1.15, 0.65); animation-timing-function: ease-out; } /* đáp xuống mái */
+  80%     { transform: translate(calc(var(--dx, 14px) * 1.25), -4px) scale(0.95); animation-timing-function: ease-in; }  /* nảy lăn tăn ra xa */
+  85%     { transform: translate(calc(var(--dx, 14px) * 1.45), 0) scale(1.05, 0.75); animation-timing-function: ease-out; }
+  90%     { transform: translate(calc(var(--dx, 14px) * 1.55), -1.5px); opacity: 0.5; animation-timing-function: ease-in; }
+  95%, 100% { transform: translate(calc(var(--dx, 14px) * 1.6), 0) scale(1.1, 0.4); opacity: 0; }              /* bẹp tan trên mái */
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .paint-stream { animation: none; opacity: 0; }
+  .paint-drop { animation: none; opacity: 0; }
+  .paint-splash { display: none; }
+}
+
+/* ══════════════ MÈO LANG THANG (wandering cat) ══════════════
+   Mèo MeoArc thỉnh thoảng chạy ngang "sàn" app (wandering-cat.tsx điều phối
+   tuyến đường + hướng). .cat-bob = nhún nhịp chân khi đi; .cat-hop = cú nhảy
+   vổng squash & stretch; .cat-shadow = bóng dưới chân cho có "mặt đất". */
+.cat-bob {
+  animation: cat-bob 0.38s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+.cat-hop {
+  animation: cat-hop-arc 0.56s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+  transform-origin: center bottom;
+}
+.cat-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 34px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.3), transparent);
+}
+@keyframes cat-bob {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-2.5px) rotate(1.5deg); }
+}
+@keyframes cat-hop-arc {
+  0%   { transform: translateY(0) scale(1, 1); }
+  14%  { transform: translateY(1.5px) scale(1.12, 0.85); }   /* khuỵu lấy đà */
+  50%  { transform: translateY(-24px) scale(0.95, 1.08); }   /* vổng lên */
+  82%  { transform: translateY(0) scale(1.08, 0.9); }        /* tiếp đất nhún */
+  100% { transform: translateY(0) scale(1, 1); }
+}
+/* Cú PHÓNG lên/xuống gờ: khuỵu lấy đà → vươn dài trên không → tiếp đất nhún.
+   Đường bay do transition translate của wrapper lo; lớp này chỉ lo dáng người. */
+.cat-stretch {
+  animation: cat-stretch 0.64s ease-in-out 1;
+  transform-origin: center bottom;
+}
+@keyframes cat-stretch {
+  0%   { transform: scale(1, 1); }
+  18%  { transform: scale(1.14, 0.82); }   /* khuỵu lấy đà */
+  55%  { transform: scale(0.86, 1.2); }    /* vươn dài trên không */
+  85%  { transform: scale(1.1, 0.88); }    /* tiếp đất nhún */
+  100% { transform: scale(1, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cat-bob, .cat-hop, .cat-stretch { animation: none; }
 }

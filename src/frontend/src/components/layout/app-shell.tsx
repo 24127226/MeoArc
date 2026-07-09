@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { NavRail } from '@/components/layout/nav-rail'
 import { EmailList } from '@/components/layout/email-list'
@@ -6,6 +6,7 @@ import { EmailDetail } from '@/components/layout/email-detail'
 import { ChatPanel } from '@/components/layout/chat-panel'
 import { CommandPalette } from '@/components/layout/command-palette'
 import { Onboarding } from '@/components/layout/onboarding'
+import { WanderingCat } from '@/components/wandering-cat'
 import { useTheme } from '@/components/theme-provider'
 import { emails as seedEmails } from '@/data/emails'
 import type { EmailActions } from '@/lib/email-actions'
@@ -46,14 +47,25 @@ export function AppShell() {
   // Tab nav → thư mục lọc danh sách ('agent' chỉ chuyển focus sang chat)
   const folder = activeNav === 'agent' ? 'inbox' : activeNav
 
+  // Cache thư THEO THƯ MỤC (stale-while-revalidate): quay lại tab đã xem → hiện
+  // NGAY bản cache (hết cảm giác "đang gọi API load lại"), đồng thời vẫn refetch
+  // NỀN để làm tươi dữ liệu. Chỉ có tác dụng ở chế độ backend thật.
+  const folderCache = useRef(new Map<string, { items: typeof seedEmails; cursor: string | null }>())
+
   // Chế độ backend thật: nạp thư theo THƯ MỤC đang chọn từ Gmail; đổi nav → fetch lại
   // (inbox/sent/drafts/trash/starred/archive). Mock mode bỏ qua → vẫn dùng dữ liệu mẫu.
   useEffect(() => {
     if (!apiBaseUrl) return
     setPageQuery({ folder })
+    const cached = folderCache.current.get(folder)
+    if (cached) {
+      setEmails(cached.items) // hiện tức thì từ cache trong lúc chờ bản mới
+      setNextCursor(cached.cursor)
+    }
     api
       .listEmails({ folder })
       .then((r) => {
+        folderCache.current.set(folder, { items: r.items, cursor: r.nextCursor ?? null })
         setEmails(r.items)
         setNextCursor(r.nextCursor ?? null) // có cursor = còn thư để "Tải thêm"
       })
@@ -112,6 +124,9 @@ export function AppShell() {
     api
       .listEmails({ ...pageQuery, fresh: true })
       .then((r) => {
+        // "Làm mới" cũng ghi đè cache thư mục hiện tại cho lần quay lại sau
+        if (pageQuery.folder)
+          folderCache.current.set(pageQuery.folder, { items: r.items, cursor: r.nextCursor ?? null })
         setEmails(r.items)
         setNextCursor(r.nextCursor ?? null)
       })
@@ -240,6 +255,9 @@ export function AppShell() {
 
       {/* Onboarding coachmark — chỉ hiện lần đầu */}
       <Onboarding />
+
+      {/* Mèo lang thang — thỉnh thoảng chạy/nhảy ngang sàn app cho có hồn 🐈 */}
+      <WanderingCat />
     </div>
   )
 }

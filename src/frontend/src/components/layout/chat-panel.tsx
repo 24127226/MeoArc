@@ -106,7 +106,8 @@ function initSessions(): Session[] {
   ]
 }
 
-const SUGGESTIONS = ['Tóm tắt thư chưa đọc', 'Lưu trữ thư bản tin', 'Soạn trả lời giáo vụ']
+/* Gợi ý chip KHÔNG còn tĩnh — sinh theo ngữ cảnh hộp thư thật, xem memo
+   `suggestions` trong ChatPanel (web "tư duy" đúng thời điểm). */
 
 /** Kỹ năng AI (UC014/015/016/009) — gợi ý nổi bật trên canvas. */
 const SKILLS = [
@@ -606,52 +607,112 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 
 /* ---------- Panel ---------- */
 
-/** Dòng sơn chảy xuống — SINH ĐỘNG: chạy dài xuống gần đáy màn hình rồi tan.
- *  Đặt trong đúng lane từng màu (khớp dải header). Nằm SAU bong bóng chat (z-0) nên KHÔNG
- *  che chữ. --pc = màu sơn; --fall = quãng rơi (vh). */
+/** GIỌT SƠN HÌNH CẦU rơi như giọt nước: phồng ra từ band header → rơi → ĐẬP lên
+ *  mép trên khu nhập liệu (--roof-y đo runtime) → cột jet bật giữa + GIỌT CON văng
+ *  vòng cung ra hai bên, đáp mái lăn tăn dần ra xa + ripple loang ngang → tan.
+ *  Đặt trong đúng lane từng màu (khớp dải header). Nằm SAU bong bóng chat (z-0)
+ *  nên KHÔNG che chữ. --pc = màu sơn; d = đường kính giọt (đỏ trĩu nặng nhất). */
 const S_NAVY = '#0b1d3a'
 const S_WHITE = '#e9e3d6'
 const S_RED = '#b0302e'
-const PAINT_STREAKS: { x: string; c: string; w: number; len: number; dur: number; delay: number; fall: number }[] = [
-  { x: '5%', c: S_NAVY, w: 5, len: 20, dur: 5.5, delay: 0.0, fall: 72 },
-  { x: '13%', c: S_NAVY, w: 4, len: 15, dur: 7.2, delay: 2.4, fall: 60 },
-  { x: '20%', c: S_NAVY, w: 5, len: 22, dur: 6.0, delay: 3.6, fall: 78 },
-  { x: '27%', c: S_WHITE, w: 4, len: 17, dur: 6.6, delay: 1.1, fall: 66 },
-  { x: '31%', c: S_WHITE, w: 5, len: 23, dur: 5.8, delay: 3.0, fall: 74 },
-  { x: '38%', c: S_RED, w: 6, len: 26, dur: 5.0, delay: 0.5, fall: 82 },
-  { x: '43%', c: S_RED, w: 5, len: 19, dur: 6.3, delay: 2.7, fall: 70 },
-  { x: '58%', c: S_RED, w: 6, len: 26, dur: 5.3, delay: 1.5, fall: 82 },
-  { x: '63%', c: S_RED, w: 5, len: 18, dur: 6.9, delay: 3.3, fall: 68 },
-  { x: '69%', c: S_WHITE, w: 5, len: 21, dur: 6.0, delay: 0.8, fall: 74 },
-  { x: '73%', c: S_WHITE, w: 4, len: 15, dur: 7.4, delay: 2.5, fall: 62 },
-  { x: '80%', c: S_NAVY, w: 5, len: 21, dur: 5.6, delay: 1.0, fall: 76 },
-  { x: '88%', c: S_NAVY, w: 4, len: 14, dur: 6.7, delay: 3.5, fall: 60 },
-  { x: '95%', c: S_NAVY, w: 5, len: 19, dur: 6.1, delay: 2.0, fall: 78 },
+const PAINT_DROPS: { x: string; c: string; d: number; dur: number; delay: number }[] = [
+  { x: '5%', c: S_NAVY, d: 7, dur: 5.5, delay: 0.0 },
+  { x: '13%', c: S_NAVY, d: 5, dur: 7.2, delay: 2.4 },
+  { x: '20%', c: S_NAVY, d: 7, dur: 6.0, delay: 3.6 },
+  { x: '27%', c: S_WHITE, d: 5, dur: 6.6, delay: 1.1 },
+  { x: '31%', c: S_WHITE, d: 6, dur: 5.8, delay: 3.0 },
+  { x: '38%', c: S_RED, d: 8, dur: 5.0, delay: 0.5 },
+  { x: '43%', c: S_RED, d: 6, dur: 6.3, delay: 2.7 },
+  { x: '58%', c: S_RED, d: 8, dur: 5.3, delay: 1.5 },
+  { x: '63%', c: S_RED, d: 6, dur: 6.9, delay: 3.3 },
+  { x: '69%', c: S_WHITE, d: 6, dur: 6.0, delay: 0.8 },
+  { x: '73%', c: S_WHITE, d: 5, dur: 7.4, delay: 2.5 },
+  { x: '80%', c: S_NAVY, d: 6, dur: 5.6, delay: 1.0 },
+  { x: '88%', c: S_NAVY, d: 5, dur: 6.7, delay: 3.5 },
+  { x: '95%', c: S_NAVY, d: 6, dur: 6.1, delay: 2.0 },
+]
+
+/** Quỹ đạo giọt con văng ra sau cú đập (--dx px, âm = sang trái) — 3 bộ xoay vòng
+ *  theo index để các điểm rơi không giọt nào giống giọt nào. */
+const SPLAT_PATTERNS: number[][] = [
+  [-18, -9, 10, 19],
+  [-22, -11, 13, 24],
+  [-15, -7, 8, 16],
 ]
 
 /** MeltingWave — sơn tan chảy theo ĐÚNG LANE từng dải màu header (dùng lại viewBox 320 →
- *  khớp x 1-1). Mép dưới lượn KHÔNG ĐỀU (bất đối xứng, nhiều bướu) cho tự nhiên. Kèm dòng
- *  sơn chảy dài xuống gần đáy. ĐẶT SAU bong bóng chat (z-0) để không che tin nhắn. */
-function MeltingWave() {
+ *  khớp x 1-1). Mép dưới lượn KHÔNG ĐỀU (bất đối xứng, nhiều bướu) cho tự nhiên. Kèm giọt
+ *  sơn rơi ĐÁP lên mép khu nhập liệu như mưa trên mái (roofRef = canvas chat: chiều cao
+ *  canvas CHÍNH LÀ quãng rơi tới mái). ĐẶT SAU bong bóng chat (z-0) để không che tin nhắn. */
+function MeltingWave({ roofRef }: { roofRef: React.RefObject<HTMLDivElement | null> }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  // epoch tăng mỗi lần panel HIỆN LẠI (từ display:none khi mở chi tiết thư) →
+  // đổi key giọt để animation vô hạn khởi động sạch. Fix bug: điều hướng qua
+  // lại làm trình duyệt hủy animation đang chạy, hiện lại thì giọt "chết" dù
+  // splash vẫn chạy.
+  const [epoch, setEpoch] = useState(0)
+  // --roof-y = chiều cao canvas (khoảng cách band → mép trên khu nhập liệu). Đo bằng
+  // ResizeObserver để giọt luôn đáp ĐÚNG mái kể cả khi panel đổi cỡ / textarea cao lên.
+  useEffect(() => {
+    const roof = roofRef.current
+    const root = rootRef.current
+    if (!roof || !root) return
+    const update = () => {
+      const h = roof.offsetHeight
+      // Panel đang ẩn (display:none) → h = 0: GIỮ giá trị tốt cuối, đừng ghi rác
+      if (h > 0) root.style.setProperty('--roof-y', `${h - 2}px`)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(roof)
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        update()
+        setEpoch((n) => n + 1) // panel vừa hiện lại → remount giọt, animation chạy lại từ đầu
+      }
+    })
+    io.observe(roof)
+    return () => {
+      ro.disconnect()
+      io.disconnect()
+    }
+  }, [roofRef])
+
   return (
-    <div aria-hidden className="pointer-events-none relative z-0 h-0 select-none">
-      {/* Dòng sơn chảy (sau band) — chạy dài xuống dưới */}
-      {PAINT_STREAKS.map((s, i) => (
-        <span
-          key={i}
-          className="paint-stream"
-          style={
-            {
-              left: s.x,
-              width: s.w,
-              height: s.len,
-              ['--pc' as string]: s.c,
-              ['--fall' as string]: `${s.fall}vh`,
-              animationDuration: `${s.dur}s`,
-              animationDelay: `${s.delay}s`,
-            } as React.CSSProperties
-          }
-        />
+    <div ref={rootRef} aria-hidden className="pointer-events-none relative z-0 h-0 select-none">
+      {/* Giọt cầu rơi + splash đáp mái (jet ::after + ripple ::before + giọt con
+          .paint-splat) — tất cả cùng duration/delay nên ĐỒNG PHA từng cụm */}
+      {PAINT_DROPS.map((s, i) => (
+        <Fragment key={`${epoch}-${i}`}>
+          <span
+            className="paint-drop"
+            style={
+              {
+                left: s.x,
+                width: s.d,
+                height: s.d,
+                ['--pc' as string]: s.c,
+                animationDuration: `${s.dur}s`,
+                animationDelay: `${s.delay}s`,
+              } as React.CSSProperties
+            }
+          />
+          <span
+            className="paint-splash"
+            style={
+              {
+                left: s.x,
+                ['--pc' as string]: s.c,
+                animationDuration: `${s.dur}s`,
+                animationDelay: `${s.delay}s`,
+              } as React.CSSProperties
+            }
+          >
+            {SPLAT_PATTERNS[i % SPLAT_PATTERNS.length].map((dx, j) => (
+              <span key={j} className="paint-splat" style={{ ['--dx' as string]: `${dx}px` } as CSSProperties} />
+            ))}
+          </span>
+        </Fragment>
       ))}
 
       {/* Band sơn ở mép header — drop-shadow đổ bóng xuống mặt chat */}
@@ -697,6 +758,33 @@ function MeltingWave() {
   )
 }
 
+/** WaterDivider — MẶT HỒ lượn sóng ở dải phân cách chat ↔ composer. 2 lớp sóng SVG
+ *  (period 100, 4 chu kỳ trên viewBox 400 → dịch -50% khớp 2 chu kỳ = cuộn liền mạch)
+ *  trôi ngược chiều. Giọt sơn của MeltingWave rơi đáp đúng lên mặt này (cùng --roof-y)
+ *  → ripple loang = mưa rơi mặt hồ. Màu champagne (--gold) cho hợp tông, không chọi. */
+const WAVE_FRONT =
+  'M0,12 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 L400,20 L0,20 Z'
+const WAVE_BACK =
+  'M0,11 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 L400,20 L0,20 Z'
+function WaterDivider() {
+  return (
+    <div aria-hidden className="water-surface">
+      <svg className="water-wave water-wave--b" viewBox="0 0 400 20" preserveAspectRatio="none">
+        <path d={WAVE_BACK} fill="color-mix(in srgb, var(--gold) 16%, transparent)" />
+      </svg>
+      <svg className="water-wave water-wave--a" viewBox="0 0 400 20" preserveAspectRatio="none">
+        <path
+          d={WAVE_FRONT}
+          fill="color-mix(in srgb, var(--gold) 24%, transparent)"
+          stroke="color-mix(in srgb, var(--gold) 72%, #fff)"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    </div>
+  )
+}
+
 export function ChatPanel({
   emails,
   actions,
@@ -714,19 +802,16 @@ export function ChatPanel({
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
   const [input, setInput] = useState('')
+  // Composer THU GỌN: mặc định chỉ là 1 nút; bấm mới bung ô nhập + gợi ý (chừa chỗ cho
+  // khung chat). Bấm ra ngoài (khi ô rỗng) → tự co lại. composerRef để phát hiện click ngoài.
+  const [composerOpen, setComposerOpen] = useState(false)
+  const composerRef = useRef<HTMLDivElement>(null)
   const [thinking, setThinking] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
-  const [speaking, setSpeaking] = useState(false) // agent đang đọc → mèo mấp máy
-  const [mood, setMood] = useState<'idle' | 'happy'>('idle') // mèo đổi biểu cảm khi xong việc
-  const moodTimer = useRef<number | null>(null)
-  const celebrate = () => {
-    setMood('happy')
-    if (moodTimer.current) clearTimeout(moodTimer.current)
-    moodTimer.current = window.setTimeout(() => setMood('idle'), 2600)
-  }
+  const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -742,7 +827,6 @@ export function ChatPanel({
     window.requestAnimationFrame(() => setFlash(true))
     if (flashTimer.current) clearTimeout(flashTimer.current)
     flashTimer.current = window.setTimeout(() => setFlash(false), 1100)
-    celebrate() // mèo cười khi xong việc
   }
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -751,9 +835,53 @@ export function ChatPanel({
     [sessions, currentId],
   )
 
+  // (#AI-native) GỢI Ý THEO NGỮ CẢNH — web "tư duy" từ tình trạng hộp thư thật:
+  // thư quan trọng chưa đọc → gợi ý trả lời ĐÍCH DANH người gửi; có thư chưa đọc
+  // → tóm tắt đúng số lượng; có thư khuyến mãi → gợi ý dọn; nhiều thư chưa nhãn
+  // → gợi ý phân loại. Câu chữ bám đúng intent parser (lib/agent.ts) để bấm phát
+  // là agent hiểu và chạy đúng việc. Tối đa 3 chip, ưu tiên việc gấp trước.
+  const suggestions = useMemo(() => {
+    const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
+    const out: string[] = []
+    const urgent = inbox.find((e) => e.unread && e.priority === 'action')
+    if (urgent) out.push(`Soạn trả lời ${urgent.sender}`)
+    const unread = inbox.filter((e) => e.unread).length
+    if (unread > 0) out.push(`Tóm tắt ${unread} thư chưa đọc`)
+    const promo = inbox.filter((e) => e.category === 'terra').length
+    if (promo > 0) out.push(`Dọn ${promo} thư khuyến mãi`)
+    if (out.length < 3) {
+      const unlabeled = inbox.filter((e) => !e.label).length
+      if (unlabeled >= 2) out.push('Phân loại tự động thư chưa nhãn')
+    }
+    if (out.length < 3) {
+      const waiting = inbox.find((e) => e.priority === 'waiting')
+      if (waiting) out.push(`Tóm tắt thư của ${waiting.sender}`)
+    }
+    if (out.length === 0) out.push('Tóm tắt hộp thư hôm nay')
+    return out.slice(0, 3)
+  }, [emails])
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, thinking])
+
+  // Composer vừa bung → focus ô nhập ngay cho gõ liền.
+  useEffect(() => {
+    if (composerOpen) document.getElementById('meoarc-composer-input')?.focus()
+  }, [composerOpen])
+
+  // Bấm RA NGOÀI composer (khi ô đang RỖNG) → tự co lại thành nút → chừa chỗ cho khung chat.
+  // Còn chữ trong ô thì KHÔNG co (khỏi mất bản nháp đang gõ dở).
+  useEffect(() => {
+    if (!composerOpen) return
+    const onDown = (e: PointerEvent) => {
+      if (composerRef.current?.contains(e.target as Node)) return
+      if (input.trim()) return
+      setComposerOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [composerOpen, input])
 
   // Esc để đóng drawer lịch sử
   useEffect(() => {
@@ -994,14 +1122,47 @@ export function ChatPanel({
     })
   }
 
-  const sendDraft = (id: string, to: string) => {
-    markResolved(id)
-    push({
-      id: uid(),
-      role: 'agent',
-      reply: { kind: 'done', text: `Đã gửi email tới ${to.split('<')[0].trim()}.` },
-    })
-    triggerFlash()
+  // UC010 — GỬI THẬT bản nháp sau khi user duyệt trên DraftCard (human-in-the-loop):
+  // draft thường → POST /emails/send; draft TRẢ LỜI (replyToId) → POST /emails/{id}/reply
+  // (giữ đúng luồng thư). Mock mode: adapter giả trả ok — UX như cũ. Trả true/false để
+  // DraftCard biết đóng thẻ hay GIỮ LẠI cho user sửa/bấm gửi lại khi lỗi. Nhờ gửi qua
+  // endpoint tất định (không qua LLM) nên "Đã gửi ✓" = thư THẬT SỰ đã đi.
+  const sendDraft = async (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string },
+  ): Promise<boolean> => {
+    try {
+      if (draft.replyToId) {
+        await api.replyEmail(draft.replyToId, draft.body)
+      } else {
+        // "Tên <email>" → chỉ gửi phần địa chỉ cho backend
+        const addr = (draft.to.match(/<([^>]+)>/)?.[1] ?? draft.to).trim()
+        await api.sendEmail({ to: addr, subject: draft.subject, body: draft.body })
+      }
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'done',
+          text: draft.replyToId
+            ? 'Đã gửi trả lời trong đúng luồng thư ✓'
+            : `Đã gửi email tới ${draft.to.split('<')[0].trim()}.`,
+        },
+      })
+      triggerFlash()
+      return true
+    } catch {
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'text',
+          text: 'Gửi KHÔNG thành công (mạng hoặc quyền Gmail). Thư CHƯA được gửi — bạn kiểm tra lại người nhận rồi bấm gửi lần nữa nhé.',
+        },
+      })
+      return false
+    }
   }
 
   // UC017 — áp dụng kết quả tự lái vào hộp thư thật
@@ -1049,15 +1210,6 @@ export function ChatPanel({
     (lastMsg.reply.kind === 'plan' || lastMsg.reply.kind === 'draft')
       ? lastMsg.id
       : null
-
-  // Mèo "lo" khi có plan cảnh báo không hoàn tác (xoá) đang chờ duyệt
-  const worried =
-    !!lastMsg &&
-    lastMsg.role === 'agent' &&
-    !lastMsg.resolved &&
-    !exec &&
-    lastMsg.reply.kind === 'plan' &&
-    !!lastMsg.reply.warn
 
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
@@ -1112,7 +1264,7 @@ export function ChatPanel({
       <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} onResult={(t) => send(t, true)} />
       
       {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
-      <header className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
+      <header data-cat-perch="bottom" className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
         
         {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
@@ -1152,27 +1304,49 @@ export function ChatPanel({
 
         {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
         <div className="relative flex items-center justify-between w-full z-10">
-          <div className="flex items-center shrink-0 ml-12">
-            <span className="bokeh flex size-10 shrink-0 items-center justify-center bg-background/50 backdrop-blur-md rounded-xl border border-foreground/[0.04] shadow-sm">
-              <MeoMascot
-                thinking={thinking || speaking}
-                mood={thinking || speaking ? 'thinking' : worried ? 'worry' : mood}
-                className="size-10"
-              />
-            </span>
-          </div>
+          {/* Logo mèo đã BỎ — linh hồn mèo giờ là WanderingCat chạy rong khắp app;
+              giữ khối đệm trống cho tiêu đề căn giữa cân với nút bên phải */}
+          <div className="size-9 shrink-0 ml-12" />
 
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none">
-            <h2 
-              className="font-serif text-[23px] font-black uppercase text-foreground leading-none tracking-[0.4em] transition-all duration-700 group-hover:scale-[1.02] group-hover:tracking-[0.44em]"
-              style={{ 
+            {/* KHUNG 2 MÈO PNG xoá nền — bạn chỉ cần thả ảnh vào
+                src/frontend/public/cats/ (tên: cat-1.png & cat-2.png) là tự hiện;
+                CHƯA có ảnh thì tự ẩn (onError). overflow-hidden + object-contain
+                đảm bảo ảnh GÓI GỌN trong khung; nằm SAU chữ (h2/p có relative). */}
+            {/* CONTAINER ẢNH MÈO PNG - Xếp chồng chính giữa, ẩn hiện chuẩn theo Mode */}
+        <div
+          aria-hidden
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[40%] flex items-end justify-center h-24 w-60 overflow-hidden opacity-90 z-0"
+        >
+          {/* MODE SÁNG (Light Mode): Hiện cat-01, ẩn khi qua Dark Mode */}
+          <img
+            src="/cats/cat-1.png"
+            alt=""
+            className="max-h-full w-auto object-contain block dark:hidden mx-auto" 
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+          {/* MODE TỐI (Dark Mode): Mặc định ẩn, chỉ hiện block khi ở Dark Mode */}
+          <img
+            src="/cats/cat-2.png"
+            alt=""
+            className="max-h-full w-auto object-contain hidden dark:block mx-auto"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        </div>
+            <h2
+              className="relative font-serif text-[23px] font-black uppercase text-foreground leading-none tracking-[0.4em] transition-all duration-700 group-hover:scale-[1.02] group-hover:tracking-[0.44em]"
+              style={{
                 textShadow: '0 1px 1px rgba(255,255,255,0.22), inset 0 1px 2px rgba(0,0,0,0.28)',
                 letterSpacing: '0.4em'
               }}
             >
               Trợ lý MeoArc
             </h2>
-            <p className="mt-2.5 text-[8.5px] font-serif tracking-[0.28em] italic text-muted-foreground/50">
+            <p className="relative mt-2.5 text-[8.5px] font-serif tracking-[0.28em] italic text-muted-foreground/50">
               Maison de L'intellect
             </p>
           </div>
@@ -1217,6 +1391,7 @@ export function ChatPanel({
               className={cn(
                 'flex size-8 items-center justify-center rounded-lg transition-colors',
                 ttsOn ? 'text-active bg-background shadow-sm' : 'text-muted-foreground hover:bg-background/40 hover:text-foreground',
+                speaking && 'animate-pulse', // agent đang đọc → loa nhấp nháy thay mèo mấp máy
               )}
             >
               {ttsOn ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
@@ -1236,7 +1411,7 @@ export function ChatPanel({
       {/* Làn sóng sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header, trĩu xuống đè
           lên khung chat. Lớp h-0 ngay sau header nên bám đúng mép dưới, không bị
           overflow-hidden của header cắt. */}
-      <MeltingWave />
+      <MeltingWave roofRef={scrollRef} />
 
       {/* Canvas hội thoại */}
       <div
@@ -1273,9 +1448,18 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Khu nhập liệu */}
-      <div className="border-t border-border/50 px-6 py-5">
-        {/* Kỹ năng AI */}
+      {/* Khu nhập liệu — .roof-ledge = dải phân cách "mặt hồ" (WaterDivider) nơi giọt
+          sơn đáp xuống; mèo lang thang đậu được (data-cat-perch). THU GỌN được:
+          mặc định là 1 nút, bấm mới bung; bấm ra ngoài (ô rỗng) tự co → chừa chỗ chat.
+          composer co/giãn thì --roof-y tự đo lại (ResizeObserver) → mặt hồ + giọt vẫn khớp. */}
+      <div
+        ref={composerRef}
+        data-cat-perch="top"
+        className="roof-ledge relative px-6 py-4"
+      >
+        <WaterDivider />
+
+        {/* Kỹ năng AI — LUÔN hiện (không thu gọn) */}
         <div className="mb-2 flex flex-wrap gap-2">
           {SKILLS.map((s) => (
             <button
@@ -1288,8 +1472,9 @@ export function ChatPanel({
             </button>
           ))}
         </div>
+        {/* Gợi ý theo ngữ cảnh — LUÔN hiện */}
         <div className="mb-3 flex flex-wrap gap-2">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
@@ -1299,38 +1484,62 @@ export function ChatPanel({
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
-          <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-            <Paperclip className="size-4" />
-          </button>
+
+        {/* CHỈ Ô NHẬP LIỆU thu gọn: mặc định là 1 nút, bấm mới bung; bấm ra ngoài
+            (ô rỗng) tự co lại → chừa chỗ cho khung chat. Tag phía trên GIỮ NGUYÊN. */}
+        {composerOpen ? (
+          <div className="duration-200 animate-in fade-in slide-in-from-bottom-1">
+            <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
+              <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                <Paperclip className="size-4" />
+              </button>
+              <button
+                onClick={() => setVoiceOpen(true)}
+                title="Nói với trợ lý (voice mode)"
+                aria-label="Bật voice mode"
+                className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
+              >
+                <Mic className="size-4" />
+              </button>
+              <Textarea
+                id="meoarc-composer-input"
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    send(input)
+                  } else if (e.key === 'Escape' && !input.trim()) {
+                    setComposerOpen(false)
+                  }
+                }}
+                placeholder="Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
+                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0"
+              />
+              <Button size="icon" variant="primary" className="rounded-xl" onClick={() => send(input)}>
+                <Send className="size-4" />
+              </Button>
+            </div>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Mọi hành động không thể hoàn tác đều cần bạn xác nhận trước.
+            </p>
+          </div>
+        ) : (
+          /* Ô nhập THU GỌN — pill mời gõ, bấm là bung ô nhập đầy đủ */
           <button
-            onClick={() => setVoiceOpen(true)}
-            title="Nói với trợ lý (voice mode)"
-            aria-label="Bật voice mode"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
+            onClick={() => setComposerOpen(true)}
+            className="gloss gloss-sweep flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left shadow-soft transition-all duration-200 ease-spring glass hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99]"
           >
-            <Mic className="size-4" />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
+              <Sparkles className="size-4" />
+            </span>
+            <span className="flex-1 truncate text-sm text-muted-foreground">Nhắn cho trợ lý MeoArc…</span>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Send className="size-4" />
+            </span>
           </button>
-          <Textarea
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send(input)
-              }
-            }}
-            placeholder="Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
-            className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0"
-          />
-          <Button size="icon" variant="primary" className="rounded-xl" onClick={() => send(input)}>
-            <Send className="size-4" />
-          </Button>
-        </div>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Mọi hành động không thể hoàn tác đều cần bạn xác nhận trước.
-        </p>
+        )}
       </div>
 
       {/* Lịch sử trò chuyện (UC011) — drawer trượt từ phải */}
@@ -1560,7 +1769,10 @@ function DraftCard({
   resolved?: boolean
   spotCls: string
   id: string
-  onSendDraft: (id: string, to: string) => void
+  onSendDraft: (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string },
+  ) => Promise<boolean>
   onResolve: (id: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -1571,6 +1783,7 @@ function DraftCard({
   const [subject, setSubject] = useState(reply.subject)
   const [body, setBody] = useState(reply.body)
   const [done, setDone] = useState<null | 'sent' | 'cancelled'>(null)
+  const [sendingNow, setSendingNow] = useState(false) // đang gọi API gửi thật
 
   const fieldCls =
     'w-full rounded-lg border border-border/50 bg-popover-foreground/5 px-2.5 py-1.5 text-sm text-popover-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
@@ -1674,15 +1887,27 @@ function DraftCard({
         <Button
           variant="primary"
           size="sm"
-          disabled={rewriting}
-          onClick={() => {
-            setDone('sent')
-            onSendDraft(id, to)
+          disabled={rewriting || sendingNow}
+          onClick={async () => {
+            // GỬI THẬT rồi mới đóng thẻ — thất bại thì giữ thẻ cho user sửa/gửi lại
+            setSendingNow(true)
+            const ok = await onSendDraft(id, { to, subject, body, replyToId: reply.replyToId })
+            setSendingNow(false)
+            if (ok) setDone('sent')
           }}
           className="relative overflow-hidden group/btn"
         >
-          <Send className="size-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-          Niêm phong & Gửi
+          {sendingNow ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Đang gửi…
+            </>
+          ) : (
+            <>
+              <Send className="size-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+              Niêm phong &amp; Gửi
+            </>
+          )}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>
           <Pencil className="size-4" />
@@ -1852,7 +2077,10 @@ function AgentMessage({
   spotlight: boolean
   onApprove: (id: string, op: PlanOp, stepCount: number) => void
   onReject: (id: string) => void
-  onSendDraft: (id: string, to: string) => void
+  onSendDraft: (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string },
+  ) => Promise<boolean>
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void

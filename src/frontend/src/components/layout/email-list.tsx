@@ -15,6 +15,11 @@ import {
   CheckSquare,
   Square,
   Archive,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  Send,
+  SquarePen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -33,15 +38,15 @@ import { MeoMascot } from '@/components/meo-mascot'
 import { useToast } from '@/components/ui/toast'
 import { emailHaystack, interpretNL, matchText } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
-import { CATEGORY } from '@/data/categories'
+import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
+import { useTheme } from '@/components/theme-provider'
 import type { Category, Email } from '@/data/emails'
 
+/** Thanh tag danh mục = 'Tất cả' + ĐỦ 7 nhãn (nguồn duy nhất: CATEGORY_OPTIONS).
+ *  Render dạng flex-wrap 2 hàng → thấy hết tag ngay, không phải kéo ngang tìm. */
 const FILTERS: { key: Category | 'all'; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
-  { key: 'moss', label: 'Học tập' },
-  { key: 'sea', label: 'Dev' },
-  { key: 'cherry', label: 'Cá nhân' },
-  { key: 'sky', label: 'Deploy' },
+  ...CATEGORY_OPTIONS,
 ]
 
 const PRIORITY: Record<'action' | 'waiting', { label: string; cls: string; dot: string }> = {
@@ -55,31 +60,6 @@ const QUICK = [
   { key: 'attachment', label: 'Đính kèm' },
 ] as const
 type QuickKey = (typeof QUICK)[number]['key']
-
-function AnimatedNumber({ value }: { value: number }) {
-  const [display, setDisplay] = useState(value)
-  const fromRef = useRef(value)
-  const rafRef = useRef<number | null>(null)
-  useEffect(() => {
-    const from = fromRef.current
-    const to = value
-    if (from === to) return
-    const start = performance.now()
-    const dur = 420
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / dur)
-      const eased = 1 - (1 - t) * (1 - t)
-      setDisplay(Math.round(from + (to - from) * eased))
-      if (t < 1) rafRef.current = requestAnimationFrame(tick)
-      else fromRef.current = to
-    }
-    rafRef.current = requestAnimationFrame(tick)
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    }
-  }, [value])
-  return <>{display}</>
-}
 
 function CardAction({
   icon: Icon,
@@ -307,6 +287,17 @@ const DEFAULT_W = 384
 const WIDTH_KEY = 'meoarc:listWidth'
 const clampW = (n: number) => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)))
 
+/** Icon đại diện thư mục — chữ "Hộp" trong "Hộp thư" được THAY bằng icon
+ *  trong lockup thương hiệu (icon × serif), các folder khác đổi icon theo. */
+const FOLDER_ICONS: Record<string, React.ElementType> = {
+  inbox: Inbox,
+  starred: Star,
+  sent: Send,
+  drafts: SquarePen,
+  archive: Archive,
+  trash: Trash2,
+}
+
 const FOLDER_TITLES: Record<string, string> = {
   inbox: 'Hộp thư',
   starred: 'Gắn sao',
@@ -343,6 +334,10 @@ export function EmailList({
   const [query, setQuery] = useState('')
   const [nlMode, setNlMode] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  // Thanh tag RÚT GỌN (chip overflow): mặc định chỉ 3 chip + chip "+N" búng ra đủ 8.
+  const [tagsOpen, setTagsOpen] = useState(false)
+  // Ô tìm kiếm THU GỌN: mặc định chỉ là nút icon, bấm mới bung field → header gọn.
+  const [searchOpen, setSearchOpen] = useState(false)
   const [quick, setQuick] = useState<Record<QuickKey, boolean>>({
     unread: false,
     starred: false,
@@ -392,7 +387,28 @@ export function EmailList({
     window.setTimeout(() => setLoading(false), 700)
   }
 
+  // Mở/đóng ô tìm kiếm. Đóng thì XOÁ luôn từ khoá để không còn "lọc ẩn" khi field
+  // đã thu lại (tránh user tưởng đang xem full hộp thư mà thực ra vẫn đang lọc).
+  const toggleSearch = () => {
+    if (searchOpen) {
+      setSearchOpen(false)
+      setQuery('')
+    } else {
+      setSearchOpen(true)
+    }
+  }
+  // Field vừa bung → focus ngay cho gõ liền (element mount có điều kiện nên focus
+  // trong effect sau khi DOM cập nhật).
+  useEffect(() => {
+    if (searchOpen) document.getElementById('meoarc-search')?.focus()
+  }, [searchOpen])
+
   const serverMode = !!onSearch
+  const FolderIcon = FOLDER_ICONS[folder] ?? Inbox
+  // Màu 2 khung (header "Thư" + khung dưới danh sách mail) — PHẲNG, không hiệu ứng.
+  // Light: hồng nâu #8B3C46; Dark: plum sẫm (chữ kem #f0c9a6 đọc rõ trên cả hai).
+  const { theme } = useTheme()
+  const frameColor = theme === 'dark' ? '#2a0d14' : '#C85956'
   const nl = nlMode && query.trim() ? interpretNL(query) : null
 
   const firstSearch = useRef(true)
@@ -428,7 +444,6 @@ export function EmailList({
     })
   }, [folderEmails, filter, query, nlMode, quick])
 
-  const unreadCount = folderEmails.filter((e) => e.unread).length
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -438,7 +453,8 @@ export function EmailList({
         !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
       if (e.key === '/' && !typing) {
         e.preventDefault()
-        document.getElementById('meoarc-search')?.focus()
+        setSearchOpen(true) // mở field nếu đang thu gọn
+        requestAnimationFrame(() => document.getElementById('meoarc-search')?.focus())
         return
       }
       if (typing) return
@@ -478,6 +494,17 @@ export function EmailList({
 
   const isFiltering =
     !!query.trim() || filter !== 'all' || quick.unread || quick.starred || quick.attachment
+
+  // Chip hiển thị khi THU GỌN: 3 chip đầu; nếu tag đang chọn nằm trong nhóm ẩn
+  // thì trồi nó lên thay chip cuối → không bao giờ "mất dấu" filter đang áp.
+  const COLLAPSED_TAGS = 3
+  const shownFilters = useMemo(() => {
+    if (tagsOpen) return FILTERS
+    const base = FILTERS.slice(0, COLLAPSED_TAGS)
+    if (base.some((f) => f.key === filter)) return base
+    const active = FILTERS.find((f) => f.key === filter)
+    return active ? [...FILTERS.slice(0, COLLAPSED_TAGS - 1), active] : base
+  }, [tagsOpen, filter])
 
   const clearAll = () => {
     setQuery('')
@@ -520,64 +547,93 @@ export function EmailList({
   return (
     <section
       ref={sectionRef}
-      style={{ 
-        width, 
-        backgroundColor: 'color-mix(in srgb, var(--rail) 65%, #050103)',
-        boxShadow: 'inset -1px 0 0 0 rgba(0,0,0,0.2)'
-      }}
+      style={{ width, backgroundColor: frameColor }}
       className="relative z-10 flex h-full shrink-0 flex-col transition-all duration-300"
     >
       {/* [OLD MONEY FIX] Đã xóa bỏ hoàn toàn dải sơn chảy rớt cờ Pháp để tránh tranh chấp visual */}
 
-      <header className="flex flex-col gap-4 px-6 pt-8 pb-5">
+      {/* Header "Hộp thư" — poster editorial "Desert Rose": nền mận sẫm #2a0d14,
+          chữ hồng cát #f0c9a6 (hex cố định theo art-direction, cả 2 theme dùng
+          chung như poster in). CÔNG CỤ dồn hết lên hàng đầu (search + soạn/làm
+          mới/lọc), tag bên dưới; wordmark "Hộp thư" giờ chạy DỌC theo line phân
+          tách với panel chat (khối riêng ngay dưới header). Mèo lang thang đậu
+          được lên mép dưới (data-cat-perch). */}
+      {/* Header TRONG SUỐT — hiện màu phẳng của <section> (frameColor), KHÔNG hiệu
+          ứng. Header và khung dưới danh sách mail đồng màu; chỉ khối mail inset
+          giữ màu riêng. */}
+      <header
+        data-cat-perch="bottom"
+        className="relative flex flex-col gap-3.5 px-6 pb-4 pt-5"
+      >
+        {/* LOCKUP thương hiệu: "Hộp" = ICON đóng trong thẻ ngà nổi khối, "Thư" =
+            chữ font-display lớn kế bên — cặp đôi icon × serif (2 chất liệu, 1
+            lockup) thay cho watermark chữ chìm. Folder khác inbox → icon đổi
+            theo + hiện đủ tên thư mục. Nút thao tác nép phải cùng hàng. */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-[27px] font-semibold leading-none tracking-wide text-foreground">
-              {FOLDER_TITLES[folder] ?? 'Hộp thư'}
-            </h1>
-            <p className="mt-1.5 text-[10px] font-mono font-medium uppercase tracking-[0.18em] text-muted-foreground/50">
-              {isFiltering ? (
-                <><AnimatedNumber value={results.length} /> kết quả</>
-              ) : folder === 'inbox' ? (
-                <><AnimatedNumber value={unreadCount} /> thư chưa đọc · MeoArc</>
-              ) : (
-                <><AnimatedNumber value={folderEmails.length} /> thư</>
-              )}
-            </p>
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#f0c9a6] text-[#2a0d14] shadow-[0_4px_12px_rgba(0,0,0,0.35)]">
+              <FolderIcon className="size-[18px]" strokeWidth={2.2} />
+            </span>
+            <div className="leading-none">
+              <p className="font-display text-[26px] font-bold leading-none text-[#f0c9a6]">
+                {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
+              </p>
+              <p className="mt-1 text-[8px] font-mono font-medium uppercase tracking-[0.34em] text-[#f0c9a6]/45">
+                Meoarc mail
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
+            <button
+              title={searchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'}
+              aria-label="Bật/tắt ô tìm kiếm"
+              onClick={toggleSearch}
+              className={cn(
+                'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                searchOpen || query
+                  ? 'bg-[#f0c9a6] text-[#2a0d14]'
+                  : 'text-[#f0c9a6]/60 hover:bg-white/[0.07] hover:text-[#f0c9a6]',
+              )}
+            >
+              <Search className="size-3.5" />
+            </button>
             <ComposeDialog />
             <button
               title="Làm mới"
               aria-label="Làm mới hộp thư"
               onClick={refresh}
-              className="flex size-9 items-center justify-center rounded-xl text-muted-foreground/60 transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[#f0c9a6]/60 transition-colors hover:bg-white/[0.07] hover:text-[#f0c9a6]"
             >
-              <RefreshCw className={cn('size-4', (loading || refreshing) && 'animate-spin')} />
+              <RefreshCw className={cn('size-3.5', (loading || refreshing) && 'animate-spin')} />
             </button>
             <button
               title="Bộ lọc theo tiêu chí"
               onClick={() => setShowFilters((v) => !v)}
               className={cn(
-                'flex size-9 items-center justify-center rounded-xl transition-colors border border-transparent',
+                'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
                 showFilters
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground',
+                  ? 'bg-[#f0c9a6] text-[#2a0d14]'
+                  : 'text-[#f0c9a6]/60 hover:bg-white/[0.07] hover:text-[#f0c9a6]',
               )}
             >
-              <SlidersHorizontal className="size-4" />
+              <SlidersHorizontal className="size-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Khung tìm kiếm pha lê */}
-        <div className="relative">
+        {/* Khung tìm kiếm pha lê — THU GỌN: chỉ hiện khi bấm nút search (làm gọn
+            header). Bung có animation; Esc trong ô để đóng nhanh. */}
+        {searchOpen && (
+        <div className="relative duration-200 animate-in fade-in slide-in-from-top-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-foreground/40" />
           <Input
             id="meoarc-search"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') toggleSearch()
+            }}
             placeholder={
               serverMode
                 ? 'Tìm trên Gmail (vd: from:github, has:attachment)…'
@@ -598,28 +654,61 @@ export function EmailList({
             <Sparkles className="size-4" />
           </button>
         </div>
+        )}
 
-        {/* Các Tag danh mục Sơn mài */}
-        <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
-          {FILTERS.map((f) => {
+        {/* Tag danh mục — pattern "chip overflow" gọn không gian: 1 hàng 3 chip +
+            chip "+N" viền đứt búng ra đủ 8, bấm lại thu gọn (msg-pop khi mở). */}
+        <div className={cn('flex flex-wrap items-center gap-1.5', tagsOpen && 'duration-300 animate-in fade-in slide-in-from-top-1')}>
+          {shownFilters.map((f) => {
             const active = filter === f.key
-            const dot = f.key === 'all' ? undefined : CATEGORY[f.key].bar
+            // Chip mang MÀU CATEGORY thật (nguồn: CATEGORY[].bar): nền tint mờ +
+            // viền cùng màu; đang chọn → tint đậm hơn + viền đặc + đổ bóng.
+            // Chữ luôn dùng --foreground (kem) vì tint trên nền mận vẫn tối đủ.
+            const c = f.key === 'all' ? null : CATEGORY[f.key]
             return (
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={cn(
-                  'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-serif tracking-wide transition-all duration-300 border',
-                  active
-                    ? 'bg-foreground text-background border-transparent shadow-md font-semibold scale-105'
-                    : 'bg-foreground/[0.03] border-foreground/[0.05] text-foreground/70 hover:bg-foreground/[0.08] hover:border-gold/30 hover:text-foreground active:scale-95',
+                  'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-serif tracking-wide transition-all duration-300 active:scale-95',
+                  c
+                    ? active
+                      ? 'font-semibold text-foreground shadow-md'
+                      : 'text-foreground/80 hover:text-foreground hover:brightness-125'
+                    : active
+                      ? 'border-transparent bg-foreground font-semibold text-background shadow-md'
+                      : 'border-foreground/[0.05] bg-foreground/[0.03] text-foreground/70 hover:border-gold/30 hover:bg-foreground/[0.08] hover:text-foreground',
                 )}
+                style={
+                  c
+                    ? {
+                        backgroundColor: `color-mix(in srgb, ${c.bar} ${active ? 34 : 14}%, transparent)`,
+                        borderColor: active ? c.bar : `color-mix(in srgb, ${c.bar} 45%, transparent)`,
+                      }
+                    : undefined
+                }
               >
-                {dot && <span className="size-1.5 rounded-full shadow-sm" style={{ backgroundColor: dot }} />}
                 {f.label}
               </button>
             )
           })}
+          <button
+            onClick={() => setTagsOpen((v) => !v)}
+            title={tagsOpen ? 'Thu gọn nhãn' : 'Hiện đủ nhãn phân loại'}
+            className="flex items-center gap-1 rounded-lg border border-dashed border-foreground/[0.16] px-2.5 py-1.5 text-[11px] font-serif tracking-wide text-foreground/60 transition-all duration-300 hover:border-gold/40 hover:bg-foreground/[0.05] hover:text-foreground active:scale-95"
+          >
+            {tagsOpen ? (
+              <>
+                <ChevronUp className="size-3" />
+                Thu gọn
+              </>
+            ) : (
+              <>
+                +{FILTERS.length - shownFilters.length}
+                <ChevronDown className="size-3" />
+              </>
+            )}
+          </button>
         </div>
 
         {showFilters && (
@@ -643,6 +732,7 @@ export function EmailList({
             })}
           </div>
         )}
+
       </header>
 
       {selected.size > 0 && (

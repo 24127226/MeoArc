@@ -103,6 +103,8 @@ export interface MeoArcApi {
 
   // Soạn & gửi — UC010
   sendEmail(input: SendEmailInput): Promise<{ id: string }>
+  /** Trả lời 1 thư — BE tự suy người nhận/tiêu đề từ thư gốc, giữ đúng luồng. */
+  replyEmail(id: string, body: string): Promise<{ id: string }>
   /** Upload 1 tệp đính kèm lên backend → trả metadata { id, name, size }. */
   uploadFile(file: File): Promise<{ id: string; name: string; size: string }>
 
@@ -208,6 +210,10 @@ export function createMockApi(): MeoArcApi {
       await delay(300)
       return { id: `mock-${Date.now()}` }
     },
+    async replyEmail() {
+      await delay(300)
+      return { id: `mock-${Date.now()}` }
+    },
     async uploadFile(file) {
       await delay(250) // mock: không upload thật, chỉ trả metadata
       const kb = Math.max(1, Math.round(file.size / 1024))
@@ -288,6 +294,8 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
     deleteEmails: (ids) => post<void>('/emails/actions/delete', { ids }),
 
     sendEmail: (input) => post<{ id: string }>('/emails/send', input),
+
+    replyEmail: (id, body) => post<{ id: string }>(`/emails/${id}/reply`, { body }),
 
     // Upload tệp = multipart/form-data (KHÔNG đặt Content-Type để trình duyệt tự thêm boundary).
     uploadFile: async (file) => {

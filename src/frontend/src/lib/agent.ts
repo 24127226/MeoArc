@@ -26,7 +26,15 @@ export type AgentReply =
   | { kind: 'done'; text: string }
   | { kind: 'result'; title: string; intro: string; lines: string[]; emails?: EmailRef[] }
   | { kind: 'plan'; intro: string; steps: string[]; warn?: string; confirmLabel: string; op: PlanOp }
-  | { kind: 'draft'; intro: string; to: string; subject: string; body: string }
+  | {
+      kind: 'draft'
+      intro: string
+      to: string
+      subject: string
+      body: string
+      /** Có giá trị = bản nháp TRẢ LỜI thư này (gửi qua /emails/{id}/reply, giữ đúng luồng). */
+      replyToId?: string
+    }
   // --- Generative widgets (UC014/015/016) — render bento tương tác ---
   | {
       kind: 'brief'

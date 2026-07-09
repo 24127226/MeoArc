@@ -4,8 +4,9 @@ import { Loader2, ShieldCheck, Mail, Sparkles } from 'lucide-react'
 import { useAuth } from '@/auth/auth-context'
 import { LogoMark } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { useTheme } from '@/components/theme-provider'
 
-// Import cả 2 ảnh nền tương ứng cho 2 chế độ (Đang cố định dùng bgLight nịnh mắt cho cả hai)
+// Ảnh nền theo chế độ: Dark dùng ảnh tối, Light dùng ảnh sáng (đổi tức thì khi bật ThemeToggle).
 import bgLight from '@/assets/login-light.jpg' // Ảnh cho Light Mode
 import bgDark from '@/assets/login-dark.jpg'   // Ảnh cho Dark Mode
 
@@ -23,6 +24,8 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export function LoginPage() {
   const { isAuthenticated, isLoading, loginWithGoogle } = useAuth()
+  const { theme } = useTheme()
+  const bg = theme === 'dark' ? bgDark : bgLight // nền login khớp theme (UC013)
   const navigate = useNavigate()
 
   // Đã đăng nhập thì vào thẳng app.
@@ -81,8 +84,8 @@ export function LoginPage() {
       <div aria-hidden className="pointer-events-none absolute inset-0 select-none z-0 overflow-hidden w-full h-full">
         {/* Ảnh nền phủ tràn tuyệt đối */}
         <div
-          className="absolute inset-0 bg-cover bg-center scale-105 w-full h-full"
-          style={{ backgroundImage: `url(${bgLight})` }}
+          className="absolute inset-0 bg-cover bg-center scale-105 w-full h-full transition-[background-image] duration-500"
+          style={{ backgroundImage: `url(${bg})` }}
         />
         
         {/* LỚP MASK ĐẦM MÀU: Xóa bỏ màu kem sáng gây quầng đục, thay bằng đỏ mận tối để ảnh sâu và nét chữ nổi bật hẳn lên */}

@@ -12,13 +12,14 @@ export const CATEGORY: Record<Category, { bar: string; soft: string; ink: string
   wine: { bar: '#980204', soft: 'rgba(152, 2, 4, 0.12)', ink: '#980204' },
 }
 
-/** Danh sách nhãn để gán cho email (UC006). */
+/** 7 nhãn phân loại email (UC006/UC009) — ĐỒNG BỘ 1-1 với labeling engine
+ *  backend (app/core/labeling.py) và tài liệu Design. Đổi ở đây là đổi mọi nơi. */
 export const CATEGORY_OPTIONS: { key: Category; label: string }[] = [
   { key: 'moss', label: 'Học tập' },
-  { key: 'sea', label: 'Dev' },
-  { key: 'sun', label: 'Hệ thống' },
+  { key: 'sea', label: 'Công việc' },
+  { key: 'sun', label: 'Cập nhật & Hệ thống' },
   { key: 'cherry', label: 'Cá nhân' },
-  { key: 'sky', label: 'Deploy' },
-  { key: 'terra', label: 'Bản tin' },
-  { key: 'wine', label: 'Khẩn' },
+  { key: 'sky', label: 'Mạng xã hội' },
+  { key: 'terra', label: 'Mua sắm & Ưu đãi' },
+  { key: 'wine', label: 'Tài chính' },
 ]
