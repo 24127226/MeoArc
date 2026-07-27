@@ -273,7 +273,20 @@ async def responder_node(state: State) -> dict:
             SystemMessage(content=_PRESENT_SYS),
             HumanMessage(content=formatted_context)
         ])
-        
+
+        # ── OUTPUT GUARDRAIL — content check ─────────────────────────────────
+        from app.agent.guardrails.output_guardrail import check_content
+        pres.text = check_content(pres.text)
+        pres.intro = check_content(pres.intro)
+        pres.lines = [check_content(l) for l in pres.lines if l]
+        pres.highlights = [check_content(h) for h in pres.highlights if h]
+        for g in pres.groups:
+            g.label = check_content(g.label)
+            for item in g.items:
+                item.sender = check_content(item.sender)
+                item.subject = check_content(item.subject)
+                item.suggest = check_content(item.suggest)
+
         # 4. Map dữ liệu trả về chính xác cho Frontend render
         output_dict = {"kind": pres.kind, "intro": pres.intro}
         if pres.kind == "result":

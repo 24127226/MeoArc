@@ -144,3 +144,4 @@ out/
 opencode.json
 skills-lock.json
 AGENTS.md
+.agent/

@@ -609,6 +609,13 @@ async def agent_chat(
             last_text = coerce_text(last_ai.content).strip() if last_ai else ""
             out = {"kind": "text", "text": last_text or "Mình đã xử lý xong."}
 
+        # ── OUTPUT GUARDRAIL — format validation ──────────────────────────────
+        # Validate final_output đúng khuôn FE trước khi chạy card overrides.
+        # Chạy ở đây để chỉ validate output của responder_node (các card overrides
+        # như categorize/draft được dựng tất định từ tool data, không qua LLM).
+        from app.agent.guardrails.output_guardrail import validate_format
+        out = validate_format(out)
+
         # UC009: nếu lượt này có gọi categorize_emails → ÉP thành thẻ 'categorize' (widget FE cho
         # sửa nhãn từng thư rồi Áp dụng). Xây TẤT ĐỊNH từ dữ liệu tool (id + nhãn), KHÔNG nhờ LLM
         # → nhãn/ id luôn chuẩn. Đặt TRƯỚC phần đính emails để không lẫn 2 loại thẻ.

@@ -22,6 +22,19 @@ async def _run_one(call: dict, ctx) -> ToolMessage:
     args = call.get("args", {}) or {}
     call_id = call.get("id", "")
 
+    # ── OUTPUT GUARDRAIL — tool call safety check ─────────────────────────
+    from app.agent.guardrails.output_guardrail import check_tool_call
+    ok, reason = check_tool_call(name, args)
+    if not ok:
+        content = json.dumps({
+            "success": False,
+            "blocked_by_guardrail": True,
+            "reason": reason,
+            "action": name,
+            "args": args,
+        }, ensure_ascii=False)
+        return ToolMessage(content=content, name=name, tool_call_id=call_id)
+
     # ── CONFIRM GATE (human-in-the-loop — UC007/UC010) ────────────────────
     # Tool KHÔNG HOÀN TÁC (send_email/reply_email/bulk_action — requires_confirmation
     # theo category trong registry) bị CHẶN TẠI ĐÂY, không chạy thật. Trả payload
