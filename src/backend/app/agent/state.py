@@ -51,6 +51,11 @@ class State(TypedDict):
     # Tránh infinite loop khi LLM bị stuck (ví dụ: tool cứ fail, LLM cứ retry).
     iteration_count: int
 
+    # Gán bởi input_guardrail khi action=warn.
+    # agent_node đọc field này để inject cảnh báo vào system prompt.
+    # Empty string nếu không có cảnh báo.
+    guardrail_warning: str
+
     # ── Kết quả cuối ──────────────────────────────────────────────────────────
     # dict AgentReply (kind/intro/lines/...) ĐÃ đóng gói để gửi thẳng về FE.
     # responder_node ghi vào đây ở cuối graph; app.py đọc ra trả cho frontend.

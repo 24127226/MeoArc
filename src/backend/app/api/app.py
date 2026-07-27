@@ -543,11 +543,15 @@ async def agent_chat(
                 "text": ("🐢 Bạn đang gửi hơi nhanh — mình xin nghỉ vài giây để tiết kiệm "
                          "lượt gọi AI. Chờ chút rồi gửi lại giúp mình nhé.")}
 
-    # NFR-Security: chặn prompt-injection NGAY (regex, không tốn LLM) trước khi vào graph.
-    from app.agent.guardrails.input_guardrail import check_input
-    blocked = check_input(message)
-    if blocked:
-        return {"kind": "text", "text": blocked, "conversationId": incoming_id}
+    # NFR-Security: chặn prompt-injection NGAY (regex + scoring, không tốn LLM) trước khi vào graph.
+    from app.agent.guardrails.input_guardrail import check_input_ext, _REFUSAL, _WARNING_PREFIX
+    guardrail = check_input_ext(message)
+    if guardrail["action"] == "block":
+        return {"kind": "text", "text": _REFUSAL, "conversationId": incoming_id}
+    guardrail_warning = (
+        f"{_WARNING_PREFIX} ({guardrail.get('reason', 'unknown')}). "
+        f"Tuyệt đối tuân thủ quy tắc an toàn đã đặt ra.]"
+    ) if guardrail["action"] == "warn" else ""
 
     # FALLBACK: chưa cấu hình khoá LLM → trả lời lịch sự, KHÔNG làm sập gì.
     # Nhờ vậy app vẫn chạy đầy đủ kể cả khi chưa cắm Gemini (mọi nút bấm khác vô tư).
@@ -589,7 +593,8 @@ async def agent_chat(
         init_state = {
             "messages": [*history, HumanMessage(content=message)],
             "request_ctx": ctx,
-            "skill_context": load_skills(message),  # nạp kỹ năng khớp ngữ cảnh
+            "skill_context": load_skills(message),
+            "guardrail_warning": guardrail_warning,
             "pending_confirmation": None,
             "iteration_count": 0,
             "final_output": None,

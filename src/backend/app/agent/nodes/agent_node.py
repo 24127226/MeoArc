@@ -81,11 +81,12 @@ async def agent_node(state: State) -> dict:
       • iteration_count → +1 để graph biết đã nghĩ mấy vòng (chặn lặp vô tận).
     """
     llm = _get_llm()
-    # Ghép lời dặn hệ thống + (nếu có) kiến thức skill nạp theo ngữ cảnh.
     system = _SYSTEM_BASE
     if state.get("skill_context"):
         system += "\n\n# Kiến thức bổ sung cho yêu cầu này:\n" + state["skill_context"]
-    # Đầu vào cho LLM = [lời dặn] + [toàn bộ tin nhắn từ trước tới giờ].
+    if state.get("guardrail_warning"):
+        system += "\n\n## Cảnh báo an toàn\n" + state["guardrail_warning"]
+    messages = [SystemMessage(content=system), *state["messages"]]
     messages = [SystemMessage(content=system), *state["messages"]]
     ai = await llm.ainvoke(messages)   # gọi Gemini (bất đồng bộ) → ra 1 AIMessage
     return {"messages": [ai], "iteration_count": state.get("iteration_count", 0) + 1}
