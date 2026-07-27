@@ -138,3 +138,9 @@ out/
 **/logs/
 **/.pytest_cache/
 **/meoarc.db
+
+
+.opencode/
+opencode.json
+skills-lock.json
+AGENTS.md
