@@ -87,7 +87,6 @@ async def agent_node(state: State) -> dict:
     if state.get("guardrail_warning"):
         system += "\n\n## Cảnh báo an toàn\n" + state["guardrail_warning"]
     messages = [SystemMessage(content=system), *state["messages"]]
-    messages = [SystemMessage(content=system), *state["messages"]]
     ai = await llm.ainvoke(messages)   # gọi Gemini (bất đồng bộ) → ra 1 AIMessage
     return {"messages": [ai], "iteration_count": state.get("iteration_count", 0) + 1}
 
