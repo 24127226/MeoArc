@@ -73,9 +73,14 @@ def get_gmail_token(
         return token
 
     # Hết/sắp hết hạn + có refresh_token → xin token mới rồi lưu lại.
+    # ĐA PROVIDER: phiên Microsoft làm mới qua endpoint Microsoft; Google giữ NGUYÊN.
     if session.google_refresh_token:
         try:
-            new_token, expires_in = auth_service.refresh_access_token(session.google_refresh_token)
+            if session_repo.get_provider(db, session.token) == "microsoft":
+                from app.services import auth_service_ms
+                new_token, expires_in = auth_service_ms.refresh_access_token(session.google_refresh_token)
+            else:
+                new_token, expires_in = auth_service.refresh_access_token(session.google_refresh_token)
             session_repo.update_access_token(db, session, new_token, expires_in)
             return new_token
         except Exception:
@@ -84,3 +89,12 @@ def get_gmail_token(
             return token
 
     return token  # không có refresh_token → đành dùng token hiện có (có thể đã hết hạn)
+
+
+def get_provider(
+    session: AuthSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
+) -> str:
+    """Nhà cung cấp email của phiên hiện tại: 'google' | 'microsoft'. Endpoint dùng để
+    định tuyến gọi Gmail hay Outlook (qua app.services.mail)."""
+    return session_repo.get_provider(db, session.token)

@@ -60,3 +60,22 @@ def delete_session(db: Session, token: str) -> None:
     if s:
         db.delete(s)   # đăng xuất = xoá dòng phiên
         db.commit()
+
+
+# ── ĐA PROVIDER (Gmail / Outlook) ────────────────────────────────────
+def set_provider(db: Session, token: str, provider: str) -> None:
+    """Ghi phiên `token` dùng provider nào ('google'|'microsoft'). Gọi khi tạo phiên."""
+    from app.models.session_provider import SessionProvider
+    row = db.get(SessionProvider, token)
+    if row is None:
+        db.add(SessionProvider(token=token, provider=provider))
+    else:
+        row.provider = provider
+    db.commit()
+
+
+def get_provider(db: Session, token: str) -> str:
+    """Provider của phiên. KHÔNG có dòng ⇒ 'google' (phiên cũ + luồng Gmail giữ nguyên)."""
+    from app.models.session_provider import SessionProvider
+    row = db.get(SessionProvider, token)
+    return row.provider if row else "google"

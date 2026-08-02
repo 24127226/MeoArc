@@ -44,6 +44,8 @@ class Email(BaseModel):
 
     # Các trường có dấu "?" bên FE = KHÔNG bắt buộc → cho giá trị mặc định None.
     label: str | None = None
+    html: str | None = None                 # thân thư HTML gốc (để FE render đúng chuẩn Gmail);
+                                            # None khi thư chỉ có text hoặc lấy từ store
     attachments: list[Attachment] | None = None
     priority: Priority | None = None        # do AI Triage gán; ban đầu có thể trống
     tldr: str | None = None                 # tóm tắt do AI; ban đầu có thể trống

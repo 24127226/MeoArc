@@ -17,8 +17,25 @@ from app.services import gmail_service
 from app.services.gmail_actions import GmailPermissionError  # tái dùng lỗi 403 cho nhất quán
 
 GMAIL_SEND = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+GMAIL_DRAFTS = "https://gmail.googleapis.com/gmail/v1/users/me/drafts"
 # Lấy header của thư GỐC (khi trả lời) — chỉ cần vài header, nên format=metadata cho nhẹ.
 GMAIL_GET = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"
+
+
+def create_draft(access_token: str, to: str, subject: str, body: str,
+                 cc: list[str] | None = None, bcc: list[str] | None = None,
+                 attachments: list[dict] | None = None) -> dict:
+    """Lưu 1 BẢN NHÁP lên Gmail (users.drafts.create) — KHÔNG gửi đi. Trả dict
+    {id, message:{id, threadId,...}} để nơi gọi biết id nháp + id message (hiện ở thư mục Nháp)."""
+    raw = _build_raw(to, subject, body, cc=cc, bcc=bcc, attachments=attachments)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    with httpx.Client(timeout=15) as client:
+        r = client.post(GMAIL_DRAFTS, headers=headers, json={"message": {"raw": raw}})
+        if r.status_code == 403:
+            raise GmailPermissionError()
+        r.raise_for_status()
+        gmail_service.invalidate_cache(access_token)  # thư mục Nháp đổi → dọn cache
+        return r.json()
 
 
 def _build_raw(

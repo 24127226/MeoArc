@@ -12,10 +12,35 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.config import settings
 from app.core.deps import COOKIE_NAME
-from app.services import auth_service
+from app.services import auth_service, auth_service_ms
 from app.repo import session_repo
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _app_url() -> str:
+    """Đăng nhập xong phải vào THẲNG hộp thư (/app), không rơi lại trang giới thiệu."""
+    return settings.frontend_url.rstrip("/") + "/app"
+
+
+def _set_session_cookie(token: str):
+    """Đăng nhập xong (Google/Microsoft) → vào /app + gắn cookie httponly (dùng chung)."""
+    resp = RedirectResponse(_app_url(), status_code=302)
+    resp.set_cookie(COOKIE_NAME, token, httponly=True,
+                    max_age=settings.session_ttl_hours * 3600, samesite="lax")
+    return resp
+
+
+@router.get("/outlook/start")
+def outlook_start():
+    """Đẩy sang trang đăng nhập Microsoft (Outlook). Chỉ hoạt động khi đã đặt MS_CLIENT_ID."""
+    return RedirectResponse(auth_service_ms.build_ms_auth_url())
+
+
+@router.get("/outlook/callback")
+def outlook_callback(code: str, db: Session = Depends(get_db)):
+    _user, token = auth_service_ms.login_with_code(db, code)  # tạo phiên + provider='microsoft'
+    return _set_session_cookie(token)
 
 
 @router.get("/google/start")
@@ -28,8 +53,8 @@ def google_start():
 def google_callback(code: str, db: Session = Depends(get_db)):
     # Bước 4–7: Google gọi lại kèm ?code → đổi lấy user + tạo phiên.
     _user, token = auth_service.login_with_code(db, code)
-    # Đăng nhập xong → ĐẨY TRÌNH DUYỆT VỀ FRONTEND để người dùng quay lại app.
-    resp = RedirectResponse(settings.frontend_url, status_code=302)
+    # Đăng nhập xong → ĐẨY TRÌNH DUYỆT VÀO THẲNG HỘP THƯ (/app).
+    resp = RedirectResponse(_app_url(), status_code=302)
     # Gắn token vào COOKIE httponly (JS không đọc được → an toàn hơn trước XSS).
     resp.set_cookie(
         COOKIE_NAME, token,
