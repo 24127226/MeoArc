@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { LogoMark } from '@/components/logo'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { SettingsDialog } from '@/components/layout/settings-dialog'
+import { NotificationBell } from '@/components/layout/notification-bell'
 
 type NavItem = { id: string; label: string; icon: React.ElementType }
 
@@ -139,10 +140,13 @@ export function NavRail({
   activeId,
   onSelect,
   badges = {},
+  agentActive = false,
 }: {
   activeId: string
   onSelect: (id: string) => void
   badges?: Record<string, number>
+  /** Nút "AI Agent" là công tắc → sáng theo trạng thái panel chat, không theo thư mục. */
+  agentActive?: boolean
 }) {
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem(COLLAPSE_KEY) === '1',
@@ -193,7 +197,7 @@ export function NavRail({
       <div className="flex flex-1 flex-col gap-1 px-3">
         {items.map((item) => {
           const Icon = item.icon
-          const isActive = activeId === item.id
+          const isActive = item.id === 'agent' ? agentActive : activeId === item.id
           const count = badges[item.id]
           return (
             <button
@@ -214,7 +218,7 @@ export function NavRail({
               <span className="relative shrink-0">
                 <Icon className={cn('size-5', isActive && 'stroke-[2.2px]')} />
                 {count ? (
-                  <span className="absolute -right-2 -top-2 flex size-4 items-center justify-center rounded-full bg-spark text-[10px] font-semibold text-white cherry-dot animate-pulse">
+                  <span className="absolute -right-2 -top-2 flex size-4 items-center justify-center rounded-full bg-spark text-[10px] font-semibold text-background cherry-dot animate-pulse">
                     {count}
                   </span>
                 ) : null}
@@ -233,6 +237,7 @@ export function NavRail({
       {/* Đáy: cài đặt + tài khoản */}
       <div className="space-y-2 px-3 border-t border-border/10 pt-4 bg-secondary/5">
         <div className={cn('flex gap-1.5', collapsed ? 'flex-col items-center' : 'items-center justify-between')}>
+          <NotificationBell />
           <SettingsDialog />
           <AccountMenu />
         </div>

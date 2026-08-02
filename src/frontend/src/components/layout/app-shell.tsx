@@ -41,11 +41,13 @@ export function AppShell() {
   // Lệnh do nút ngữ cảnh (UC016) / Command Palette đẩy sang ChatPanel
   const [pendingCommand, setPendingCommand] = useState<string | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [activeNav, setActiveNav] = useState('inbox') // tab nav trái
+  const [activeNav, setActiveNav] = useState('inbox') // thư mục đang chọn (luôn là folder thật)
+  const [aiOpen, setAiOpen] = useState(false)         // MẶC ĐỊNH TẮT: giống Gmail, chỉ hiện chat khi bấm "AI Agent"
+  const [chatFocus, setChatFocus] = useState(0)       // đếm số lần bấm tab AI Agent → focus chat
   const { theme, toggleTheme } = useTheme()
 
-  // Tab nav → thư mục lọc danh sách ('agent' chỉ chuyển focus sang chat)
-  const folder = activeNav === 'agent' ? 'inbox' : activeNav
+  // Nav trái giờ luôn là thư mục thật; nút "AI Agent" là công tắc bật/tắt panel chat.
+  const folder = activeNav
 
   // Cache thư THEO THƯ MỤC (stale-while-revalidate): quay lại tab đã xem → hiện
   // NGAY bản cache (hết cảm giác "đang gọi API load lại"), đồng thời vẫn refetch
@@ -72,6 +74,12 @@ export function AppShell() {
       .catch(() => {})
   }, [folder])
   const selectNav = (id: string) => {
+    // "AI Agent" = CÔNG TẮC hiện/ẩn panel chat (không phải một thư mục). Mở → focus ô chat.
+    if (id === 'agent') {
+      setAiOpen((v) => !v)
+      setChatFocus((n) => n + 1)
+      return
+    }
     setActiveNav(id)
     withTransition(() => setOpenedId(null))
   }
@@ -203,8 +211,26 @@ export function AppShell() {
   const openedEmail = emails.find((e) => e.id === openedId) ?? null
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <NavRail activeId={activeNav} onSelect={selectNav} badges={{ inbox: inboxUnread }} />
+    <div className="relative flex h-screen w-full overflow-hidden bg-background text-foreground">
+      {/* Cực quang nền — dải sáng uốn lượn như khung hình đầu trang giới thiệu.
+          Nằm SAU mọi panel (các panel là khối kính nên ánh sáng vẫn thấp thoáng qua). */}
+      <div aria-hidden className="aurora-stage">
+        <span className="aurora-ribbon aurora-ribbon-1" />
+        <span className="aurora-ribbon aurora-ribbon-2" />
+        <span className="aurora-ribbon aurora-ribbon-3" />
+      </div>
+
+      {/* Ba cột nằm ở tầng trên aurora (z-10) — nếu để chung tầng, lớp nền absolute
+          sẽ được vẽ ĐÈ lên các cột vì chúng không phải phần tử positioned. */}
+      <div className="relative z-10 flex min-w-0 flex-1">
+      <NavRail
+        activeId={activeNav}
+        onSelect={selectNav}
+        badges={{ inbox: inboxUnread }}
+        agentActive={aiOpen}
+      />
+      {/* Hộp thư: AI tắt + chưa mở thư → CHIẾM TRỌN bề ngang (fill); còn lại là cột.
+          AI tắt → dùng khung header thanh lịch (elegant) đổi tiêu đề thành "HỘP THƯ". */}
       <EmailList
         emails={emails}
         folder={folder}
@@ -216,32 +242,40 @@ export function AppShell() {
         loadingMore={loadingMore}
         onRefresh={apiBaseUrl ? refreshEmails : undefined}
         refreshing={refreshing}
+        elegant={!aiOpen}
+        fill={!aiOpen && !openedEmail}
       />
-      {/* Panel phải — morph qua View Transitions nhờ view-transition-name cố định */}
-      <div
-        className="flex min-w-0 flex-1"
-        style={{ ['viewTransitionName' as keyof CSSProperties]: 'rightpanel' } as CSSProperties}
-      >
-        {/* ChatPanel LUÔN mounted (chỉ ẨN khi xem thư) → mở thư rồi bấm quay lại KHÔNG mất phiên
-            chat và KHÔNG tạo phiên mới. Đúng mô hình app AI hiện đại: phiên chỉ được tạo khi người
-            dùng CHỦ ĐỘNG bấm "đoạn chat mới", chứ không phải mỗi lần điều hướng qua lại. */}
-        <div className={openedEmail ? 'hidden' : 'flex min-w-0 flex-1'}>
-          <ChatPanel
-            emails={emails}
-            actions={actions}
-            injectedCommand={pendingCommand}
-            onInjectConsumed={() => setPendingCommand(null)}
-            onOpenEmail={openEmail}
-          />
+      {/* Panel phải — chỉ dựng khi CẦN: đang bật AI, HOẶC đang mở 1 thư (reading pane).
+          AI tắt + chưa mở thư → không dựng gì → Hộp thư fill trọn khung như Gmail. */}
+      {(aiOpen || openedEmail) && (
+        <div
+          className="flex min-w-0 flex-1"
+          style={{ ['viewTransitionName' as keyof CSSProperties]: 'rightpanel' } as CSSProperties}
+        >
+          {/* ChatPanel mounted khi AI bật (ẩn khi đang xem thư) → mở thư rồi quay lại KHÔNG mất phiên. */}
+          {aiOpen && (
+            <div className={openedEmail ? 'hidden' : 'flex min-w-0 flex-1'}>
+              <ChatPanel
+                emails={emails}
+                actions={actions}
+                injectedCommand={pendingCommand}
+                onInjectConsumed={() => setPendingCommand(null)}
+                onOpenEmail={openEmail}
+                focusSignal={chatFocus}
+                onClose={() => setAiOpen(false)}
+              />
+            </div>
+          )}
+          {openedEmail && (
+            <EmailDetail
+              email={openedEmail}
+              onClose={closeEmail}
+              actions={actions}
+              onAgentAction={runAgentAction}
+            />
+          )}
         </div>
-        {openedEmail && (
-          <EmailDetail
-            email={openedEmail}
-            onClose={closeEmail}
-            actions={actions}
-            onAgentAction={runAgentAction}
-          />
-        )}
+      )}
       </div>
 
       {/* Command Palette (⌘K) */}

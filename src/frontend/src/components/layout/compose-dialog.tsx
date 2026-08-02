@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, apiBaseUrl } from '@/lib/api'
+import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -67,6 +68,13 @@ export function ComposeDialog() {
   const [sending, setSending] = useState(false) // đang gọi backend gửi thư (khoá nút, chống gửi 2 lần)
   const [sendError, setSendError] = useState<string | null>(null) // báo lỗi nếu Gmail từ chối
   const fileRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
+  // #3 — autocomplete người nhận (như Gmail)
+  const [toSuggest, setToSuggest] = useState<{ name: string; email: string }[]>([])
+  const toTimer = useRef<number | null>(null)
+  // #2 — Smart Compose: gợi ý đoạn tiếp theo (Tab để chèn)
+  const [ghost, setGhost] = useState('')
+  const ghostTimer = useRef<number | null>(null)
 
   // #2 — phím tắt "c" mở soạn thư (khi không đang gõ ở ô nào)
   useEffect(() => {
@@ -120,6 +128,10 @@ export function ComposeDialog() {
     setFiles([])
     setSending(false)
     setSendError(null)
+    setGhost('')
+    setToSuggest([])
+    if (ghostTimer.current) window.clearTimeout(ghostTimer.current)
+    if (toTimer.current) window.clearTimeout(toTimer.current)
   }
 
   // Thêm tệp: chế độ backend thật → UPLOAD lên server rồi lấy metadata trả về;
@@ -177,6 +189,57 @@ export function ComposeDialog() {
     return arr.length ? arr : undefined // rỗng → undefined để khỏi gửi field thừa
   }
 
+  // #3 — gõ ô "Tới": debounce gọi danh bạ theo TOKEN CUỐI (hỗ trợ nhiều người nhận).
+  const onToChange = (v: string) => {
+    setTo(v)
+    if (toTimer.current) window.clearTimeout(toTimer.current)
+    const tok = v.split(',').pop()?.trim() ?? ''
+    if (!tok) {
+      setToSuggest([])
+      return
+    }
+    toTimer.current = window.setTimeout(() => {
+      api.contacts(tok).then(setToSuggest).catch(() => setToSuggest([]))
+    }, 180)
+  }
+  const pickContact = (email: string) => {
+    const parts = to.split(',')
+    parts[parts.length - 1] = ` ${email}`
+    setTo(parts.join(',').replace(/^\s+/, ''))
+    setToSuggest([])
+  }
+
+  // #2 — gõ nội dung: debounce gọi LLM gợi ý đoạn tiếp (dựa trên tiêu đề). Tab để chèn.
+  const onBodyChange = (v: string) => {
+    setBody(v)
+    setGhost('')
+    if (ghostTimer.current) window.clearTimeout(ghostTimer.current)
+    if (!apiBaseUrl || !subject.trim() || v.trim().length < 4) return
+    ghostTimer.current = window.setTimeout(() => {
+      api.suggestCompose(subject, v).then((s) => setGhost(s.trim())).catch(() => setGhost(''))
+    }, 900)
+  }
+  const acceptGhost = () => {
+    if (!ghost) return
+    setBody((b) => (b && !/[\s\n]$/.test(b) ? b + ' ' : b) + ghost)
+    setGhost('')
+  }
+
+  // #1 — thoát compose mà CÒN nội dung → LƯU NHÁP (không chặn việc đóng). Bấm "Bỏ nháp" thì reset trước.
+  const handleOpenChange = (o: boolean) => {
+    if (!o && step === 'compose' && (to.trim() || subject.trim() || body.trim()) && apiBaseUrl) {
+      api
+        .saveDraft({
+          to: to.trim(), cc: splitAddrs(cc), bcc: splitAddrs(bcc), subject, body,
+          attachmentIds: files.map((f) => f.id).filter((x): x is string => !!x),
+        })
+        .then(() => toast('Đã lưu vào Nháp', 'success'))
+        .catch(() => {})
+    }
+    setOpen(o)
+    if (!o) setTimeout(reset, 150)
+  }
+
   // Bấm "Xác nhận gửi": chế độ backend thật → GỬI qua Gmail rồi mới sang bước 'sent';
   // chế độ mock → chỉ chuyển bước như demo cũ. Lỗi (vd token thiếu quyền) → hiện thông báo.
   const doSend = async () => {
@@ -206,13 +269,7 @@ export function ComposeDialog() {
 
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o) setTimeout(reset, 150)
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button
           title="Soạn thư mới"
@@ -242,22 +299,51 @@ export function ComposeDialog() {
                 Anh Quân &lt;quanpta.meoarc@gmail.com&gt;
               </div>
 
-              {/* Tới + Cc/Bcc toggle */}
-              <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2">
-                <span className="w-7 shrink-0 text-xs text-popover-foreground/60">Tới</span>
-                <input
-                  className={fieldCls}
-                  placeholder="email người nhận"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCc((v) => !v)}
-                  className="shrink-0 rounded-md px-1.5 text-xs font-medium text-popover-foreground/60 hover:text-popover-foreground"
-                >
-                  Cc/Bcc
-                </button>
+              {/* Tới + Cc/Bcc toggle + autocomplete người nhận (như Gmail) */}
+              <div className="relative">
+                <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2">
+                  <span className="w-7 shrink-0 text-xs text-popover-foreground/60">Tới</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="email người nhận"
+                    value={to}
+                    onChange={(e) => onToChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setToSuggest([])
+                    }}
+                    onBlur={() => window.setTimeout(() => setToSuggest([]), 150)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCc((v) => !v)}
+                    className="shrink-0 rounded-md px-1.5 text-xs font-medium text-popover-foreground/60 hover:text-popover-foreground"
+                  >
+                    Cc/Bcc
+                  </button>
+                </div>
+                {toSuggest.length > 0 && (
+                  <div className="absolute left-9 right-3 top-full z-30 mt-1 overflow-hidden rounded-xl border border-border/50 bg-popover shadow-float">
+                    {toSuggest.map((ct) => (
+                      <button
+                        key={ct.email}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickContact(ct.email)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                      >
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-active/20 text-[10px] font-semibold text-active">
+                          {(ct.name || ct.email).charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-popover-foreground">
+                          {ct.name}
+                          {ct.name !== ct.email && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">{ct.email}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {showCc && (
@@ -322,8 +408,31 @@ export function ComposeDialog() {
                   className={`${fieldCls} min-h-44 resize-none px-3.5 py-3 leading-relaxed`}
                   placeholder="Nội dung email…"
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={(e) => onBodyChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab' && ghost) {
+                      e.preventDefault()
+                      acceptGhost()
+                    }
+                  }}
                 />
+              )}
+
+              {/* #2 — Smart Compose: gợi ý đoạn tiếp theo (bấm hoặc nhấn Tab để chèn) */}
+              {ghost && !aiTyping && (
+                <button
+                  type="button"
+                  onClick={acceptGhost}
+                  className="flex w-full items-start gap-2 border-t border-border/30 px-3.5 py-2 text-left transition-colors hover:bg-secondary/40"
+                >
+                  <Sparkles className="mt-0.5 size-3.5 shrink-0 text-active" />
+                  <span className="min-w-0 flex-1 text-xs">
+                    <span className="italic text-popover-foreground/70">{ghost}</span>
+                    <span className="ml-1.5 whitespace-nowrap text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                      — Tab để chèn
+                    </span>
+                  </span>
+                </button>
               )}
 
               {/* Tệp đính kèm */}

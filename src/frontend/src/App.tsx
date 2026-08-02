@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@/auth/auth-context'
 import { ToastProvider } from '@/components/ui/toast'
 import { AppShell } from '@/components/layout/app-shell'
 import { LoginPage } from '@/pages/login'
+import { LandingPage } from '@/pages/landing'
 
 /** Route được bảo vệ — chưa đăng nhập thì đẩy về /login (UC001). */
 function RequireAuth({ children }: { children: React.ReactElement }) {
@@ -26,9 +27,11 @@ function App() {
         <AuthProvider>
           <ToastProvider>
             <Routes>
+              {/* Trang giới thiệu (công khai) là cửa vào — nút đăng nhập mới dẫn tới /login. */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route
-                path="/"
+                path="/app"
                 element={
                   <RequireAuth>
                     <AppShell />

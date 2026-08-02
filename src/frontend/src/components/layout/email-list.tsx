@@ -34,12 +34,12 @@ import {
 } from '@/components/ui/dialog'
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { ComposeDialog } from '@/components/layout/compose-dialog'
+import { MailboxChrome } from '@/components/layout/mailbox-chrome'
 import { MeoMascot } from '@/components/meo-mascot'
 import { useToast } from '@/components/ui/toast'
 import { emailHaystack, interpretNL, matchText } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
-import { useTheme } from '@/components/theme-provider'
 import type { Category, Email } from '@/data/emails'
 
 /** Thanh tag danh mục = 'Tất cả' + ĐỦ 7 nhãn (nguồn duy nhất: CATEGORY_OPTIONS).
@@ -318,6 +318,8 @@ export function EmailList({
   loadingMore,
   onRefresh,
   refreshing,
+  elegant = false,
+  fill = false,
 }: {
   emails: Email[]
   folder?: string
@@ -329,6 +331,10 @@ export function EmailList({
   loadingMore?: boolean
   onRefresh?: () => void
   refreshing?: boolean
+  /** AI tắt → dùng khung header thanh lịch (dải sơn + "HỘP THƯ") thay poster Desert Rose. */
+  elegant?: boolean
+  /** Chiếm trọn bề ngang (flex-1) thay vì cột cố định — khi AI tắt và chưa mở thư. */
+  fill?: boolean
 }) {
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -406,9 +412,8 @@ export function EmailList({
   const serverMode = !!onSearch
   const FolderIcon = FOLDER_ICONS[folder] ?? Inbox
   // Màu 2 khung (header "Thư" + khung dưới danh sách mail) — PHẲNG, không hiệu ứng.
-  // Light: hồng nâu #8B3C46; Dark: plum sẫm (chữ kem #f0c9a6 đọc rõ trên cả hai).
-  const { theme } = useTheme()
-  const frameColor = theme === 'dark' ? '#2a0d14' : '#C85956'
+  // Lấy từ token --sc-base để đổi theo theme, không hardcode màu nữa.
+  const frameColor = 'var(--sc-base)'
   const nl = nlMode && query.trim() ? interpretNL(query) : null
 
   const firstSearch = useRef(true)
@@ -544,82 +549,90 @@ export function EmailList({
     clearSel()
   }
 
+  // Tiêu đề khung thanh lịch (AI tắt) + khay công cụ dùng CHUNG cho 2 kiểu header.
+  const elegantTitle = folder === 'inbox' ? 'Hộp thư' : (FOLDER_TITLES[folder] ?? 'Hộp thư')
+  const renderToolbar = (tone: 'poster' | 'elegant') => {
+    const base = 'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors'
+    const on = tone === 'poster' ? 'bg-[var(--sc-ink)] text-[var(--sc-base)]' : 'bg-foreground text-background'
+    const off =
+      tone === 'poster'
+        ? 'text-[var(--sc-ink)]/60 hover:bg-foreground/[0.07] hover:text-[var(--sc-ink)]'
+        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+    return (
+      <div className="flex items-center gap-0.5">
+        <button
+          title={searchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'}
+          aria-label="Bật/tắt ô tìm kiếm"
+          onClick={toggleSearch}
+          className={cn(base, searchOpen || query ? on : off)}
+        >
+          <Search className="size-3.5" />
+        </button>
+        <ComposeDialog />
+        <button
+          title="Làm mới"
+          aria-label="Làm mới hộp thư"
+          onClick={refresh}
+          className={cn(base, off)}
+        >
+          <RefreshCw className={cn('size-3.5', (loading || refreshing) && 'animate-spin')} />
+        </button>
+        <button
+          title="Bộ lọc theo tiêu chí"
+          onClick={() => setShowFilters((v) => !v)}
+          className={cn(base, showFilters ? on : off)}
+        >
+          <SlidersHorizontal className="size-3.5" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <section
       ref={sectionRef}
-      style={{ width, backgroundColor: frameColor }}
-      className="relative z-10 flex h-full shrink-0 flex-col transition-all duration-300"
+      style={fill ? { backgroundColor: frameColor } : { width, backgroundColor: frameColor }}
+      className={cn(
+        'relative z-10 flex h-full flex-col transition-all duration-300',
+        fill ? 'min-w-0 flex-1' : 'shrink-0',
+      )}
     >
       {/* [OLD MONEY FIX] Đã xóa bỏ hoàn toàn dải sơn chảy rớt cờ Pháp để tránh tranh chấp visual */}
 
-      {/* Header "Hộp thư" — poster editorial "Desert Rose": nền mận sẫm #2a0d14,
-          chữ hồng cát #f0c9a6 (hex cố định theo art-direction, cả 2 theme dùng
-          chung như poster in). CÔNG CỤ dồn hết lên hàng đầu (search + soạn/làm
+      {/* Header "Hộp thư" — poster editorial: nền và chữ lấy từ token --sc-base/--sc-ink
+          nên tự đổi theo theme (tím đêm ở dark, trời lam tím ở light).
+          CÔNG CỤ dồn hết lên hàng đầu (search + soạn/làm
           mới/lọc), tag bên dưới; wordmark "Hộp thư" giờ chạy DỌC theo line phân
           tách với panel chat (khối riêng ngay dưới header). Mèo lang thang đậu
           được lên mép dưới (data-cat-perch). */}
       {/* Header TRONG SUỐT — hiện màu phẳng của <section> (frameColor), KHÔNG hiệu
           ứng. Header và khung dưới danh sách mail đồng màu; chỉ khối mail inset
           giữ màu riêng. */}
+      {/* AI TẮT → khung header thanh lịch "HỘP THƯ" (dải sơn polygon) thay poster Desert Rose. */}
+      {elegant && <MailboxChrome title={elegantTitle} right={renderToolbar('elegant')} />}
       <header
         data-cat-perch="bottom"
-        className="relative flex flex-col gap-3.5 px-6 pb-4 pt-5"
+        className={cn('relative flex flex-col gap-3.5 px-6 pb-4', elegant ? 'pt-4' : 'pt-5')}
       >
-        {/* LOCKUP thương hiệu: "Hộp" = ICON đóng trong thẻ ngà nổi khối, "Thư" =
-            chữ font-display lớn kế bên — cặp đôi icon × serif (2 chất liệu, 1
-            lockup) thay cho watermark chữ chìm. Folder khác inbox → icon đổi
-            theo + hiện đủ tên thư mục. Nút thao tác nép phải cùng hàng. */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#f0c9a6] text-[#2a0d14] shadow-[0_4px_12px_rgba(0,0,0,0.35)]">
-              <FolderIcon className="size-[18px]" strokeWidth={2.2} />
-            </span>
-            <div className="leading-none">
-              <p className="font-display text-[26px] font-bold leading-none text-[#f0c9a6]">
-                {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
-              </p>
-              <p className="mt-1 text-[8px] font-mono font-medium uppercase tracking-[0.34em] text-[#f0c9a6]/45">
-                Meoarc mail
-              </p>
+        {/* LOCKUP poster "Desert Rose" — CHỈ khi AI đang bật (Hộp thư ở cột giữa). */}
+        {!elegant && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sc-ink)] text-[var(--sc-base)] shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
+                <FolderIcon className="size-[18px]" strokeWidth={2.2} />
+              </span>
+              <div className="leading-none">
+                <p className="font-display text-[26px] font-bold leading-none text-[var(--sc-ink)]">
+                  {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
+                </p>
+                <p className="mt-1 text-[8px] font-mono font-medium uppercase tracking-[0.34em] text-[var(--sc-ink)]/45">
+                  Meoarc mail
+                </p>
+              </div>
             </div>
+            {renderToolbar('poster')}
           </div>
-          <div className="flex items-center gap-0.5">
-            <button
-              title={searchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'}
-              aria-label="Bật/tắt ô tìm kiếm"
-              onClick={toggleSearch}
-              className={cn(
-                'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
-                searchOpen || query
-                  ? 'bg-[#f0c9a6] text-[#2a0d14]'
-                  : 'text-[#f0c9a6]/60 hover:bg-white/[0.07] hover:text-[#f0c9a6]',
-              )}
-            >
-              <Search className="size-3.5" />
-            </button>
-            <ComposeDialog />
-            <button
-              title="Làm mới"
-              aria-label="Làm mới hộp thư"
-              onClick={refresh}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[#f0c9a6]/60 transition-colors hover:bg-white/[0.07] hover:text-[#f0c9a6]"
-            >
-              <RefreshCw className={cn('size-3.5', (loading || refreshing) && 'animate-spin')} />
-            </button>
-            <button
-              title="Bộ lọc theo tiêu chí"
-              onClick={() => setShowFilters((v) => !v)}
-              className={cn(
-                'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
-                showFilters
-                  ? 'bg-[#f0c9a6] text-[#2a0d14]'
-                  : 'text-[#f0c9a6]/60 hover:bg-white/[0.07] hover:text-[#f0c9a6]',
-              )}
-            >
-              <SlidersHorizontal className="size-3.5" />
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Khung tìm kiếm pha lê — THU GỌN: chỉ hiện khi bấm nút search (làm gọn
             header). Bung có animation; Esc trong ô để đóng nhanh. */}
@@ -888,6 +901,7 @@ export function EmailList({
         </DialogContent>
       </Dialog>
 
+      {!fill && (
       <div
         role="separator"
         aria-orientation="vertical"
@@ -914,6 +928,7 @@ export function EmailList({
         <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/20 transition-colors group-hover:bg-active group-focus-visible:bg-active" />
         <span className="cherry-dot relative h-10 w-1.5 rounded-full opacity-0 shadow-subtle transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
       </div>
+      )}
     </section>
   )
 }

@@ -22,6 +22,8 @@ export type Email = {
   starred: boolean
   category: Category
   label?: string
+  /** Thân thư HTML gốc (render đúng chuẩn Gmail ở màn chi tiết) — thiếu thì dùng body text. */
+  html?: string | null
   attachments?: Attachment[]
   /** AI Triage (UC015): action=cần bạn xử lý · waiting=đang đợi · fyi=để biết */
   priority?: Priority

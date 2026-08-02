@@ -21,17 +21,19 @@ export function AccountMenu() {
 
   if (!user) return null
 
+  // Đăng xuất → về TRANG GIỚI THIỆU (không phải màn đăng nhập): người vừa thoát
+  // thường chưa muốn đăng nhập lại ngay, đưa họ về đúng cửa vào của sản phẩm.
   const handleLogout = () => {
     setOpen(false)
     logout()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   const handleRevoke = () => {
     // Thu hồi quyền = backend gọi Google bỏ quyền Gmail + xoá phiên (khác hẳn logout).
     setOpen(false)
     revokeAccess()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (

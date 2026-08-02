@@ -20,155 +20,155 @@
 :root {
   --radius: 1rem;
 
-  /* === LIGHT — "Pomegranate Editorial" (đỏ hồng lựu + chữ kem) ===
-     Đỏ làm KHUNG (nền/nav/panel) chữ kem; dải Hộp thư = hồng coral;
-     email = GLASS tối nổi, chữ kem, avatar đĩa kem → vẫn đọc rõ.
-     Màu category của inbox nằm trong email-list.tsx (một nguồn duy nhất). */
-  --background: #c85555; /* POMEGRANATE — khung trang */
-  --list: #e07970; /* dải Hộp thư — hồng coral */
-  --surface: #cf6262; /* pomegranate sáng hơn 1 chút */
-  --elevated: #d98a8a; /* chip sáng (nav active...) */
-  --panel: #c85555; /* panel AI = pomegranate */
-  --rail: #be4d4d; /* nav — đỏ sẫm hơn khung */
+  /* === LIGHT — "Twilight Sky" ===
+     KHÔNG dùng trắng. Nền lấy đúng dải trời hoàng hôn ở khung hình đầu trang giới
+     thiệu: xanh lam pha tím, sáng dần lên phía chân trời. Sáng hơn hẳn theme tối
+     nhưng vẫn giữ nguyên sắc tím–lam, nên hai theme là một gia đình màu. */
+  --background: #C6CBF4; /* khung trang — trời lam tím */
+  --list: #DCE0FB; /* dải Hộp thư — trời sáng hơn về chân trời */
+  --surface: #D5DAF9;
+  --elevated: #E9ECFE; /* chip/card nổi — tầng mây sáng nhất */
+  --panel: #CFD4F7; /* panel AI */
+  --rail: #B2B8EF; /* nav — dải trời sẫm nhất */
 
-  /* Chữ trên khung đỏ = KEM */
-  --foreground: #fbf0e2;
+  /* Chữ = mực tím đêm (đỉnh trời trong ảnh) */
+  --foreground: #171142;
   --card: var(--elevated);
-  --card-foreground: #fbf0e2;
-  /* Popover/Dialog/tờ draft = maroon sẫm, chữ kem (nút kem nổi rõ) */
-  --popover: #3a1414;
-  --popover-foreground: #fbf0e2;
+  --card-foreground: #171142;
+  --popover: #E9ECFE;
+  --popover-foreground: #171142;
 
-  /* CTA — nút kem nổi bật trên nền đỏ */
-  --primary: #f8ead9;
-  --primary-foreground: #a8392f;
+  /* CTA — tím điện */
+  --primary: #4B23D9;
+  --primary-foreground: #FFFFFF;
 
   /* Nền phụ / hover */
-  --secondary: #d98a8a;
-  --secondary-foreground: #fbf0e2;
-  --muted: #d98a8a;
-  --muted-foreground: #f3d9cc; /* kem mờ cho text phụ */
+  --secondary: #B9BFF2;
+  --secondary-foreground: #171142;
+  --muted: #B9BFF2;
+  --muted-foreground: #453D7C; /* tím trầm cho text phụ */
 
-  /* Cream-gold — accent/viền/nhãn; KEM cho logo/brand */
-  --accent: #f2dcc0;
-  --accent-foreground: #a8392f;
-  --emphasis: #fbf0e2;
-  --emphasis-foreground: #b23b3b;
-  --success: #f2dcc0;
-  --success-foreground: #a8392f;
+  /* Teal — accent/viền/nhãn (vệt sáng trong ảnh, ghì đậm để đọc được) */
+  --accent: #BEEBE8;
+  --accent-foreground: #08514B;
+  --emphasis: #201856;
+  --emphasis-foreground: #FFFFFF;
+  --success: #096158;
+  --success-foreground: #FFFFFF;
 
-  /* Gold ấm — icon active + quầng nắng tĩnh */
-  --active: #fbe0b0;
-  --active-foreground: #7a3a12;
+  /* Violet — icon active, trạng thái đang chọn */
+  --active: #4B23D9;
+  --active-foreground: #FFFFFF;
 
-  /* Hồng cherry — chấm chưa đọc; gold kim loại */
-  --spark: #fdaba5;
-  --gold: #e6c079;
+  /* Teal đậm — chấm chưa đọc + badge */
+  --spark: #096158;
+  --gold: #B36A08; /* Toxic Amber ghì đậm cho nền sáng */
   --star: transparent;
 
-  /* Wine sẫm — destructive/cảnh báo nặng */
-  --destructive: #7a1f1f;
-  --destructive-foreground: #fbf0e2;
+  /* Magenta ghì đậm — destructive */
+  --destructive: #B31260;
+  --destructive-foreground: #FFFFFF;
 
   /* Viền hairline + focus ring */
-  --border: #e08a86;
-  --input: #d98a8a;
-  --ring: #fbe0b0;
+  --border: #A9B0EA;
+  --input: #A9B0EA;
+  --ring: #4B23D9;
 
-  /* Glass tối (frosted) — email/khối nổi trên nền đỏ */
-  --glass-bg: rgba(74, 20, 20, 0.3);
-  --glass-border: rgba(255, 240, 226, 0.18);
+  /* Glass — mây sáng ánh lam, không phải trắng đục */
+  --glass-bg: rgba(233, 236, 254, 0.66);
+  --glass-border: rgba(23, 17, 66, 0.12);
 
-  /* AUBERGINE GLEAM — dải màu "loang" (marbled) cho khối kính chat (.rose-glass).
-     Tông theo PANTONE 20-0124 "Aubergine Gleam" (#301728): cà tím sẫm ánh kim.
-     Bề mặt ĐẶC (bớt trong) + vệt loang GHÌ TRẦM (bỏ hồng/trắng chói) cho êm mắt. */
-  --rose-aubergine: #301728; /* Aubergine Gleam — nền chủ đạo */
-  --rose-ink: #3a071f;       /* Rose Ink / blackberry — hốc sâu */
-  --rose-wine: #6f1f3b;      /* Blush Wine — mận */
-  --rose-petal: #9c6079;     /* Petal Dust (đã ghì trầm cho bớt chói) */
-  --rose-powder: #c78fa4;    /* Powder Rose (dịu) */
-  --rose-ivory: #fff0f5;     /* Ivory Bloom — chỉ dùng cho ánh kim mảnh */
-  --rose-glass-bg: rgba(48, 23, 40, 0.62);      /* aubergine — ĐẶC hơn, bớt trong */
-  --rose-glass-brd: rgba(240, 225, 232, 0.16);  /* ánh kim mảnh */
-  --rose-marble-op: 0.32;                        /* vệt loang chìm, không chọi mắt */
+  /* NEBULA — dải màu "loang" cho khối kính chat (.rose-glass).
+     Giữ nguyên tên biến để không phải sửa component; đổi tông sang tím–lam thiên hà. */
+  --rose-aubergine: #2A1F63; /* tím thiên hà — nền chủ đạo */
+  --rose-ink: #171040;       /* mực tím — hốc sâu */
+  --rose-wine: #4F2FC0;      /* tím đậm */
+  --rose-petal: #977DFF;     /* violet chủ đạo (đúng màu trong ảnh) */
+  --rose-powder: #87F5F5;    /* cyan — vệt sáng */
+  --rose-ivory: #F5F7FF;     /* ngọc trai */
+  --rose-glass-bg: rgba(233, 236, 254, 0.72);
+  --rose-glass-brd: rgba(75, 35, 217, 0.18);
+  --rose-marble-op: 0.22;    /* nền sáng nên vệt loang phải nhẹ */
 
-  /* SƠN SIÊU XE — màu khung cột thư. LIGHT: hồng candy sáng + chữ wine sẫm (đọc rõ). */
-  --sc-base: #e56b97; /* hồng sáng — bề mặt sơn (light) */
-  --sc-ink: #3d0a1f;  /* chữ/icon wine sẫm nổi trên hồng sáng */
+  /* Khung cột thư. LIGHT: trời lam tím + chữ mực tím (đọc rõ). */
+  --sc-base: #AFB6EE;
+  --sc-ink: #1B1450;
 
-  /* Bóng sâu (tông đỏ sẫm) để glass nổi rõ trên nền đỏ */
-  --shadow-sm: 0 1px 2px rgba(60, 12, 12, 0.18), 0 1px 3px rgba(60, 12, 12, 0.14);
-  --shadow-md: 0 1px 2px rgba(60, 12, 12, 0.16), 0 6px 12px -4px rgba(60, 12, 12, 0.22),
-    0 18px 36px -12px rgba(60, 12, 12, 0.3);
-  --shadow-lg: 0 2px 4px rgba(60, 12, 12, 0.2), 0 10px 20px -6px rgba(60, 12, 12, 0.28),
-    0 30px 56px -16px rgba(60, 12, 12, 0.4);
+  /* Bóng tím lam — nền trời cần bóng có sắc, không xám đục */
+  --shadow-sm: 0 1px 2px rgba(23, 17, 66, 0.1), 0 1px 3px rgba(23, 17, 66, 0.08);
+  --shadow-md: 0 1px 2px rgba(23, 17, 66, 0.08), 0 6px 12px -4px rgba(23, 17, 66, 0.14),
+    0 18px 36px -12px rgba(23, 17, 66, 0.18);
+  --shadow-lg: 0 2px 4px rgba(23, 17, 66, 0.1), 0 10px 20px -6px rgba(23, 17, 66, 0.18),
+    0 30px 56px -16px rgba(23, 17, 66, 0.24);
 }
 
 .dark {
-  /* === DARK — "Cherry Noir" (rượu vang, cherry, gỗ mun đỏ) ===
-     Palette từ ảnh: night rider → aubergine → mahogany → dark burgundy
-     → pohutukawa → roof terracotta. Đỏ vang trầm + chữ kem rosé + nhấn vàng đồng. */
-  --background: #2f0410; /* nền trang — vang sẫm */
-  --list: #3c050f; /* dải Hộp thư — mahogany (khác nền 1 bậc) */
-  --surface: #3c050f; /* sáng hơn nền 1 bậc */
-  --elevated: #4d0c0c; /* card nổi — vang đỏ */
-  --panel: #320611; /* nền panel AI */
-  --rail: #1c010c; /* nav — tầng tối nhất (night rider) */
+  /* === DARK — "Iridescent Night" ===
+     Rút từ khung hình đầu trang giới thiệu: nền là TÍM ĐÊM (không phải đen thuần —
+     đúng như đỉnh trời trong ảnh), vệt sáng cyan #87F5F5 làm trạng thái, tím
+     #977DFF làm hành động, hồng chân trời #FF6FB5 làm cảnh báo, amber làm nhấn. */
+  --background: #0A0718; /* nền trang — tím đêm */
+  --list: #120C2C; /* dải Hộp thư — tím đậm, sáng hơn nền 1 bậc */
+  --surface: #120C2C;
+  --elevated: #1D1444; /* card nổi */
+  --panel: #0D0920; /* nền panel AI */
+  --rail: #05030F; /* nav — tầng tối nhất */
 
-  /* Chữ kem ngả rosé trên nền vang */
-  --foreground: #efd9d2;
+  /* Chữ ngọc trai (Holographic Pearl) trên nền tím đêm */
+  --foreground: #F5F7FF;
   --card: var(--elevated);
-  --card-foreground: #efd9d2;
+  --card-foreground: #F5F7FF;
   --popover: var(--elevated);
-  --popover-foreground: #efd9d2;
+  --popover-foreground: #F5F7FF;
 
-  /* CTA — đỏ cherry tươi (roof terracotta) nổi trên nền vang */
-  --primary: #b21f29;
-  --primary-foreground: #fff1ed;
+  /* CTA — tím điện */
+  --primary: #977DFF;
+  --primary-foreground: #0A0718;
 
-  --secondary: #4a0f16;
-  --secondary-foreground: #efd9d2;
-  --muted: #4a0f16;
-  --muted-foreground: #c49a98; /* rosé mờ cho text phụ */
+  --secondary: #221846;
+  --secondary-foreground: #F5F7FF;
+  --muted: #221846;
+  --muted-foreground: #A9A2D8; /* tím nhạt cho text phụ — đạt AA trên nền tím đêm */
 
-  /* Vàng đồng — accent/viền/nhãn (vang + gold = sang) */
-  --accent: #c8a45e;
-  --accent-foreground: #2f0410;
-  --emphasis: #efd9d2; /* logo/brand = kem rosé */
-  --emphasis-foreground: #2f0410;
-  --success: #c8a45e;
-  --success-foreground: #2f0410;
+  /* Cyan sáng — accent/viền/nhãn (chính là vệt sáng trong ảnh) */
+  --accent: #87F5F5;
+  --accent-foreground: #04211F;
+  --emphasis: #F5F7FF; /* logo/brand */
+  --emphasis-foreground: #0A0718;
+  --success: #87F5F5;
+  --success-foreground: #04211F;
 
-  /* Active icon + quầng nến ấm */
-  --active: #d9a85e;
-  --active-foreground: #2f0410;
-  /* Chấm chưa đọc — cherry tươi */
-  --spark: #f07a86;
-  /* Đốm than hồng cực mờ trong header panel AI */
-  --star: #5e1822;
+  /* Active icon + trạng thái đang chọn */
+  --active: #977DFF;
+  --active-foreground: #0A0718;
+  /* Chấm chưa đọc — cyan sáng */
+  --spark: #87F5F5;
+  /* Đốm sao cực mờ trong header panel AI */
+  --star: #2A1F5E;
 
-  --destructive: #930510; /* pohutukawa */
-  --destructive-foreground: #fff1ed;
+  /* Hồng chân trời trong ảnh — destructive */
+  --destructive: #FF6FB5;
+  --destructive-foreground: #2A0418;
 
-  /* Brass kim loại */
-  --gold: #c9a86a;
+  /* Amber kim loại */
+  --gold: #FF8A1E;
 
-  --border: #54121c;
-  --input: #54121c;
-  --ring: #c8a45e;
+  --border: #2C2158;
+  --input: #2C2158;
+  --ring: #977DFF;
 
-  /* Glass nhuốm vang tối */
-  --glass-bg: rgba(28, 2, 10, 0.4);
-  --glass-border: rgba(255, 220, 220, 0.1);
+  /* Glass nhuốm tím đêm */
+  --glass-bg: rgba(18, 12, 44, 0.5);
+  --glass-border: rgba(200, 196, 255, 0.12);
 
-  /* AUBERGINE GLEAM (dark) — nền cà tím ĐẶC, bong bóng bớt trong hẳn; loang chìm */
-  --rose-glass-bg: rgba(48, 23, 40, 0.80);      /* aubergine đậm — bớt trong rõ rệt */
-  --rose-glass-brd: rgba(240, 225, 232, 0.10);  /* ánh kim mảnh */
-  --rose-marble-op: 0.42;                        /* loang êm, sang & dịu mắt */
+  /* Vệt loang cho khối kính chat — tím thiên hà */
+  --rose-glass-bg: rgba(24, 16, 58, 0.82);
+  --rose-glass-brd: rgba(200, 196, 255, 0.12);
+  --rose-marble-op: 0.42;
 
-  /* SƠN SIÊU XE — DARK: plum sẫm + chữ kem rosé (poster Desert Rose) */
-  --sc-base: #2a0d14; /* plum sẫm — bề mặt sơn (dark) */
-  --sc-ink: #f0c9a6;  /* chữ/icon kem hồng cát */
+  /* Khung cột thư — DARK: tím mực + chữ ngọc trai */
+  --sc-base: #171040;
+  --sc-ink: #CFC9FF;
 
   /* Dark cần bóng sâu hơn, tông đen */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -238,6 +238,67 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/* ============================================================
+   CỰC QUANG — dải sáng uốn lượn lấy từ khung hình đầu trang giới thiệu.
+   Đặt ở tầng nền của app (sau mọi panel), chuyển động rất chậm nên không
+   gây xao nhãng khi đọc thư. Tự tắt khi người dùng chọn giảm chuyển động.
+   ============================================================ */
+.aurora-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora-ribbon {
+  position: absolute;
+  left: -20%;
+  width: 140%;
+  height: 42vh;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.dark .aurora-ribbon { opacity: 0.42; }
+.aurora-ribbon-1 {
+  top: -12%;
+  background: radial-gradient(
+    60% 50% at 30% 50%,
+    color-mix(in srgb, var(--spark) 62%, transparent),
+    transparent 72%
+  );
+  animation: aurora-sway-1 34s ease-in-out infinite;
+}
+.aurora-ribbon-2 {
+  top: 22%;
+  background: radial-gradient(
+    58% 46% at 68% 50%,
+    color-mix(in srgb, var(--active) 58%, transparent),
+    transparent 74%
+  );
+  animation: aurora-sway-2 42s ease-in-out infinite;
+}
+.aurora-ribbon-3 {
+  bottom: -14%;
+  background: radial-gradient(
+    62% 48% at 46% 50%,
+    color-mix(in srgb, var(--gold) 40%, transparent),
+    transparent 76%
+  );
+  animation: aurora-sway-1 52s ease-in-out infinite reverse;
+}
+@keyframes aurora-sway-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-3deg) scaleY(1); }
+  50% { transform: translate3d(6%, 5vh, 0) rotate(3deg) scaleY(1.22); }
+}
+@keyframes aurora-sway-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(2deg) scaleY(1.1); }
+  50% { transform: translate3d(-7%, -4vh, 0) rotate(-4deg) scaleY(0.88); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-ribbon { animation: none; }
 }
 
 /* ============================================================
@@ -464,7 +525,7 @@
   .supercar-gloss {
     position: relative;
     isolation: isolate;
-    background-color: var(--sc-base, #2a0d14);
+    background-color: var(--sc-base, #14122E);
     background-image:
       linear-gradient(
         180deg,
@@ -629,11 +690,11 @@
   inset: -30%;
   background: conic-gradient(
     from 0deg,
-    #eab45c,
-    #c85555,
-    #fdaba5,
-    #e07970,
-    #eab45c
+    #977DFF,
+    #87F5F5,
+    #FF8A1E,
+    #FF2FA3,
+    #977DFF
   );
   animation: orb-spin 9s linear infinite;
 }
@@ -768,7 +829,7 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 42%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -3px 9px rgba(46, 12, 12, 0.2);
+    inset 0 -3px 9px rgba(10, 12, 34, 0.24);
 }
 .gloss-sweep::before {
   content: '';
@@ -856,7 +917,7 @@
     );
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.46),
-    inset -2px -4px 12px rgba(46, 12, 12, 0.3),
+    inset -2px -4px 12px rgba(10, 12, 34, 0.32),
     inset 2px 2px 7px rgba(255, 255, 255, 0.07);
 }
 .dark .ripe::after {

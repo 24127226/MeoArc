@@ -47,8 +47,10 @@ React 19 + Vite + TypeScript, Tailwind v4 (CSS-first, token trong `src/index.css
 `NavRail` (trái) · `EmailList` (giữa) · panel phải đổi giữa `EmailDetail` (khi mở 1 thư) và `ChatPanel` (AI canvas, mặc định).
 - **Nav lọc thật**: `activeNav` ở app-shell → `folder` truyền vào EmailList lọc theo `email.folder` (inbox/sent/drafts/archive/trash, `starred`=thư gắn sao). Tab `agent` chỉ chuyển focus sang ChatPanel. Badge inbox = số chưa đọc thật. Mock có sẵn thư ở sent/drafts/trash (`src/data/emails.ts`). Nút "Trả lời" ở EmailDetail → đẩy `soạn trả lời {sender}` qua `onAgentAction`.
 
-### Hệ thống thiết kế "Cherry căng mọng dưới ánh sáng" — `src/index.css`
-2 theme chốt: Light "Pomegranate Editorial" + Dark "Cherry Noir" (token `--background/--list/--panel/--rail/--spark/--active/--accent`...). Utilities chất liệu (dùng lại, tự đổi theo theme — KHÔNG hardcode màu):
+### Hệ thống thiết kế "Iridescent" — `src/index.css`
+2 theme chốt: Light **"Twilight Sky"** (nền trời lam tím `#C6CBF4`, KHÔNG dùng trắng) + Dark **"Iridescent Night"** (nền tím đêm `#0A0718`). Màu rút trực tiếp từ khung hình đầu trang giới thiệu (`public/landing/flower-field-poster.jpg`): tím điện `#977DFF` = hành động · cyan `#87F5F5` = trạng thái/chưa đọc · amber `#FF8A1E` = nhấn · magenta `#FF2FA3` = cảnh báo. Cùng hệ với landing nên đăng nhập xong vào app không bị "nhảy màu".
+Nền app có **dải cực quang** (`.aurora-stage` + `.aurora-ribbon-1/2/3` trong app-shell) mô phỏng vệt sáng trong ảnh; đặt dưới tầng `relative z-10` của 3 cột.
+Token `--background/--list/--panel/--rail/--spark/--active/--accent/--sc-base/--sc-ink`... Utilities chất liệu (dùng lại, tự đổi theo theme — KHÔNG hardcode màu):
 - `.glass` frosted · `.gloss` + `.gloss-sweep` (specular + vệt sáng lướt hover) · `.edge-light` (rim mép trên).
 - `.ripe` (bề mặt mọng: specular gắt + subsurface đỏ thấu từ trong + tối dồn đáy; CHỒNG lên `.glass`, KHÔNG dùng chung `.gloss` vì cùng chiếm `::after`).
 - `.cherry-dot` (chấm/hạt cherry có glow — chưa đọc & grip kéo) · `.bokeh` (đốm sáng nhoè quanh mascot/empty-state) · `.ripe-pulse` (1 nhịp glow khi xong việc) · `.glow-active` · `.stars-faint` · `.skeleton` (shimmer tông cherry).
