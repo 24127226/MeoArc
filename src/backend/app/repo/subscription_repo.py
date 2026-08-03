@@ -5,7 +5,7 @@
 from datetime import date
 from sqlalchemy.orm import Session
 from app.models.subscription import Subscription
-from app.core.plans import tier_limits, DEFAULT_TIER
+from app.core.plans import tier_limits, is_valid_tier, DEFAULT_TIER
 
 
 def get_or_create(db: Session, user_id: int) -> Subscription:
@@ -37,6 +37,7 @@ def status(db: Session, s: Subscription) -> dict:
     lim = tier_limits(s.tier)
     return {
         "tier": s.tier,
+        "tierLabel": lim["label"],
         "isActive": s.is_active,
         "daily": {"used": s.tokens_today, "limit": lim["daily_tokens"],
                   "remaining": max(0, lim["daily_tokens"] - s.tokens_today)},
@@ -65,7 +66,7 @@ def add_usage(db: Session, s: Subscription, tokens: int) -> None:
 def set_tier(db: Session, user_id: int, tier: str) -> Subscription:
     """Đổi gói (dùng khi nâng cấp/hạ cấp — hoặc admin/seed cho demo)."""
     s = get_or_create(db, user_id)
-    s.tier = tier if tier in ("free", "pro") else DEFAULT_TIER
+    s.tier = tier if is_valid_tier(tier) else DEFAULT_TIER
     db.commit()
     db.refresh(s)
     return s

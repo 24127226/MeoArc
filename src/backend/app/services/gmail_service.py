@@ -8,6 +8,7 @@
 import base64
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parseaddr, parsedate_to_datetime
 from zoneinfo import ZoneInfo
 import httpx
@@ -30,6 +31,10 @@ def _fmt_local(raw_date: str) -> tuple[str, str]:
         return dt.strftime("%H:%M"), dt.strftime("%d/%m/%Y %H:%M")
     except Exception:
         return raw_date, raw_date
+
+# Số thư lấy metadata cùng lúc khi dựng danh sách. 8 là mức cân bằng: nhanh gấp ~8 lần
+# so với gọi tuần tự mà chưa chạm ngưỡng chống dồn dập của Gmail (quota per-user-per-second).
+_LIST_WORKERS = 8
 
 GMAIL_LIST = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 GMAIL_MSG = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"
@@ -219,7 +224,9 @@ def list_messages(
 
     tag = folder if folder in _VALID_TAGS else "inbox"  # nhãn folder gắn vào mỗi Email
 
-    with httpx.Client(timeout=15) as client:
+    # Dùng chung 1 connection pool cho cả B1 lẫn B2 (giữ keep-alive, đỡ bắt tay TLS lại).
+    limits = httpx.Limits(max_connections=_LIST_WORKERS, max_keepalive_connections=_LIST_WORKERS)
+    with httpx.Client(timeout=15, limits=limits) as client:
         # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()
@@ -228,15 +235,28 @@ def list_messages(
         next_cursor = data.get("nextPageToken")  # None khi đã hết thư
 
         # B2: với mỗi id, lấy METADATA (From/Subject/Date + nhãn + snippet).
+        # Gmail KHÔNG trả sẵn metadata trong bước danh sách, nên buộc phải hỏi từng thư.
+        # Trước đây gọi TUẦN TỰ: 30 thư = 30 lượt nối đuôi nhau, mỗi lượt ~200ms → 6s chờ.
+        # Nay chạy SONG SONG có giới hạn: cùng số lượt gọi (không tốn thêm hạn mức API)
+        # nhưng thời gian chờ giảm còn khoảng 1/8.
+        def _fetch(mid: str):
+            try:
+                r = client.get(
+                    GMAIL_MSG.format(id=mid), headers=headers,
+                    params={"format": "metadata",
+                            "metadataHeaders": ["From", "To", "Subject", "Date"]},
+                )
+                return r.json() if r.status_code == 200 else None
+            except httpx.HTTPError:
+                return None  # 1 thư lỗi thì bỏ qua, không làm hỏng cả trang
+
         emails: list[Email] = []
-        for mid in ids:
-            r = client.get(
-                GMAIL_MSG.format(id=mid), headers=headers,
-                params={"format": "metadata",
-                        "metadataHeaders": ["From", "To", "Subject", "Date"]},
-            )
-            if r.status_code == 200:
-                emails.append(_to_email(r.json(), tag))
+        if ids:
+            with ThreadPoolExecutor(max_workers=min(_LIST_WORKERS, len(ids))) as pool:
+                # map giữ ĐÚNG THỨ TỰ Gmail trả về — thư mới nhất vẫn nằm trên đầu.
+                for raw in pool.map(_fetch, ids):
+                    if raw is not None:
+                        emails.append(_to_email(raw, tag))
         result = (emails, next_cursor)
         _cache_set(cache_key, result)  # lưu lại để lần sau (trong TTL) khỏi gọi Gmail
         return result

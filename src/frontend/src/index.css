@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+/* Bộ chữ công nghệ (Space Grotesk + JetBrains Mono) được nạp bằng <link> trong
+   index.html — KHÔNG dùng @import ở đây vì Tailwind v4 sẽ đẩy nó xuống sau các
+   rule khi gộp file, khiến trình duyệt bỏ qua và font im lặng không tải. */
+
 /* Dark mode kích hoạt bằng class .dark trên <html> (class strategy) */
 @custom-variant dark (&:is(.dark *));
 
@@ -187,6 +191,11 @@
   /* Display "maison" — chữ khắc thời trang cao cấp: watermark, masthead, số liệu lớn.
      Cormorant Garamond (thanh mảnh, tương phản cao) = chất Vogue/old-money. */
   --font-display: 'Cormorant Garamond', 'Playfair Display', ui-serif, Georgia, serif;
+  /* Bộ chữ công nghệ — DÙNG RIÊNG cho trang giới thiệu & đăng nhập, không đụng app.
+     tech  = tiêu đề/nhãn (Space Grotesk: hình học, sắc, hiện đại)
+     techMono = số liệu, mã, chỉ số (JetBrains Mono: chữ số đều li) */
+  --font-tech: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-tech-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
 
   /* Easing vật lý — "tactile". spring = nảy nhẹ (overshoot); soft = giảm tốc mượt.
      Dùng class ease-spring / ease-soft cho hover/press/panel. */
@@ -238,6 +247,99 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/* ============================================================
+   NÚT CẮT GÓC BÁT GIÁC + HIỆU ỨNG VÀO MÀN (dùng cho khối hành trình thư
+   ở trang giới thiệu và cho trang đăng nhập).
+   ============================================================ */
+.btn-cut {
+  clip-path: polygon(
+    12px 0%, calc(100% - 12px) 0%, 100% 12px, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 12px 100%, 0% calc(100% - 12px), 0% 12px
+  );
+}
+/* Biến thể viền: nền trắng làm "viền", ::before phủ đen bên trong chừa 1px */
+.btn-cut-border {
+  position: relative;
+  background: #fff;
+  clip-path: polygon(
+    12px 0%, calc(100% - 12px) 0%, 100% 12px, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 12px 100%, 0% calc(100% - 12px), 0% 12px
+  );
+}
+.btn-cut-border::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: #000;
+  z-index: 0;
+  clip-path: polygon(
+    11px 0%, calc(100% - 11px) 0%, 100% 11px, 100% calc(100% - 11px),
+    calc(100% - 11px) 100%, 11px 100%, 0% calc(100% - 11px), 0% 11px
+  );
+}
+.btn-cut-border > * {
+  position: relative;
+  z-index: 1;
+}
+.btn-cut-sm {
+  clip-path: polygon(
+    8px 0%, calc(100% - 8px) 0%, 100% 8px, 100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 8px 100%, 0% calc(100% - 8px), 0% 8px
+  );
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInSoft {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.anim-stagger {
+  opacity: 0;
+  animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.anim-fade {
+  opacity: 0;
+  animation: fadeInSoft 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-stagger, .anim-fade { animation: none; opacity: 1; transform: none; }
+}
+
+/* Kính lỏng — viền sáng mảnh chạy dọc mép, dùng cho chip/nút nổi trên nền tối */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.15) 80%,
+    rgba(255, 255, 255, 0.45) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 /* ============================================================

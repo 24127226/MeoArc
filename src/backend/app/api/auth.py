@@ -6,6 +6,9 @@
 # ║ Route vẫn MỎNG: chỉ điều phối, logic nằm ở auth_service.          ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
+import logging
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -15,12 +18,22 @@ from app.core.deps import COOKIE_NAME
 from app.services import auth_service, auth_service_ms
 from app.repo import session_repo
 
+logger = logging.getLogger("app.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _app_url() -> str:
     """Đăng nhập xong phải vào THẲNG hộp thư (/app), không rơi lại trang giới thiệu."""
     return settings.frontend_url.rstrip("/") + "/app"
+
+
+def _login_error(step: str, detail: str):
+    """Đăng nhập hỏng → quay về trang đăng nhập kèm lý do, thay vì trả 500 trống."""
+    base = settings.frontend_url.rstrip("/")
+    return RedirectResponse(
+        f"{base}/login?loi={quote(step)}&chi_tiet={quote(detail[:300])}",
+        status_code=302,
+    )
 
 
 def _set_session_cookie(token: str):
@@ -38,8 +51,25 @@ def outlook_start():
 
 
 @router.get("/outlook/callback")
-def outlook_callback(code: str, db: Session = Depends(get_db)):
-    _user, token = auth_service_ms.login_with_code(db, code)  # tạo phiên + provider='microsoft'
+def outlook_callback(code: str | None = None, error: str | None = None,
+                     error_description: str | None = None,
+                     db: Session = Depends(get_db)):
+    # Microsoft có thể gọi lại kèm ?error khi người dùng bấm Huỷ hoặc app thiếu quyền.
+    if error:
+        logger.warning("Outlook tu choi: %s — %s", error, error_description)
+        return _login_error("microsoft-tu-choi", error_description or error)
+    if not code:
+        return _login_error("thieu-code", "Microsoft khong gui ma uy quyen")
+    try:
+        _user, token = auth_service_ms.login_with_code(db, code)  # phiên + provider='microsoft'
+    except auth_service_ms.OutlookLoginError as e:
+        # Trước đây mọi lỗi ở đây đều thành "Internal Server Error" trống trơn,
+        # không cách nào biết hỏng ở bước nào. Giờ ghi log + đưa lý do về giao diện.
+        logger.error("Dang nhap Outlook hong o buoc %s: %s", e.step, e.detail)
+        return _login_error(e.step, e.detail)
+    except Exception as e:  # noqa: BLE001 — chặn để user thấy lý do thay vì 500 trần
+        logger.exception("Dang nhap Outlook loi khong luong truoc")
+        return _login_error("khong-xac-dinh", f"{type(e).__name__}: {e}")
     return _set_session_cookie(token)
 
 

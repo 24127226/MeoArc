@@ -31,6 +31,7 @@ from app.models.subscription import Subscription  # noqa: F401 — tạo bảng 
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
 from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
+from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.conversation import ConversationSummary, ConversationDetail, UpdateConversationReq
 
@@ -711,12 +712,24 @@ def get_subscription(session: AuthSession = Depends(get_current_session), db: Se
     return subscription_repo.status(db, sub)
 
 
+@app.get("/subscription/plans")
+def list_plans():
+    """Danh mục 3 gói (Miễn phí / Pro / Pro Max) kèm hạn mức + giá hiển thị.
+    FE dựng trang nâng cấp từ đây → số liệu chỉ nằm MỘT chỗ (app/core/plans.py)."""
+    return {"plans": plans.public_catalog()}
+
+
 @app.post("/subscription/tier")
 def set_subscription_tier(payload: dict,
                           session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
-    """Đổi gói (free/pro). ĐỒ ÁN: stub nâng cấp — sản phẩm thật sẽ qua cổng THANH TOÁN
+    """Đổi gói (free/pro/max). ĐỒ ÁN: stub nâng cấp — sản phẩm thật sẽ qua cổng THANH TOÁN
     rồi mới set tier (không cho client tự nâng gói)."""
-    sub = subscription_repo.set_tier(db, session.user_id, (payload or {}).get("tier", "free"))
+    tier = (payload or {}).get("tier", "free")
+    if not plans.is_valid_tier(tier):
+        raise HTTPException(status_code=400, detail=f"Gói không hợp lệ: {tier}")
+    sub = subscription_repo.set_tier(db, session.user_id, tier)
+    audit_repo.log(db, user_id=session.user_id, action="subscription.change_tier",
+                   status="success", details={"tier": tier})
     return subscription_repo.status(db, sub)
 
 

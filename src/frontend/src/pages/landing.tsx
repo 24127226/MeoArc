@@ -15,6 +15,7 @@ import {
   Reveal, Aurora, Spotlight, DotGrid, SpotCard, MovingBorderButton, CountUp,
   ContainerScroll, VideoBackdrop, StackReveal, GlowDivider, TextGenerate,
   CursorGlow, ScrollProgress, SectionDots, Marquee, AgentDemo, PlayfulLetter, Magnetic,
+  GridFloor, BeamSweep, ContourLines, ParticleField,
 } from '@/components/landing/ui'
 import { LetterTale } from '@/components/landing/letter-tale'
 
@@ -320,30 +321,35 @@ function BenefitsPanel() {
       <DotGrid />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">Vì sao cần MeoArc</p>
-          <h2 className="mt-3 font-serif text-[1.7rem] font-bold leading-tight sm:text-[2.6rem]">
-            Bạn không thiếu ứng dụng email.
+          <p className="ld-chip mx-auto">Vì sao cần MeoArc</p>
+          <h2 className="mt-4 text-[1.9rem] leading-[1.05] sm:text-[3rem]">
+            Bạn không thiếu app email.
             <br />
             Bạn thiếu <span className="text-[#F0A848]">thời gian</span>.
           </h2>
         </div>
-        <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-4">
+        {/* Ba khối ICON LỚN — mỗi khối chỉ vài từ, không đoạn văn */}
+        <div className="mt-8 grid gap-3 sm:mt-12 sm:grid-cols-3 sm:gap-4">
           {[
-            { icon: Sparkles, t: 'Nói thay vì bấm', d: 'Một câu tiếng Việt thay cho mười cú click qua các menu.' },
-            { icon: Tags, t: 'Hộp thư tự gọn', d: 'Thư mới được xếp vào 7 nhóm ngay khi vừa đến.' },
-            { icon: ShieldCheck, t: 'Không sợ AI làm bậy', d: 'Việc nào không hoàn tác được thì phải có bạn duyệt.' },
+            { icon: Sparkles, c: '#8B7BF0', t: 'Nói,\nkhông bấm', n: '01' },
+            { icon: Tags, c: '#4FD1C5', t: 'Hộp thư\ntự gọn', n: '02' },
+            { icon: ShieldCheck, c: '#F0A848', t: 'AI hỏi\ntrước khi làm', n: '03' },
           ].map((b, i) => (
-            <Reveal key={b.t} delay={i * 0.08}>
-              <SpotCard className="h-full p-5 sm:p-6">
-                <div className="flex items-start gap-3.5 sm:block">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#8B7BF0]/20 text-[#8B7BF0] sm:size-11">
-                    <b.icon className="size-5" />
+            <Reveal key={b.n} delay={i * 0.08}>
+              <SpotCard className="group relative h-full overflow-hidden p-6">
+                <b.icon aria-hidden
+                  className="pointer-events-none absolute -bottom-6 -right-5 size-36 opacity-[0.07] transition-transform duration-700 group-hover:scale-110"
+                  style={{ color: b.c }} />
+                <div className="relative flex items-center justify-between">
+                  <span className="flex size-12 items-center justify-center rounded-2xl"
+                    style={{ background: `${b.c}20`, color: b.c }}>
+                    <b.icon className="size-6" />
                   </span>
-                  <div className="sm:mt-4">
-                    <h3 className="font-serif text-lg font-bold sm:text-xl">{b.t}</h3>
-                    <p className="mt-1 text-[13.5px] leading-relaxed text-white/60 sm:mt-2 sm:text-[14px]">{b.d}</p>
-                  </div>
+                  <span className="ld-num" style={{ color: b.c }}>{b.n}</span>
                 </div>
+                <h3 className="ld-title relative mt-6 whitespace-pre-line text-[1.6rem] leading-[1.08]">
+                  {b.t}
+                </h3>
               </SpotCard>
             </Reveal>
           ))}
@@ -387,7 +393,7 @@ export function LandingPage() {
   const seeMore = () => document.getElementById('agent')?.scrollIntoView({ behavior: 'smooth' })
 
   return (
-    <div className="relative min-h-screen bg-[#06060B] text-white">
+    <div className="ld-tech relative min-h-screen bg-[#06060B] text-white">
       <style>{`
         @property --beam { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
         .ld-beam::after{ content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1.5px;
@@ -405,6 +411,38 @@ export function LandingPage() {
         @keyframes ld-flutter{ 0%,100%{ transform:translateY(0) rotate(-4deg) } 50%{ transform:translateY(-12px) rotate(4deg) } }
         @keyframes ld-marquee{ from{ transform:translateX(0) } to{ transform:translateX(-50%) } }
         @keyframes ld-bounce{ 0%,100%{ transform:translateY(0); opacity:.55 } 50%{ transform:translateY(-3px); opacity:1 } }
+
+        /* Lớp nền thay cho mảng đen trơn — dựng bằng CSS, không tải thêm gì */
+        @keyframes ld-grid-run{ to{ background-position: 0 54px } }
+        @keyframes ld-beam-sweep{
+          0%,100%{ transform: translateX(-40%) rotate(18deg); opacity:0 }
+          40%{ opacity:1 }
+          60%{ opacity:1 }
+          100%{ transform: translateX(140%) rotate(18deg); opacity:0 } }
+        @keyframes ld-float-up{
+          0%{ transform: translateY(0); opacity:0 }
+          10%{ opacity:1 }
+          90%{ opacity:1 }
+          100%{ transform: translateY(-115vh); opacity:0 } }
+
+        /* ── BỘ CHỮ CÔNG NGHỆ (chỉ trong trang giới thiệu, không đụng app) ──
+           Tiêu đề dùng Space Grotesk: hình học, sắc nét, nén chữ lại cho "đặc".
+           Mọi số liệu/nhãn kỹ thuật dùng JetBrains Mono — chữ số đều li nên
+           bảng số trông như bảng điều khiển chứ không như văn bản. */
+        .ld-tech h1, .ld-tech h2, .ld-tech h3, .ld-tech .ld-title {
+          font-family: var(--font-tech); font-weight: 700; letter-spacing: -0.035em; }
+        .ld-tech .ld-num, .ld-tech .font-mono, .ld-tech .tabular-nums {
+          font-family: var(--font-tech-mono); }
+        /* Nhãn nhỏ kiểu mã hiệu: mono, giãn chữ, viết hoa */
+        .ld-tech .ld-chip {
+          display:inline-flex; align-items:center; gap:.4rem;
+          font-family: var(--font-tech-mono); font-size:10px; font-weight:500;
+          letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.62);
+          border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05);
+          border-radius:9999px; padding:.28rem .7rem; }
+        .ld-tech .ld-num {
+          font-size:11px; font-weight:700; letter-spacing:.1em; opacity:.85; }
+
         @media (prefers-reduced-motion: reduce){ .ld-beam:hover::after,.ld-mb::before{ animation:none } }
       `}</style>
 
@@ -440,9 +478,12 @@ export function LandingPage() {
 
       <GlowDivider />
 
-      {/* ══ SỐ LIỆU ══ */}
-      <section className="relative bg-white/[0.02] py-14">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-8 px-6 sm:grid-cols-4">
+      {/* ══ SỐ LIỆU — nền lưới phối cảnh chạy về chân trời ══ */}
+      <section className="relative overflow-hidden bg-white/[0.02] py-16">
+        <GridFloor tone="#8B7BF0" className="opacity-70" />
+        <div aria-hidden className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#06060B] to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#06060B] to-transparent" />
+        <div className="relative z-10 mx-auto grid max-w-5xl grid-cols-2 gap-8 px-6 sm:grid-cols-4">
           {[
             { v: 16, s: '', l: 'Use case đã dựng' },
             { v: 7, s: '', l: 'Nhóm phân loại tự động' },
@@ -516,76 +557,80 @@ export function LandingPage() {
         <Aurora className="opacity-60" />
         <div className="relative z-10 mx-auto max-w-6xl px-6">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">Tính năng</p>
+            <p className="ld-chip mx-auto">Tính năng</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.6rem]">MeoArc giải quyết việc gì</h2>
           </Reveal>
 
-          <div className="mt-16 space-y-24 sm:space-y-32">
-            {/* 1 — Human-in-the-loop: hình là chính màn duyệt bản nháp */}
-            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-              <Reveal>
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
-                  <ShieldCheck className="size-3.5" />Human-in-the-loop
-                </span>
-                <h3 className="mt-4 font-serif text-2xl font-bold leading-tight sm:text-3xl">
-                  Bạn luôn là người bấm nút cuối
-                </h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-white/65">
-                  Mọi hành động không hoàn tác được — gửi thư, xoá, dọn hàng loạt — đều dừng lại,
-                  hiện bản xem trước đầy đủ và chờ bạn duyệt. AI đề xuất, bạn quyết định.
-                </p>
-                <ul className="mt-5 space-y-2.5">
-                  {['Xem trước nội dung trước khi gửi', 'Duyệt hoặc từ chối từng việc một', 'Nhật ký ghi lại mọi thao tác đã chạy'].map((b) => (
-                    <li key={b} className="flex items-start gap-2.5 text-[14px] text-white/75">
-                      <span className="mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-full bg-[#F0A848]/20">
-                        <Check className="size-3 text-[#F0A848]" />
-                      </span>{b}
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-              <Reveal delay={0.1}>
-                <div className="relative">
-                  <div aria-hidden className="absolute -inset-6 rounded-[2rem] bg-[#F0A848]/15 blur-3xl" />
-                  <div className="relative"><AppMock compact /></div>
+          {/* BENTO ưu tiên HÌNH: mỗi ô chỉ một nhãn ngắn + một hình chứng minh.
+              Bỏ hẳn các đoạn văn dài — người xem lướt bằng mắt, không đọc. */}
+          <div className="mt-12 grid gap-3 sm:grid-cols-12">
+            {/* Ô lớn — màn duyệt bản nháp */}
+            <Reveal className="sm:col-span-7">
+              <SpotCard className="group relative h-full overflow-hidden p-5">
+                <div aria-hidden className="absolute -right-16 -top-16 size-52 rounded-full bg-[#F0A848]/15 blur-3xl" />
+                <div className="relative flex items-center justify-between">
+                  <span className="ld-chip">
+                    <ShieldCheck className="size-3.5" />Human-in-the-loop
+                  </span>
+                  <span className="ld-num text-[#F0A848]">01</span>
                 </div>
-              </Reveal>
-            </div>
-
-            {/* 2 — Gmail + Outlook: hình là sơ đồ hai nguồn hội tụ về một hộp thư */}
-            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-              <Reveal className="lg:order-2">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
-                  <Mails className="size-3.5" />Đa nền tảng
-                </span>
-                <h3 className="mt-4 font-serif text-2xl font-bold leading-tight sm:text-3xl">
-                  Gmail và Outlook trong một chỗ
+                <h3 className="ld-title relative mt-3 text-2xl sm:text-[1.75rem]">
+                  Bạn bấm nút cuối
                 </h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-white/65">
-                  Thư từ hai nhà cung cấp đổ về cùng một hộp thư, giữ nguyên dấu hiệu nguồn.
-                  Đọc, phân loại, trả lời bằng đúng một bộ thao tác — không phải nhớ hai giao diện.
-                </p>
-                <ul className="mt-5 space-y-2.5">
-                  {['Gmail qua Gmail API', 'Outlook qua Microsoft Graph', 'Thu hồi quyền bất cứ lúc nào'].map((b) => (
-                    <li key={b} className="flex items-start gap-2.5 text-[14px] text-white/75">
-                      <span className="mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-full bg-[#4FD1C5]/20">
-                        <Check className="size-3 text-[#4FD1C5]" />
-                      </span>{b}
-                    </li>
-                  ))}
-                </ul>
+                <div className="relative mt-4"><AppMock compact /></div>
+              </SpotCard>
+            </Reveal>
+
+            {/* Ô — hai nguồn hội tụ */}
+            <Reveal delay={0.06} className="sm:col-span-5">
+              <SpotCard className="relative h-full overflow-hidden p-5">
+                <div aria-hidden className="absolute -left-12 -top-12 size-44 rounded-full bg-[#4FD1C5]/15 blur-3xl" />
+                <div className="relative flex items-center justify-between">
+                  <span className="ld-chip"><Mails className="size-3.5" />Đa nền tảng</span>
+                  <span className="ld-num text-[#4FD1C5]">02</span>
+                </div>
+                <h3 className="ld-title relative mt-3 text-2xl sm:text-[1.75rem]">Hai hộp thư, một nơi</h3>
+                <div className="relative mt-4"><UnifiedInboxMock /></div>
+              </SpotCard>
+            </Reveal>
+
+            {/* Ba ô nhỏ — ICON KHỔNG LỒ, chỉ vài chữ */}
+            {[
+              { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn' },
+              { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K' },
+              { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài' },
+            ].map((b, i) => (
+              <Reveal key={b.n} delay={0.12 + i * 0.06} className="sm:col-span-4">
+                <SpotCard className="group relative h-full overflow-hidden p-5">
+                  {/* icon lớn mờ làm hoạ tiết nền */}
+                  <b.icon
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-5 -right-4 size-32 opacity-[0.07] transition-transform duration-700 group-hover:scale-110"
+                    style={{ color: b.c }}
+                  />
+                  <div className="relative flex items-center justify-between">
+                    <span className="flex size-11 items-center justify-center rounded-2xl"
+                      style={{ background: `${b.c}20`, color: b.c }}>
+                      <b.icon className="size-5.5" />
+                    </span>
+                    <span className="ld-num" style={{ color: b.c }}>{b.n}</span>
+                  </div>
+                  <h3 className="ld-title relative mt-5 text-2xl">{b.t}</h3>
+                  <p className="relative mt-0.5 text-[13px] text-white/45">{b.s}</p>
+                </SpotCard>
               </Reveal>
-              <Reveal delay={0.1} className="lg:order-1"><UnifiedInboxMock /></Reveal>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ══ BENTO ══ */}
-      <section id="auto" className="relative py-20 sm:py-24">
-        <div className="mx-auto max-w-6xl px-6">
+      {/* ══ BENTO — nền hạt sáng trôi + chùm quét chéo ══ */}
+      <section id="auto" className="relative overflow-hidden py-20 sm:py-24">
+        <ParticleField tone="#87F5F5" count={22} />
+        <BeamSweep tone="#8B7BF0" />
+        <div className="relative z-10 mx-auto max-w-6xl px-6">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">Tự động hoá</p>
+            <p className="ld-chip mx-auto">Tự động hoá</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.6rem]">Hộp thư tự xếp gọn mỗi ngày</h2>
           </Reveal>
           <div className="mt-12 grid gap-4 sm:grid-cols-12">
@@ -628,7 +673,7 @@ export function LandingPage() {
       <section id="how" className="relative border-y border-white/[0.07]">
         <div className="mx-auto max-w-6xl px-6 pt-24">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">Chuyện một lá thư</p>
+            <p className="ld-chip mx-auto">Chuyện một lá thư</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.6rem]">Từ lúc bạn nói đến khi thư tới tay</h2>
             <p className="mt-3 text-[14px] text-white/50">Cuộn chậm để nghe hết bốn trang chuyện.</p>
           </Reveal>
@@ -637,9 +682,10 @@ export function LandingPage() {
         <LetterTale />
       </section>
 
-      {/* ══ NỀN TẢNG ══ */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-5xl px-6 text-center">
+      {/* ══ NỀN TẢNG — vệt sáng quét ngang phía sau dải thương hiệu ══ */}
+      <section className="relative overflow-hidden py-16 sm:py-20">
+        <BeamSweep tone="#4FD1C5" className="opacity-70" />
+        <div className="relative z-10 mx-auto max-w-5xl px-6 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/40">Xây dựng trên</p>
         </div>
         <div className="mt-7"><Marquee items={TECHS} /></div>
@@ -648,11 +694,12 @@ export function LandingPage() {
         </p>
       </section>
 
-      {/* ══ FAQ ══ */}
-      <section id="faq" className="relative py-16 sm:py-20">
-        <div className="mx-auto max-w-3xl px-6">
+      {/* ══ FAQ — nền đường đồng mức, tĩnh và mảnh nên không cướp sự chú ý khi đọc ══ */}
+      <section id="faq" className="relative overflow-hidden py-16 sm:py-20">
+        <ContourLines tone="#8B7BF0" className="opacity-60" />
+        <div className="relative z-10 mx-auto max-w-3xl px-6">
           <Reveal className="text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50">Giải đáp</p>
+            <p className="ld-chip mx-auto">Giải đáp</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.4rem]">Câu hỏi thường gặp</h2>
           </Reveal>
           <div className="mt-10">{FAQS.map((f) => <FaqItem key={f.q} q={f.q} a={f.a} />)}</div>

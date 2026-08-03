@@ -17,9 +17,13 @@ from app.repo import user_repo, session_repo
 _AUTHORITY = "https://login.microsoftonline.com"
 GRAPH_ME = "https://graph.microsoft.com/v1.0/me"
 
-# Quyền: đăng nhập + đọc/ghi + gửi thư Outlook. offline_access = xin refresh_token.
+# Quyền: đăng nhập + đọc hồ sơ + đọc/ghi + gửi thư Outlook.
+# offline_access = xin refresh_token.
+# User.Read là BẮT BUỘC: endpoint Graph /me (lấy tên + email để tạo tài khoản) đòi
+# đúng quyền này. Chỉ có openid/email/profile thì token KHÔNG gọi được /me → 403.
 _SCOPE = (
     "openid email profile offline_access"
+    " https://graph.microsoft.com/User.Read"
     " https://graph.microsoft.com/Mail.ReadWrite"
     " https://graph.microsoft.com/Mail.Send"
 )
@@ -45,6 +49,28 @@ def build_ms_auth_url() -> str:
     return f"{_auth_url()}?{urlencode(params)}"
 
 
+class OutlookLoginError(Exception):
+    """Đăng nhập Outlook hỏng ở một bước cụ thể — kèm lý do đọc được để hiện cho user."""
+
+    def __init__(self, step: str, detail: str):
+        self.step = step
+        self.detail = detail
+        super().__init__(f"{step}: {detail}")
+
+
+def _explain(resp: httpx.Response) -> str:
+    """Rút thông điệp lỗi thật của Microsoft (thay vì để nguyên 500 trống trơn)."""
+    try:
+        body = resp.json()
+    except ValueError:
+        return f"HTTP {resp.status_code} — {resp.text[:200]}"
+    err = body.get("error")
+    if isinstance(err, dict):  # Graph trả {"error": {"code":..., "message":...}}
+        return f"{err.get('code')} — {err.get('message', '')[:200]}"
+    desc = (body.get("error_description") or "").split("\r\n")[0]
+    return f"{err} — {desc[:200]}" if err else f"HTTP {resp.status_code}"
+
+
 def _exchange_and_fetch(code: str) -> tuple[str, str | None, int, dict]:
     """Đổi code → token, rồi Graph /me lấy hồ sơ. Trả (access, refresh, expires_in, hồ_sơ)."""
     with httpx.Client(timeout=10) as client:
@@ -56,14 +82,18 @@ def _exchange_and_fetch(code: str) -> tuple[str, str | None, int, dict]:
             "grant_type": "authorization_code",
             "scope": _SCOPE,
         })
-        tr.raise_for_status()
+        if tr.status_code >= 400:
+            raise OutlookLoginError("doi_token", _explain(tr))
         tok = tr.json()
-        access = tok["access_token"]
+        access = tok.get("access_token")
+        if not access:
+            raise OutlookLoginError("doi_token", "Microsoft khong tra access_token")
         refresh = tok.get("refresh_token")
         expires_in = tok.get("expires_in", 3600)
 
         me = client.get(GRAPH_ME, headers={"Authorization": f"Bearer {access}"})
-        me.raise_for_status()
+        if me.status_code >= 400:
+            raise OutlookLoginError("lay_ho_so", _explain(me))
         return access, refresh, expires_in, me.json()
 
 
@@ -86,6 +116,9 @@ def login_with_code(db: Session, code: str):
     """code → (user, token phiên). Đặt provider='microsoft' cho phiên vừa tạo."""
     access, refresh, expires_in, info = _exchange_and_fetch(code)
     email = info.get("mail") or info.get("userPrincipalName") or ""
+    if not email:
+        # Không có email thì mọi thứ phía sau (get_or_create_user) sẽ hỏng khó hiểu.
+        raise OutlookLoginError("lay_ho_so", "Tai khoan Microsoft khong tra ve dia chi email")
     name = info.get("displayName") or email
     user = user_repo.get_or_create_user(db, email=email, name=name, initial=(name[:1].upper() or "?"))
     session = session_repo.create_session(

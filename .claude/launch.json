@@ -6,6 +6,15 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "src/frontend", "run", "dev", "--", "--port", "5180", "--strictPort"],
       "port": 5180
+    },
+    {
+      "name": "fe-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix", "src/frontend", "run", "dev", "--",
+        "--mode", "mock", "--port", "5199", "--strictPort"
+      ],
+      "port": 5199
     }
   ]
 }

@@ -97,6 +97,130 @@ export function DotGrid({ className }: { className?: string }) {
   )
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   LỚP NỀN — thay cho những mảng đen trơn.
+   Tất cả dựng bằng CSS/SVG, KHÔNG tải thêm tài nguyên nào; mỗi khối một vân riêng
+   để cuộn qua không thấy lặp. Đều tôn trọng chế độ giảm chuyển động.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/** Lưới phối cảnh chạy về chân trời — chất "sàn dữ liệu" của phim viễn tưởng. */
+export function GridFloor({ className, tone = '#8B7BF0' }: { className?: string; tone?: string }) {
+  const reduced = useReducedMotion()
+  return (
+    <div aria-hidden className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
+      {/* vầng sáng ở đường chân trời */}
+      <div className="absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 blur-[70px] opacity-30"
+        style={{ background: `radial-gradient(ellipse at center, ${tone}, transparent 70%)` }} />
+      {/* nửa dưới: lưới nghiêng chạy tới */}
+      <div className="absolute inset-x-0 bottom-0 top-1/2 [perspective:220px]">
+        <div
+          className="absolute inset-0 origin-top [transform:rotateX(64deg)]"
+          style={{
+            backgroundImage:
+              `linear-gradient(${tone}44 1px, transparent 1px), linear-gradient(90deg, ${tone}33 1px, transparent 1px)`,
+            backgroundSize: '54px 54px',
+            animation: reduced ? undefined : 'ld-grid-run 4.5s linear infinite',
+            maskImage: 'linear-gradient(180deg, black, transparent 78%)',
+            WebkitMaskImage: 'linear-gradient(180deg, black, transparent 78%)',
+          }}
+        />
+      </div>
+      {/* nửa trên: lưới lật ngược, mờ hơn — thành "trần" */}
+      <div className="absolute inset-x-0 top-0 bottom-1/2 [perspective:220px]">
+        <div
+          className="absolute inset-0 origin-bottom opacity-45 [transform:rotateX(-64deg)]"
+          style={{
+            backgroundImage:
+              `linear-gradient(${tone}33 1px, transparent 1px), linear-gradient(90deg, ${tone}22 1px, transparent 1px)`,
+            backgroundSize: '54px 54px',
+            animation: reduced ? undefined : 'ld-grid-run 6.5s linear infinite reverse',
+            maskImage: 'linear-gradient(0deg, black, transparent 78%)',
+            WebkitMaskImage: 'linear-gradient(0deg, black, transparent 78%)',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** Chùm sáng chéo quét qua — như đèn rọi lướt trên bề mặt tối. */
+export function BeamSweep({ className, tone = '#4FD1C5' }: { className?: string; tone?: string }) {
+  const reduced = useReducedMotion()
+  return (
+    <div aria-hidden className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="absolute -top-1/2 h-[200%] w-[140px] blur-2xl"
+          style={{
+            left: `${12 + i * 32}%`,
+            background: `linear-gradient(90deg, transparent, ${tone}22, transparent)`,
+            transform: 'rotate(18deg)',
+            animation: reduced ? undefined : `ld-beam-sweep ${13 + i * 4}s ease-in-out ${i * 2.5}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** Đường đồng mức — vân địa hình mảnh, tĩnh, tạo chiều sâu mà không gây nhiễu. */
+export function ContourLines({ className, tone = '#8B7BF0' }: { className?: string; tone?: string }) {
+  return (
+    <svg aria-hidden className={cn('pointer-events-none absolute inset-0 size-full', className)}
+      preserveAspectRatio="none" viewBox="0 0 1200 600">
+      <defs>
+        <linearGradient id="ct-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={tone} stopOpacity="0.22" />
+          <stop offset="55%" stopColor={tone} stopOpacity="0.07" />
+          <stop offset="100%" stopColor={tone} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {Array.from({ length: 9 }).map((_, i) => {
+        const y = 90 + i * 52
+        const amp = 26 + i * 5
+        return (
+          <path
+            key={i}
+            d={`M-20 ${y} C 200 ${y - amp}, 380 ${y + amp}, 600 ${y} S 1000 ${y - amp}, 1220 ${y}`}
+            fill="none" stroke="url(#ct-fade)" strokeWidth="1"
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+/** Trường hạt sáng trôi rất chậm — thay cho nền đen phẳng. */
+export function ParticleField({ className, count = 26, tone = '#87F5F5' }: {
+  className?: string; count?: number; tone?: string
+}) {
+  const reduced = useReducedMotion()
+  return (
+    <div aria-hidden className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
+      {Array.from({ length: count }).map((_, i) => {
+        const left = (i * 37) % 100
+        const size = i % 6 === 0 ? 3 : i % 3 === 0 ? 2 : 1.5
+        return (
+          <span
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: `${left}%`,
+              bottom: `-${8 + (i % 5) * 4}%`,
+              width: size, height: size,
+              background: tone,
+              opacity: 0.18 + ((i * 13) % 45) / 100,
+              boxShadow: `0 0 ${size * 3}px ${tone}`,
+              animation: reduced ? undefined : `ld-float-up ${22 + (i % 7) * 5}s linear ${i * 1.1}s infinite`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 /** Card kính: viền sáng chạy + quầng sáng bám con trỏ (Card Spotlight + Border Beam). */
 export function SpotCard({ children, className, beam = true }: { children: ReactNode; className?: string; beam?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)

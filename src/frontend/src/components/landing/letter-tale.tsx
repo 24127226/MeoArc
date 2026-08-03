@@ -1,78 +1,71 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, useScroll, useSpring, useTransform, useReducedMotion, type MotionValue } from 'framer-motion'
-import { MeoMascot } from '@/components/meo-mascot'
-import { CatLetter } from '@/components/landing/ui'
+import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   CHUYỆN MỘT LÁ THƯ — kể trong ĐÚNG MỘT khung, như lật trang sách tranh.
+   HÀNH TRÌNH LÁ THƯ — khung điện ảnh cắt góc bát giác.
 
-   Cách dựng: một dải phong cảnh đêm dài gấp 4 lần màn hình, trượt ngang theo
-   scroll. Nhiều lớp chạy với tốc độ khác nhau (sao chậm nhất → đồi gần nhanh
-   nhất) nên có chiều sâu thật, giống cảnh nền phim hoạt hình.
+   Điểm cốt lõi về trải nghiệm: video KHÔNG tự chạy một mạch. Nó được TUA theo
+   đúng vị trí cuộn (video scrubbing) — người dùng kéo tới đâu, hình chạy tới đó,
+   dừng tay thì hình đứng lại. Nhờ vậy đoạn phim và bốn chặng của lá thư luôn khớp
+   nhau, và người đọc chậm không bị phim "chạy mất".
 
-   Bốn trang truyện:
-     1. Mèo ngồi viết thư bên cửa sổ sáng đèn
-     2. Gấp thư, đóng dấu sáp — nhưng phải có bạn gật đầu
-     3. Thư băng qua đồi, qua trăng
-     4. Sáng ra, thư nằm trên bậc cửa của mèo bên kia
-
-   Bật "giảm chuyển động" → thành 4 trang tĩnh xếp dọc, vẫn đọc trọn câu chuyện.
+   Kỹ thuật: gán video.currentTime = tiến-độ-cuộn × thời-lượng, làm mượt bằng lò xo
+   rồi ghi trong vòng lặp rAF (đặt currentTime trực tiếp mỗi lần cuộn sẽ giật).
    ══════════════════════════════════════════════════════════════════════════════ */
 
-const PAGES = [
-  { n: '01', title: 'Đêm ấy, mèo ngồi viết thư',
-    line: 'Bạn chỉ cần nói một câu. Mèo bắc ghế lên bàn, chấm bút, và viết thay bạn — đúng giọng bạn muốn gửi tới người ấy.' },
-  { n: '02', title: 'Thư gấp lại, chờ bạn gật đầu',
-    line: 'Dấu sáp không tự đóng xuống. Thư nằm im trên bàn cho tới khi bạn đọc lại và nói “ừ, gửi đi”.' },
-  { n: '03', title: 'Rồi thư băng qua đêm',
-    line: 'Qua đồi, qua vầng trăng, thư đi bằng đường của Gmail hay Outlook — bạn không phải bận tâm nó đi lối nào.' },
-  { n: '04', title: 'Sáng ra, thư đã nằm trước cửa',
-    line: 'Thư tới tay người nhận, một bản lưu trong mục Đã gửi của bạn, và một dòng trong nhật ký để bạn luôn tra lại được.' },
+const JOURNEY_VIDEO =
+  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260717_120352_eb988725-1351-43b3-8095-16e4a1005e3d.mp4'
+const FALLBACK_VIDEO = '/landing/purple-desert.mp4'
+
+const STAGES = [
+  {
+    no: '01',
+    tag: 'Soạn thảo',
+    heading: ['Bạn nói một câu', 'Mèo cầm bút lên', 'Thư thành hình'],
+    side: 'Một câu tiếng Việt là đủ.\nMèo hiểu ngữ cảnh\nvà viết thay bạn.',
+    body: 'MeoArc đọc lại cuộc trò chuyện, chọn giọng văn hợp với người nhận rồi dựng sẵn nội dung.',
+    cta: 'Chặng kế: bạn duyệt',
+  },
+  {
+    no: '02',
+    tag: 'Niêm phong',
+    heading: ['Thư nằm im', 'Chờ bạn gật đầu', 'Rồi mới đóng dấu'],
+    side: 'Dấu sáp không tự\nđóng xuống. Quyền\nquyết định là của bạn.',
+    body: 'Đây là chỗ MeoArc khác các trợ lý khác: mọi việc không hoàn tác được đều dừng lại xin phép.',
+    cta: 'Chặng kế: lên đường',
+  },
+  {
+    no: '03',
+    tag: 'Truyền đi',
+    heading: ['Thư rời bàn', 'Băng qua đêm', 'Tới máy chủ thư'],
+    side: 'Gmail API hay\nMicrosoft Graph —\nbạn không phải bận tâm.',
+    body: 'Cùng một thao tác cho cả hai nhà cung cấp. Thư đi bằng đường nào là việc của MeoArc.',
+    cta: 'Chặng cuối: đến nơi',
+  },
+  {
+    no: '04',
+    tag: 'Đã giao',
+    heading: ['Thư đến tay', 'Người nhận mở ra', 'Hành trình khép lại'],
+    side: 'Một bản lưu trong\nmục Đã gửi. Một dòng\ntrong nhật ký.',
+    body: 'Bạn luôn tra lại được: gửi cho ai, lúc nào, do bạn duyệt hay do bạn tự bấm.',
+    cta: 'Xem MeoArc làm được gì',
+  },
 ]
 
-/** Bầu trời sao — mỗi ngôi sao nhấp nháy lệch nhịp nhau. */
-function Stars({ count = 46 }: { count?: number }) {
-  const reduced = useReducedMotion()
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => {
-        const top = (i * 37) % 62
-        const left = (i * 53) % 100
-        const size = i % 7 === 0 ? 3 : i % 3 === 0 ? 2 : 1.5
-        return (
-          <span key={i} className="absolute rounded-full bg-white"
-            style={{
-              top: `${top}%`, left: `${left}%`, width: size, height: size,
-              opacity: 0.25 + ((i * 13) % 60) / 100,
-              animation: reduced ? undefined : `tale-twinkle ${2.6 + (i % 5) * 0.7}s ${(i % 9) * 0.4}s ease-in-out infinite`,
-            }} />
-        )
-      })}
-    </>
-  )
-}
+const BOUNDS: [number, number][] = [[0, 0.26], [0.26, 0.52], [0.52, 0.78], [0.78, 1.01]]
 
-/** Ngôi nhà nhỏ có cửa sổ sáng đèn. */
-function Cottage({ lit = true, className, flip = false }: { lit?: boolean; className?: string; flip?: boolean }) {
+/** Logo Thư Mèo dạng khối — bốn góc phần tư xoay quanh tâm, gợi phong thư gấp. */
+function VortexMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 120 110" className={cn(className, flip && 'scale-x-[-1]')} aria-hidden>
-      <path d="M12 52 60 16 108 52 108 104 12 104Z" fill="#0d0d1c" stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M6 54 60 12 114 54" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <rect x="30" y="64" width="24" height="22" rx="3" fill={lit ? '#F0A848' : '#161628'} opacity={lit ? 0.92 : 1} />
-      {lit && <rect x="30" y="64" width="24" height="22" rx="3" fill="#F0A848" opacity="0.5" style={{ filter: 'blur(7px)' }} />}
-      <path d="M42 64v22M30 75h24" stroke="#0d0d1c" strokeWidth="1.6" />
-      <rect x="70" y="70" width="18" height="34" rx="3" fill="#161628" stroke="rgba(255,255,255,0.12)" />
-      <rect x="80" y="24" width="10" height="18" rx="2" fill="#0d0d1c" stroke="rgba(255,255,255,0.14)" />
-    </svg>
-  )
-}
-
-/** Đường viền đồi — dùng cho các lớp xa/gần. */
-function Hills({ tone, className }: { tone: string; className?: string }) {
-  return (
-    <svg viewBox="0 0 1200 200" preserveAspectRatio="none" className={className} aria-hidden>
-      <path d="M0 200 V120 Q90 66 180 108 T400 96 Q520 52 640 104 T880 88 Q1000 44 1120 96 T1200 110 V200Z" fill={tone} />
+    <svg viewBox="0 0 256 256" className={className} fill="currentColor" aria-hidden>
+      <path d="M120 8h16v104h-16z" />
+      <path d="M120 144h16v104h-16z" />
+      <path d="M8 120h104v16H8z" />
+      <path d="M144 120h104v16h-104z" />
+      <path d="M128 40a88 88 0 0 1 88 88h-24a64 64 0 0 0-64-64z" opacity="0.55" />
+      <path d="M128 216a88 88 0 0 1-88-88h24a64 64 0 0 0 64 64z" opacity="0.55" />
     </svg>
   )
 }
@@ -80,35 +73,54 @@ function Hills({ tone, className }: { tone: string; className?: string }) {
 export function LetterTale() {
   const reduced = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [src, setSrc] = useState(JOURNEY_VIDEO)
+  const [stage, setStage] = useState(0)
+
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
   const p = useSpring(scrollYProgress, { stiffness: 80, damping: 26, restDelta: 0.0005 })
 
-  // Các lớp trượt ngang với tốc độ khác nhau → chiều sâu
-  const xStars = useTransform(p, [0, 1], ['0%', '-12%'])
-  const xMoon = useTransform(p, [0, 1], ['0%', '-26%'])
-  const xFar = useTransform(p, [0, 1], ['0%', '-45%'])
-  const xMid = useTransform(p, [0, 1], ['0%', '-62%'])
-  // Lớp gần rộng 260%, nên chỉ được trượt tối đa −60% (=156% bề ngang khung).
-  // Trượt sâu hơn là nhà của mèo nhận bị đẩy ra ngoài màn đúng lúc cần thấy nó.
-  const xNear = useTransform(p, [0, 1], ['0%', '-60%'])
+  // ── TUA VIDEO THEO CUỘN ──
+  // Ghi currentTime trong vòng lặp rAF thay vì ngay trong sự kiện cuộn: trình duyệt
+  // chỉ tua được vài lần mỗi giây, gọi dồn dập sẽ khựng hình.
+  useEffect(() => {
+    if (reduced) return
+    let raf = 0
+    let last = -1
+    const loop = () => {
+      const v = videoRef.current
+      if (v && v.readyState >= 2 && Number.isFinite(v.duration)) {
+        const t = Math.min(v.duration - 0.05, Math.max(0, p.get() * v.duration))
+        if (Math.abs(t - last) > 0.03) {
+          v.currentTime = t
+          last = t
+        }
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [p, reduced])
 
-  // Lá thư: nằm trên bàn → được gấp → bay lên → đáp xuống bậc cửa
-  const letterX = useTransform(p, [0, 0.28, 0.52, 0.78, 1], ['30%', '42%', '56%', '68%', '74%'])
-  const letterY = useTransform(p, [0, 0.28, 0.45, 0.62, 0.82, 1], ['64%', '58%', '30%', '24%', '52%', '62%'])
-  const letterScale = useTransform(p, [0, 0.25, 0.5, 0.8, 1], [0.75, 1.25, 0.85, 0.7, 0.62])
-  const letterRot = useTransform(p, [0, 0.3, 0.55, 0.8, 1], [-6, 4, -10, 8, 0])
-  const sealScale = useTransform(p, [0.3, 0.42, 0.48], [2.6, 0.92, 1])
-  const sealOpacity = useTransform(p, [0.3, 0.44], [0, 1])
-  const trailOpacity = useTransform(p, [0.5, 0.6, 0.78], [0, 0.9, 0])
+  // Chặng hiện tại theo tiến độ cuộn
+  useEffect(() => {
+    const un = p.on('change', (v) => {
+      const idx = BOUNDS.findIndex(([a, b]) => v >= a && v < b)
+      setStage(idx < 0 ? BOUNDS.length - 1 : idx)
+    })
+    return () => un()
+  }, [p])
+
+  const cur = STAGES[stage]
 
   if (reduced) {
     return (
-      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PAGES.map((pg) => (
-          <div key={pg.n} className="rounded-3xl border border-white/[0.09] bg-white/[0.03] p-6">
-            <span className="font-serif text-4xl font-bold text-white/12">{pg.n}</span>
-            <h3 className="mt-3 font-serif text-lg font-bold">{pg.title}</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-white/55">{pg.line}</p>
+      <div className="mt-12 grid gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
+        {STAGES.map((s) => (
+          <div key={s.no} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <span className="font-mono text-4xl font-bold text-white/15">{s.no}</span>
+            <h3 className="mt-3 font-serif text-lg font-bold">{s.heading.join(' · ')}</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-white/55">{s.body}</p>
           </div>
         ))}
       </div>
@@ -117,136 +129,142 @@ export function LetterTale() {
 
   return (
     <div ref={ref} className="relative h-[340vh]">
-      <style>{`
-        @keyframes tale-twinkle{ 0%,100%{ opacity:.2; transform:scale(.85) } 50%{ opacity:1; transform:scale(1.15) } }
-        @keyframes tale-firefly{ 0%,100%{ transform:translate(0,0) } 33%{ transform:translate(14px,-16px) } 66%{ transform:translate(-10px,-8px) } }
-        @keyframes tale-flutter{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-7px) } }
-      `}</style>
+      <div className="sticky top-0 h-screen w-full bg-black p-3 md:p-4">
+        {/* Khung điện ảnh bo góc — video nằm sau, nội dung nổi trên */}
+        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-black">
+          <video
+            ref={videoRef}
+            key={src}
+            src={src}
+            muted
+            playsInline
+            preload="auto"
+            onError={() => setSrc((s) => (s === JOURNEY_VIDEO ? FALLBACK_VIDEO : s))}
+            className="anim-fade absolute inset-0 size-full object-cover"
+            style={{ animationDelay: '0.2s' }}
+          />
+          {/* Làm trầm hình để chữ trắng luôn đọc được */}
+          <div aria-hidden className="absolute inset-0 bg-black/45" />
+          <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.75)_100%)]" />
 
-      <div className="sticky top-0 h-screen overflow-hidden">
-        {/* Bầu trời đêm */}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#070a1e_0%,#131038_45%,#241a4a_78%,#2e1f4f_100%)]" />
+          {/* ── Thanh trên: nhãn thương hiệu + hai nút cắt góc ── */}
+          <nav className="relative z-10 flex items-start justify-between px-6 pt-6 md:px-10 md:pt-8">
+            <div className="anim-stagger" style={{ animationDelay: '0.1s' }}>
+              <VortexMark className="size-12 text-white md:size-14" />
+              <span className="mt-1 block text-[10px] font-light tracking-[0.4em] text-white md:text-xs">
+                M E O A R C
+              </span>
+            </div>
+            <div className="anim-stagger flex items-center gap-3" style={{ animationDelay: '0.2s' }}>
+              <button className="btn-cut-border hidden px-5 py-2.5 text-sm text-white transition-colors hover:bg-white/10 md:block">
+                <span>Hành trình lá thư</span>
+              </button>
+              <button
+                onClick={() => document.getElementById('start')?.scrollIntoView({ behavior: 'smooth' })}
+                className="btn-cut hidden bg-white px-5 py-2.5 text-sm text-black transition-colors hover:bg-white/90 md:block"
+              >
+                Bắt đầu dùng
+              </button>
+            </div>
+          </nav>
 
-        {/* Lớp sao — chạy chậm nhất */}
-        <motion.div style={{ x: xStars }} className="absolute inset-0 w-[125%]">
-          <Stars />
-        </motion.div>
+          {/* ── Nội dung chính ── */}
+          <div className="relative z-10 flex flex-1 flex-col justify-between px-6 pb-8 md:px-10 md:pb-10">
+            <div className="relative flex flex-1 items-center">
+              {/* Cột trái — chú thích chặng */}
+              <div className="anim-stagger absolute left-0 top-[18%] hidden flex-col gap-6 lg:flex"
+                style={{ animationDelay: '0.4s' }}>
+                <p className="max-w-[220px] whitespace-pre-line text-base leading-relaxed text-white/80">
+                  {cur.side}
+                </p>
+                <div className="mt-4 flex flex-col gap-2">
+                  <div className="flex items-center gap-1">
+                    {STAGES.map((s, i) => (
+                      <span key={s.no}
+                        className={cn('size-4 rounded-full border transition-colors duration-500',
+                          i === stage ? 'border-white bg-white/80' : 'border-white/40')} />
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="whitespace-pre-line text-xs text-white/70">{cur.tag}</span>
+                    <span className="font-mono text-xs text-white/50">{cur.no}</span>
+                  </div>
+                </div>
+              </div>
 
-        {/* Trăng */}
-        <motion.div style={{ x: xMoon }} className="absolute inset-0 w-[135%]">
-          <div className="absolute left-[58%] top-[12%]">
-            <div className="relative size-24 rounded-full bg-[#FFF3D6]">
-              <div className="absolute inset-0 rounded-full bg-[#FFF3D6] blur-2xl opacity-70" />
-              <div className="absolute left-5 top-6 size-3 rounded-full bg-black/[0.06]" />
-              <div className="absolute left-12 top-12 size-4 rounded-full bg-black/[0.05]" />
-              <div className="absolute left-6 top-14 size-2 rounded-full bg-black/[0.05]" />
+              {/* Tiêu đề giữa — ba dòng, đổi theo chặng */}
+              <div className="anim-stagger w-full text-center" style={{ animationDelay: '0.5s' }}>
+                <StageHeading p={p} />
+              </div>
+            </div>
+
+            {/* ── Hàng dưới: mô tả · nút · chỉ báo ── */}
+            <div className="mt-8 grid grid-cols-1 items-center gap-6 md:grid-cols-3">
+              <div className="anim-stagger flex items-center justify-center md:justify-end"
+                style={{ animationDelay: '0.7s' }}>
+                <p className="max-w-[260px] text-center text-sm leading-relaxed text-white md:ml-auto md:text-left">
+                  {cur.body}
+                </p>
+              </div>
+
+              <div className="anim-stagger flex flex-col items-center gap-8 md:gap-24"
+                style={{ animationDelay: '0.85s' }}>
+                <span className="text-2xl font-medium text-white md:text-3xl">{cur.tag}</span>
+                <button
+                  onClick={() => document.getElementById('start')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="btn-cut group flex w-full max-w-[280px] items-center justify-center gap-2 bg-white py-3.5 text-black transition-colors hover:bg-white/90"
+                >
+                  <span className="text-sm font-medium">{cur.cta}</span>
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+
+              <div className="anim-stagger flex items-center justify-center gap-3 md:justify-end"
+                style={{ animationDelay: '1s' }}>
+                {STAGES.map((s, i) => (
+                  <span key={s.no}
+                    className={cn(
+                      'btn-cut-sm flex size-10 items-center justify-center font-mono text-xs transition-colors duration-500',
+                      i === stage ? 'bg-white text-black' : 'bg-white/25 text-white/70',
+                    )}>
+                    {s.no}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </motion.div>
 
-        {/* Đồi xa */}
-        <motion.div style={{ x: xFar }} className="absolute inset-x-0 bottom-0 h-[46%] w-[160%]">
-          <Hills tone="#161231" className="absolute inset-0 size-full" />
-        </motion.div>
-
-        {/* Đồi giữa + hàng cây */}
-        <motion.div style={{ x: xMid }} className="absolute inset-x-0 bottom-0 h-[34%] w-[200%]">
-          <Hills tone="#0f0c24" className="absolute inset-0 size-full" />
-          {[12, 26, 41, 58, 73, 88].map((l, i) => (
-            <svg key={l} viewBox="0 0 40 70" className="absolute bottom-[38%] w-6 opacity-80" style={{ left: `${l}%` }} aria-hidden>
-              <path d="M20 4 34 34H26L20 66 14 34H6Z" fill={i % 2 ? '#0a081c' : '#0c0a20'} />
-            </svg>
-          ))}
-        </motion.div>
-
-        {/* Lớp gần: hai ngôi nhà + hai chú mèo + đom đóm */}
-        <motion.div style={{ x: xNear }} className="absolute inset-x-0 bottom-0 h-[30%] w-[260%]">
-          <div className="absolute inset-x-0 bottom-0 h-[62%] bg-[#08060f]" />
-
-          {/* Nhà mèo viết thư — đầu truyện nằm ở ~13% bề ngang khung */}
-          <div className="absolute bottom-[52%] left-[5%] flex items-end gap-3">
-            <Cottage className="w-24 drop-shadow-[0_0_30px_rgba(240,168,72,0.25)]" />
-            <div className="mb-1" style={{ animation: 'tale-flutter 4s ease-in-out infinite' }}>
-              <MeoMascot mood="thinking" thinking className="size-11" />
-            </div>
-          </div>
-
-          {/* Nhà mèo nhận thư — cuối truyện dừng ở ~72% bề ngang khung, ngay chỗ thư đáp xuống */}
-          <div className="absolute bottom-[52%] left-[88%] flex items-end gap-3">
-            <div className="mb-1" style={{ animation: 'tale-flutter 4.6s ease-in-out infinite' }}>
-              <MeoMascot mood="happy" className="size-11" />
-            </div>
-            <Cottage flip className="w-24 drop-shadow-[0_0_30px_rgba(240,168,72,0.25)]" />
-          </div>
-
-          {/* Đom đóm */}
-          {[16, 24, 33, 47, 63, 71, 82, 90].map((l, i) => (
-            <span key={l} className="absolute rounded-full bg-[#F0A848]"
-              style={{
-                left: `${l}%`, bottom: `${48 + (i % 4) * 9}%`, width: 4, height: 4,
-                boxShadow: '0 0 10px 3px rgba(240,168,72,0.55)',
-                animation: `tale-firefly ${5 + (i % 4)}s ${i * 0.6}s ease-in-out infinite`,
-              }} />
-          ))}
-        </motion.div>
-
-        {/* ── Lá thư: nhân vật chính, luôn nằm trong khung ── */}
-        <motion.div className="absolute z-20" style={{ left: letterX, top: letterY, translateX: '-50%', translateY: '-50%' }}>
-          <motion.div style={{ scale: letterScale, rotate: letterRot }} className="relative">
-            {/* vệt sáng khi thư đang bay */}
-            <motion.span style={{ opacity: trailOpacity }}
-              className="absolute right-full top-1/2 h-[2px] w-28 -translate-y-1/2 rounded-full bg-gradient-to-l from-[#F0A848] to-transparent blur-[1px]" />
-            <span className="absolute inset-0 -z-10 rounded-full bg-[#F0A848]/35 blur-2xl" />
-            <div style={{ animation: 'tale-flutter 3.4s ease-in-out infinite' }}>
-              <CatLetter className="w-16 drop-shadow-[0_10px_24px_rgba(0,0,0,0.5)]" style={{ color: '#FFF3D6' }} />
-              {/* dấu sáp đóng xuống khi bạn duyệt */}
-              <motion.span style={{ scale: sealScale, opacity: sealOpacity }}
-                className="absolute left-1/2 top-[58%] flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#F0A848]">
-                <span className="text-[9px] leading-none text-white">♥</span>
-              </motion.span>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* Mép trên/dưới mờ dần để khung hoà vào trang */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#06060B] to-transparent" />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#06060B] to-transparent" />
-
-        {/* ── Lời kể ── */}
-        <div className="absolute inset-x-0 bottom-10 z-30 px-6">
-          <div className="relative mx-auto h-[132px] max-w-xl">
-            {PAGES.map((pg, i) => (
-              <TaleLine key={pg.n} p={p} index={i} page={pg} />
-            ))}
-          </div>
-          <div className="mt-3 flex justify-center gap-2">
-            {PAGES.map((pg, i) => <TaleDot key={pg.n} p={p} index={i} />)}
-          </div>
+          {/* Thanh tiến độ của riêng khối này */}
+          <motion.div aria-hidden style={{ scaleX: p }}
+            className="absolute inset-x-0 bottom-0 z-20 h-[2px] origin-left bg-white/70" />
         </div>
       </div>
     </div>
   )
 }
 
-const BOUNDS = [[0, 0.26], [0.26, 0.52], [0.52, 0.78], [0.78, 1.01]]
-
-function TaleLine({ p, index, page }: { p: MotionValue<number>; index: number; page: (typeof PAGES)[number] }) {
-  const [a, b] = BOUNDS[index]
-  const f = 0.05
-  const opacity = useTransform(p, [a - f, a + f, b - f, b + f], [0, 1, 1, 0], { clamp: true })
-  const y = useTransform(p, [a - f, a + f, b - f, b + f], [16, 0, 0, -16], { clamp: true })
+/** Ba dòng tiêu đề, mỗi chặng mờ vào/mờ ra theo tiến độ cuộn. */
+function StageHeading({ p }: { p: MotionValue<number> }) {
   return (
-    <motion.div style={{ opacity, y }} className="absolute inset-0 text-center">
-      <p className="font-mono text-[11px] tracking-[0.3em] text-[#F0A848]/80">{page.n}</p>
-      <h3 className="mt-2 font-serif text-2xl font-bold leading-tight sm:text-[1.9rem]">{page.title}</h3>
-      <p className="mx-auto mt-2.5 max-w-lg text-[14px] leading-relaxed text-white/65">{page.line}</p>
-    </motion.div>
+    <div className="relative mx-auto h-[13rem] max-w-4xl sm:h-[15rem] md:h-[17rem] lg:h-[19rem]">
+      {STAGES.map((s, i) => (
+        <HeadingLayer key={s.no} p={p} index={i} lines={s.heading} />
+      ))}
+    </div>
   )
 }
 
-function TaleDot({ p, index }: { p: MotionValue<number>; index: number }) {
+function HeadingLayer({ p, index, lines }: { p: MotionValue<number>; index: number; lines: string[] }) {
   const [a, b] = BOUNDS[index]
-  const active = useTransform(p, [a - 0.02, a + 0.02, b - 0.02, b + 0.02], [0.25, 1, 1, 0.25], { clamp: true })
-  const w = useTransform(active, [0.25, 1], [6, 22])
-  return <motion.span style={{ opacity: active, width: w }} className="h-1.5 rounded-full bg-[#F0A848]" />
+  const f = 0.05
+  const opacity = useTransform(p, [a - f, a + f, b - f, b + f], [0, 1, 1, 0], { clamp: true })
+  const y = useTransform(p, [a - f, a + f, b - f, b + f], [26, 0, 0, -26], { clamp: true })
+  return (
+    <motion.h2
+      style={{ opacity, y, textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}
+      className="absolute inset-0 flex flex-col justify-center text-3xl font-normal leading-[1.1] tracking-[-0.04em] text-white sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
+    >
+      {lines.map((l) => <span key={l}>{l}</span>)}
+    </motion.h2>
+  )
 }

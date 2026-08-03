@@ -39,6 +39,9 @@ import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
 import { api, apiBaseUrl, type StoredMessage } from '@/lib/api'
+import { useSubscription, isOutOfTokens } from '@/lib/subscription'
+import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
+import { PricingScreen } from '@/components/layout/pricing-screen'
 import { normalize } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
@@ -817,6 +820,9 @@ export function ChatPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [voiceOpen, setVoiceOpen] = useState(false)
+  // Gói + hạn mức token: hiện cạnh ô nhập, chặn gửi khi cạn, mở trang nâng cấp.
+  const { status: sub, refresh: refreshSub, setStatus: setSub } = useSubscription()
+  const [pricingOpen, setPricingOpen] = useState(false)
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
   const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
@@ -1035,6 +1041,11 @@ export function ChatPanel({
   const send = (raw: string, viaVoice = false) => {
     const text = raw.trim()
     if (!text || thinking) return
+    // Cạn hạn mức token → chặn ngay ở client, khỏi gọi backend chỉ để nhận lỗi.
+    if (isOutOfTokens(sub)) {
+      setPricingOpen(true)
+      return
+    }
     // Thêm tin user + đặt tiêu đề phiên nếu là tin đầu tiên
     setSessions((prev) =>
       prev.map((s) => {
@@ -1066,6 +1077,7 @@ export function ChatPanel({
         }
         push({ id: uid(), role: 'agent', reply })
         if (viaVoice) speak(replyToSpeech(reply))
+        void refreshSub() // lượt vừa rồi đã tiêu token → cập nhật lại đồng hồ
       })
       .catch(() => {
         setThinking(false)
@@ -1297,6 +1309,14 @@ export function ChatPanel({
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
       <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} onResult={(t) => send(t, true)} />
+
+      {/* Trang chọn gói — chiếm trọn khung hình */}
+      <PricingScreen
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        status={sub}
+        onChanged={setSub}
+      />
       
       {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
       <header data-cat-perch="bottom" className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
@@ -1505,6 +1525,9 @@ export function ChatPanel({
       >
         <WaterDivider />
 
+        {/* Cạn hạn mức → nói rõ lý do trợ lý ngừng trả lời + lối nâng cấp */}
+        <QuotaBanner status={sub} onUpgrade={() => setPricingOpen(true)} />
+
         {/* Kỹ năng AI — LUÔN hiện (không thu gọn) */}
         <div className="mb-2 flex flex-wrap gap-2">
           {SKILLS.map((s) => (
@@ -1560,10 +1583,23 @@ export function ChatPanel({
                     setComposerOpen(false)
                   }
                 }}
-                placeholder="Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
-                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0"
+                placeholder={
+                  isOutOfTokens(sub)
+                    ? 'Đã hết token — nâng gói để hỏi tiếp…'
+                    : "Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
+                }
+                disabled={isOutOfTokens(sub)}
+                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
               />
-              <Button size="icon" variant="primary" className="rounded-xl" onClick={() => send(input)}>
+              {/* Đồng hồ token — luôn nằm cạnh ô nhập như các trợ lý AI khác */}
+              <TokenMeter status={sub} onUpgrade={() => setPricingOpen(true)} />
+              <Button
+                size="icon"
+                variant="primary"
+                className="rounded-xl"
+                disabled={isOutOfTokens(sub)}
+                onClick={() => send(input)}
+              >
                 <Send className="size-4" />
               </Button>
             </div>

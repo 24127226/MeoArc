@@ -92,6 +92,29 @@ export type NotificationItem = {
 }
 export type NotificationList = { items: NotificationItem[]; unread: number }
 
+/** Một mức hạn mức token (ngày hoặc tháng). */
+export type TokenBucket = { used: number; limit: number; remaining: number }
+
+/** Gói hiện tại + mức tiêu thụ token — nguồn cho thanh usage và trang nâng cấp. */
+export type SubscriptionStatus = {
+  tier: string
+  tierLabel: string
+  isActive: boolean
+  daily: TokenBucket
+  monthly: TokenBucket
+}
+
+/** Một gói trong danh mục (backend là nguồn duy nhất của số liệu). */
+export type Plan = {
+  id: string
+  label: string
+  tagline: string
+  priceVnd: number
+  dailyTokens: number
+  monthlyTokens: number
+  features: string[]
+}
+
 /** Toàn bộ năng lực backend mà FE cần. Mỗi nhóm map 1-1 với docs/02-API-CONTRACT.md. */
 export interface MeoArcApi {
   // Auth — UC001/002
@@ -127,6 +150,14 @@ export interface MeoArcApi {
   suggestCompose(subject: string, body: string): Promise<string>
   /** Autocomplete người nhận (như Gmail) — địa chỉ suy từ thư đã đồng bộ. */
   contacts(q: string): Promise<{ name: string; email: string }[]>
+
+  // Gói dịch vụ & hạn mức token (freemium)
+  /** Gói hiện tại + token đã dùng/còn lại theo ngày & tháng. */
+  subscription(): Promise<SubscriptionStatus>
+  /** Danh mục 3 gói để dựng trang nâng cấp (số liệu lấy từ backend). */
+  plans(): Promise<Plan[]>
+  /** Đổi gói. Đồ án: không nối cổng thanh toán, đổi thẳng để trình bày luồng. */
+  setTier(tier: string): Promise<SubscriptionStatus>
 
   // Agent — UC007 + mọi AI skill (008/009/014/015/016/017)
   sendAgentMessage(
@@ -205,6 +236,45 @@ function filterEmails(all: Email[], q: EmailQuery): EmailListResult {
   return { items, nextCursor: null, criteria: nl?.criteria }
 }
 
+/* Danh mục gói cho chế độ mock — khớp app/core/plans.py bên backend. */
+const MOCK_PLANS: Plan[] = [
+  {
+    id: 'free', label: 'Miễn phí', tagline: 'Đủ dùng cho việc học và hộp thư cá nhân',
+    priceVnd: 0, dailyTokens: 100_000, monthlyTokens: 2_000_000,
+    features: [
+      'Khoảng 20–40 lượt hỏi trợ lý mỗi ngày',
+      'Tóm tắt, phân loại 7 nhóm, soạn thư',
+      'Kết nối 1 hộp thư (Gmail hoặc Outlook)',
+    ],
+  },
+  {
+    id: 'pro', label: 'Pro', tagline: 'Cho người dùng thư nhiều mỗi ngày',
+    priceVnd: 99_000, dailyTokens: 2_000_000, monthlyTokens: 40_000_000,
+    features: [
+      'Gấp 20 lần hạn mức Miễn phí',
+      'Kết nối đồng thời Gmail và Outlook',
+      'Kỹ năng nâng cao: Digest, Triage, Brief cuộc họp',
+      'Đồng bộ hộp thư ưu tiên',
+    ],
+  },
+  {
+    id: 'max', label: 'Pro Max', tagline: 'Dùng thoải mái, cho khối lượng công việc lớn',
+    priceVnd: 299_000, dailyTokens: 10_000_000, monthlyTokens: 200_000_000,
+    features: [
+      'Gấp 100 lần hạn mức Miễn phí',
+      'Không giới hạn số hộp thư kết nối',
+      'Truy cập MCP cho trợ lý ngoài (Claude Desktop, Codex…)',
+      'Tự động hoá theo lịch + ưu tiên xử lý',
+    ],
+  },
+]
+
+let mockSub: SubscriptionStatus = {
+  tier: 'free', tierLabel: 'Miễn phí', isActive: true,
+  daily: { used: 34_500, limit: 100_000, remaining: 65_500 },
+  monthly: { used: 612_000, limit: 2_000_000, remaining: 1_388_000 },
+}
+
 export function createMockApi(): MeoArcApi {
   return {
     async me() {
@@ -271,6 +341,24 @@ export function createMockApi(): MeoArcApi {
     },
     async suggestCompose() {
       return '' // mock: không gọi LLM
+    },
+    // Mock: giữ gói + mức dùng trong bộ nhớ để xem giao diện khi chưa có backend.
+    async subscription() {
+      return mockSub
+    },
+    async plans() {
+      return MOCK_PLANS
+    },
+    async setTier(tier) {
+      const p = MOCK_PLANS.find((x) => x.id === tier) ?? MOCK_PLANS[0]
+      mockSub = {
+        ...mockSub,
+        tier: p.id,
+        tierLabel: p.label,
+        daily: { ...mockSub.daily, limit: p.dailyTokens, remaining: Math.max(0, p.dailyTokens - mockSub.daily.used) },
+        monthly: { ...mockSub.monthly, limit: p.monthlyTokens, remaining: Math.max(0, p.monthlyTokens - mockSub.monthly.used) },
+      }
+      return mockSub
     },
     async contacts(q) {
       const seen = new Map<string, string>()
@@ -400,6 +488,10 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
     contacts: async (q) =>
       (await req<{ items: { name: string; email: string }[] }>(`/contacts?q=${encodeURIComponent(q)}`))
         .items,
+
+    subscription: () => req<SubscriptionStatus>('/subscription'),
+    plans: async () => (await req<{ plans: Plan[] }>('/subscription/plans')).plans,
+    setTier: (tier) => post<SubscriptionStatus>('/subscription/tier', { tier }),
 
     // Production nên dùng SSE (text/event-stream); ở đây nhận reply cuối dạng JSON cho gọn.
     sendAgentMessage: (message, _ctx, opts) =>
