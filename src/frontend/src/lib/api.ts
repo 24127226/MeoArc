@@ -81,11 +81,46 @@ export type ConversationDetail = {
   messages: StoredMessage[]
 }
 
+/* --- Accountability: Notifications (chuông + panel) ------------------------- */
+/** 1 thông báo (khớp _notif_dto backend). type: 'info' | 'success' | 'warning'. */
+export type NotificationItem = {
+  id: number
+  type: string
+  message: string
+  read: boolean
+  createdAt: string | null
+}
+export type NotificationList = { items: NotificationItem[]; unread: number }
+
+/** Một mức hạn mức token (ngày hoặc tháng). */
+export type TokenBucket = { used: number; limit: number; remaining: number }
+
+/** Gói hiện tại + mức tiêu thụ token — nguồn cho thanh usage và trang nâng cấp. */
+export type SubscriptionStatus = {
+  tier: string
+  tierLabel: string
+  isActive: boolean
+  daily: TokenBucket
+  monthly: TokenBucket
+}
+
+/** Một gói trong danh mục (backend là nguồn duy nhất của số liệu). */
+export type Plan = {
+  id: string
+  label: string
+  tagline: string
+  priceVnd: number
+  dailyTokens: number
+  monthlyTokens: number
+  features: string[]
+}
+
 /** Toàn bộ năng lực backend mà FE cần. Mỗi nhóm map 1-1 với docs/02-API-CONTRACT.md. */
 export interface MeoArcApi {
   // Auth — UC001/002
   me(): Promise<User | null>
   loginWithGoogle(): Promise<User>
+  loginWithOutlook(): Promise<User>  // đa provider — điều hướng sang đăng nhập Microsoft
   logout(): Promise<void>
   revokeAccess(): Promise<void>
 
@@ -93,6 +128,8 @@ export interface MeoArcApi {
   listEmails(query?: EmailQuery): Promise<EmailListResult>
   getEmail(id: string): Promise<Email | null>
   markEmailRead(id: string, read: boolean): Promise<void>
+  /** UC008 — tóm tắt 1 email bằng LLM → list gạch đầu dòng (thẻ 'Tóm tắt · AI'). Mock trả []. */
+  summarizeEmail(id: string): Promise<string[]>
 
   // Quản lý — UC006 (nhận mảng id cho cả 1 thư lẫn hàng loạt)
   markRead(ids: string[], read: boolean): Promise<void>
@@ -107,6 +144,20 @@ export interface MeoArcApi {
   replyEmail(id: string, body: string): Promise<{ id: string }>
   /** Upload 1 tệp đính kèm lên backend → trả metadata { id, name, size }. */
   uploadFile(file: File): Promise<{ id: string; name: string; size: string }>
+  /** UC010 — lưu bản nháp (không gửi) lên Gmail/Outlook + hiện ở tab Nháp. */
+  saveDraft(input: SendEmailInput): Promise<{ id: string }>
+  /** UC010 — gợi ý đoạn tiếp theo khi soạn (Smart Compose) dựa trên tiêu đề + phần đang gõ. */
+  suggestCompose(subject: string, body: string): Promise<string>
+  /** Autocomplete người nhận (như Gmail) — địa chỉ suy từ thư đã đồng bộ. */
+  contacts(q: string): Promise<{ name: string; email: string }[]>
+
+  // Gói dịch vụ & hạn mức token (freemium)
+  /** Gói hiện tại + token đã dùng/còn lại theo ngày & tháng. */
+  subscription(): Promise<SubscriptionStatus>
+  /** Danh mục 3 gói để dựng trang nâng cấp (số liệu lấy từ backend). */
+  plans(): Promise<Plan[]>
+  /** Đổi gói. Đồ án: không nối cổng thanh toán, đổi thẳng để trình bày luồng. */
+  setTier(tier: string): Promise<SubscriptionStatus>
 
   // Agent — UC007 + mọi AI skill (008/009/014/015/016/017)
   sendAgentMessage(
@@ -128,6 +179,16 @@ export interface MeoArcApi {
   updateConversation(id: string, patch: { title?: string; pinned?: boolean }): Promise<void>
   /** Xoá 1 phiên. */
   deleteConversation(id: string): Promise<void>
+
+  // Thông báo — accountability (chuông + badge + panel)
+  /** Danh sách thông báo (mới nhất trước) + số chưa đọc. */
+  listNotifications(limit?: number): Promise<NotificationList>
+  /** Chỉ số chưa đọc (badge chuông poll định kỳ). */
+  unreadCount(): Promise<number>
+  /** Đánh dấu 1 thông báo đã đọc. */
+  markNotificationRead(id: number): Promise<void>
+  /** Đánh dấu tất cả đã đọc. */
+  markAllNotificationsRead(): Promise<void>
 }
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -142,6 +203,14 @@ const DEMO_USER: User = {
   email: 'quanpta.meoarc@gmail.com',
   initial: 'Q',
 }
+
+/** Thông báo mẫu cho bản demo/SRS (chế độ mock). Backend thật trả từ bảng notifications. */
+const _iso = (minAgo: number) => new Date(Date.now() - minAgo * 60_000).toISOString()
+let mockNotifs: NotificationItem[] = [
+  { id: 3, type: 'success', message: 'Đã gửi email tới thầy Sơn (nộp báo cáo SE).', read: false, createdAt: _iso(4) },
+  { id: 2, type: 'warning', message: 'Đã chuyển 3 thư quảng cáo vào thùng rác.', read: false, createdAt: _iso(72) },
+  { id: 1, type: 'success', message: 'Đã gắn nhãn “Học tập” cho 5 thư.', read: true, createdAt: _iso(1500) },
+]
 
 /** Lọc giống EmailList: folder → category → quick/nl → từ khoá. */
 function filterEmails(all: Email[], q: EmailQuery): EmailListResult {
@@ -167,6 +236,45 @@ function filterEmails(all: Email[], q: EmailQuery): EmailListResult {
   return { items, nextCursor: null, criteria: nl?.criteria }
 }
 
+/* Danh mục gói cho chế độ mock — khớp app/core/plans.py bên backend. */
+const MOCK_PLANS: Plan[] = [
+  {
+    id: 'free', label: 'Miễn phí', tagline: 'Đủ dùng cho việc học và hộp thư cá nhân',
+    priceVnd: 0, dailyTokens: 100_000, monthlyTokens: 2_000_000,
+    features: [
+      'Khoảng 20–40 lượt hỏi trợ lý mỗi ngày',
+      'Tóm tắt, phân loại 7 nhóm, soạn thư',
+      'Kết nối 1 hộp thư (Gmail hoặc Outlook)',
+    ],
+  },
+  {
+    id: 'pro', label: 'Pro', tagline: 'Cho người dùng thư nhiều mỗi ngày',
+    priceVnd: 99_000, dailyTokens: 2_000_000, monthlyTokens: 40_000_000,
+    features: [
+      'Gấp 20 lần hạn mức Miễn phí',
+      'Kết nối đồng thời Gmail và Outlook',
+      'Kỹ năng nâng cao: Digest, Triage, Brief cuộc họp',
+      'Đồng bộ hộp thư ưu tiên',
+    ],
+  },
+  {
+    id: 'max', label: 'Pro Max', tagline: 'Dùng thoải mái, cho khối lượng công việc lớn',
+    priceVnd: 299_000, dailyTokens: 10_000_000, monthlyTokens: 200_000_000,
+    features: [
+      'Gấp 100 lần hạn mức Miễn phí',
+      'Không giới hạn số hộp thư kết nối',
+      'Truy cập MCP cho trợ lý ngoài (Claude Desktop, Codex…)',
+      'Tự động hoá theo lịch + ưu tiên xử lý',
+    ],
+  },
+]
+
+let mockSub: SubscriptionStatus = {
+  tier: 'free', tierLabel: 'Miễn phí', isActive: true,
+  daily: { used: 34_500, limit: 100_000, remaining: 65_500 },
+  monthly: { used: 612_000, limit: 2_000_000, remaining: 1_388_000 },
+}
+
 export function createMockApi(): MeoArcApi {
   return {
     async me() {
@@ -179,6 +287,11 @@ export function createMockApi(): MeoArcApi {
     },
     async loginWithGoogle() {
       await delay(1100) // giả lập redirect OAuth
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_USER))
+      return DEMO_USER
+    },
+    async loginWithOutlook() {
+      await delay(1100)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_USER))
       return DEMO_USER
     },
@@ -195,6 +308,9 @@ export function createMockApi(): MeoArcApi {
     },
     async getEmail(id) {
       return seedEmails.find((e) => e.id === id) ?? null
+    },
+    async summarizeEmail() {
+      return [] // mock: để email-detail tự dùng tóm tắt trích cục bộ
     },
     async markEmailRead() {
       /* mock: trạng thái do app-shell quản lý cục bộ */
@@ -219,6 +335,43 @@ export function createMockApi(): MeoArcApi {
       const kb = Math.max(1, Math.round(file.size / 1024))
       return { id: `mock-${Date.now()}`, name: file.name, size: `${kb} KB` }
     },
+    async saveDraft() {
+      await delay(200)
+      return { id: `mock-${Date.now()}` }
+    },
+    async suggestCompose() {
+      return '' // mock: không gọi LLM
+    },
+    // Mock: giữ gói + mức dùng trong bộ nhớ để xem giao diện khi chưa có backend.
+    async subscription() {
+      return mockSub
+    },
+    async plans() {
+      return MOCK_PLANS
+    },
+    async setTier(tier) {
+      const p = MOCK_PLANS.find((x) => x.id === tier) ?? MOCK_PLANS[0]
+      mockSub = {
+        ...mockSub,
+        tier: p.id,
+        tierLabel: p.label,
+        daily: { ...mockSub.daily, limit: p.dailyTokens, remaining: Math.max(0, p.dailyTokens - mockSub.daily.used) },
+        monthly: { ...mockSub.monthly, limit: p.monthlyTokens, remaining: Math.max(0, p.monthlyTokens - mockSub.monthly.used) },
+      }
+      return mockSub
+    },
+    async contacts(q) {
+      const seen = new Map<string, string>()
+      for (const e of seedEmails) {
+        if (e.senderEmail?.includes('@') && !seen.has(e.senderEmail))
+          seen.set(e.senderEmail, e.sender)
+      }
+      const ql = q.trim().toLowerCase()
+      return [...seen]
+        .filter(([addr, name]) => !ql || `${addr} ${name}`.toLowerCase().includes(ql))
+        .slice(0, 8)
+        .map(([email, name]) => ({ name, email }))
+    },
 
     async sendAgentMessage(message, ctx) {
       await delay(700) // giả lập "đang nghĩ"
@@ -236,6 +389,20 @@ export function createMockApi(): MeoArcApi {
     },
     async updateConversation() {},
     async deleteConversation() {},
+
+    async listNotifications() {
+      await delay(120)
+      return { items: mockNotifs, unread: mockNotifs.filter((n) => !n.read).length }
+    },
+    async unreadCount() {
+      return mockNotifs.filter((n) => !n.read).length
+    },
+    async markNotificationRead(id) {
+      mockNotifs = mockNotifs.map((n) => (n.id === id ? { ...n, read: true } : n))
+    },
+    async markAllNotificationsRead() {
+      mockNotifs = mockNotifs.map((n) => ({ ...n, read: true }))
+    },
   }
 }
 
@@ -279,11 +446,17 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
       window.location.href = `${base}/auth/google/start`
       return new Promise<User>(() => {}) // trang sẽ rời đi, không resolve
     },
+    loginWithOutlook: async () => {
+      window.location.href = `${base}/auth/outlook/start`  // backend đẩy sang Microsoft
+      return new Promise<User>(() => {})
+    },
     logout: () => post<void>('/auth/logout'),
     revokeAccess: () => post<void>('/auth/revoke'),
 
     listEmails: (query = {}) => req<EmailListResult>(`/emails${qs(query)}`),
     getEmail: (id) => req<Email | null>(`/emails/${id}`),
+    summarizeEmail: async (id) =>
+      (await post<{ points: string[] }>(`/emails/${id}/summarize`)).points,
     markEmailRead: (id, read) => post<void>(`/emails/${id}/read`, { read }),
 
     markRead: (ids, read) => post<void>('/emails/actions/read', { ids, read }),
@@ -309,6 +482,16 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
       if (!res.ok) throw new Error('upload failed')
       return res.json()
     },
+    saveDraft: (input) => post<{ id: string }>('/emails/draft', input),
+    suggestCompose: async (subject, body) =>
+      (await post<{ suggestion: string }>('/emails/compose/suggest', { subject, body })).suggestion,
+    contacts: async (q) =>
+      (await req<{ items: { name: string; email: string }[] }>(`/contacts?q=${encodeURIComponent(q)}`))
+        .items,
+
+    subscription: () => req<SubscriptionStatus>('/subscription'),
+    plans: async () => (await req<{ plans: Plan[] }>('/subscription/plans')).plans,
+    setTier: (tier) => post<SubscriptionStatus>('/subscription/tier', { tier }),
 
     // Production nên dùng SSE (text/event-stream); ở đây nhận reply cuối dạng JSON cho gọn.
     sendAgentMessage: (message, _ctx, opts) =>
@@ -330,6 +513,13 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
         body: JSON.stringify(patch),
       }),
     deleteConversation: (id) => req<void>(`/agent/conversations/${id}`, { method: 'DELETE' }),
+
+    // Thông báo — accountability
+    listNotifications: (limit = 50) => req<NotificationList>(`/notifications?limit=${limit}`),
+    unreadCount: async () =>
+      (await req<{ unread: number }>('/notifications/unread-count')).unread,
+    markNotificationRead: (id) => post<void>(`/notifications/${id}/read`),
+    markAllNotificationsRead: () => post<void>('/notifications/read-all'),
   }
 }
 

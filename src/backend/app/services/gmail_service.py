@@ -8,6 +8,7 @@
 import base64
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parseaddr, parsedate_to_datetime
 from zoneinfo import ZoneInfo
 import httpx
@@ -31,10 +32,24 @@ def _fmt_local(raw_date: str) -> tuple[str, str]:
     except Exception:
         return raw_date, raw_date
 
+# Số thư lấy metadata cùng lúc khi dựng danh sách. 8 là mức cân bằng: nhanh gấp ~8 lần
+# so với gọi tuần tự mà chưa chạm ngưỡng chống dồn dập của Gmail (quota per-user-per-second).
+_LIST_WORKERS = 8
+
 GMAIL_LIST = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 GMAIL_MSG = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"
 # Tải nội dung 1 tệp đính kèm (Gmail tách riêng phần bytes nặng ra endpoint này).
 GMAIL_ATTACH = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}/attachments/{aid}"
+# Đồng bộ lũy tiến + Push (Pub/Sub): profile cho historyId gốc, history.list cho thay đổi,
+# watch/stop để bật/tắt Gmail Push Notifications.
+GMAIL_PROFILE = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+GMAIL_HISTORY = "https://gmail.googleapis.com/gmail/v1/users/me/history"
+GMAIL_WATCH = "https://gmail.googleapis.com/gmail/v1/users/me/watch"
+GMAIL_STOP = "https://gmail.googleapis.com/gmail/v1/users/me/stop"
+
+
+class HistoryExpired(Exception):
+    """historyId đã quá cũ (Gmail xoá lịch sử >~1 tuần) → phải resync đầy đủ."""
 
 # Gmail không có "category màu" như FE → mình gán tạm 1 màu theo id cho danh sách
 # đỡ đơn điệu. (Phân loại thông minh là việc của AI — UC009, để sau.)
@@ -50,6 +65,7 @@ _CATS = ["moss", "sea", "sun", "cherry", "sky", "terra", "wine"]
 import hashlib
 
 from app.core.kv import kv
+from app.core.limits import provider_slot  # trần số lệnh gọi Gmail song song toàn tiến trình
 
 _CACHE_TTL = 60  # giây
 
@@ -137,6 +153,21 @@ _FOLDER_LABEL = {
 _VALID_TAGS = {"inbox", "sent", "drafts", "archive", "trash"}
 
 
+def _folder_from_labels(labels: list[str]) -> str:
+    """Suy THƯ MỤC app từ nhãn hệ thống Gmail. Dùng khi lấy 1 thư (get_message) — nơi KHÔNG
+    biết trước thư mục — để sync lũy tiến gán ĐÚNG (trước đây hardcode 'inbox' → thư Đã gửi/
+    Lưu trữ/Thùng rác bị dồn nhầm vào Hộp thư đến)."""
+    if "TRASH" in labels:
+        return "trash"
+    if "DRAFT" in labels:
+        return "drafts"
+    if "SENT" in labels:
+        return "sent"
+    if "INBOX" in labels:
+        return "inbox"
+    return "archive"  # không còn ở inbox/trash/spam/draft → coi như đã lưu trữ
+
+
 @gmail_read_retry
 def list_messages(
     access_token: str,
@@ -182,7 +213,9 @@ def list_messages(
     if q:  # có từ khoá → TÌM trên toàn hộp thư (kèm bộ lọc nếu có)
         params["q"] = " ".join([q, *extra])
     elif folder == "archive":
-        params["q"] = " ".join(["-in:inbox -in:trash -in:spam", *extra])
+        # "Lưu trữ" = KHÔNG ở inbox/sent/draft/trash/spam. PHẢI loại cả sent/draft, nếu không
+        # thư Đã gửi/Nháp (vốn không nằm inbox) sẽ lọt vào archive và bị gán nhầm thư mục.
+        params["q"] = " ".join(["-in:inbox -in:sent -in:draft -in:trash -in:spam", *extra])
     else:
         params["labelIds"] = _FOLDER_LABEL.get(folder, "INBOX")
         if params["labelIds"] == "TRASH":      # Gmail mặc định giấu thùng rác/spam
@@ -192,7 +225,12 @@ def list_messages(
 
     tag = folder if folder in _VALID_TAGS else "inbox"  # nhãn folder gắn vào mỗi Email
 
-    with httpx.Client(timeout=15) as client:
+    # Dùng chung 1 connection pool cho cả B1 lẫn B2 (giữ keep-alive, đỡ bắt tay TLS lại).
+    http_limits = httpx.Limits(max_connections=_LIST_WORKERS, max_keepalive_connections=_LIST_WORKERS)
+    # NFR-Scalability: xin SUẤT gọi nhà cung cấp. Mỗi request bắn 8 lệnh song song;
+    # không có trần toàn cục thì 50 người vào cùng lúc = 400 kết nối → Gmail trả 429
+    # hàng loạt và mọi người cùng hỏng. Hết suất thì xếp hàng, quá lâu thì báo bận.
+    with provider_slot(), httpx.Client(timeout=15, limits=http_limits) as client:
         # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()
@@ -201,15 +239,28 @@ def list_messages(
         next_cursor = data.get("nextPageToken")  # None khi đã hết thư
 
         # B2: với mỗi id, lấy METADATA (From/Subject/Date + nhãn + snippet).
+        # Gmail KHÔNG trả sẵn metadata trong bước danh sách, nên buộc phải hỏi từng thư.
+        # Trước đây gọi TUẦN TỰ: 30 thư = 30 lượt nối đuôi nhau, mỗi lượt ~200ms → 6s chờ.
+        # Nay chạy SONG SONG có giới hạn: cùng số lượt gọi (không tốn thêm hạn mức API)
+        # nhưng thời gian chờ giảm còn khoảng 1/8.
+        def _fetch(mid: str):
+            try:
+                r = client.get(
+                    GMAIL_MSG.format(id=mid), headers=headers,
+                    params={"format": "metadata",
+                            "metadataHeaders": ["From", "To", "Subject", "Date"]},
+                )
+                return r.json() if r.status_code == 200 else None
+            except httpx.HTTPError:
+                return None  # 1 thư lỗi thì bỏ qua, không làm hỏng cả trang
+
         emails: list[Email] = []
-        for mid in ids:
-            r = client.get(
-                GMAIL_MSG.format(id=mid), headers=headers,
-                params={"format": "metadata",
-                        "metadataHeaders": ["From", "To", "Subject", "Date"]},
-            )
-            if r.status_code == 200:
-                emails.append(_to_email(r.json(), tag))
+        if ids:
+            with ThreadPoolExecutor(max_workers=min(_LIST_WORKERS, len(ids))) as pool:
+                # map giữ ĐÚNG THỨ TỰ Gmail trả về — thư mới nhất vẫn nằm trên đầu.
+                for raw in pool.map(_fetch, ids):
+                    if raw is not None:
+                        emails.append(_to_email(raw, tag))
         result = (emails, next_cursor)
         _cache_set(cache_key, result)  # lưu lại để lần sau (trong TTL) khỏi gọi Gmail
         return result
@@ -243,7 +294,7 @@ def _human_size(num: int) -> str:
     return f"{num / 1024 / 1024:.1f} MB"
 
 
-def _extract_body(payload: dict) -> tuple[str, list[dict]]:
+def _extract_body(payload: dict) -> tuple[str, str, list[dict]]:
     """Thư Gmail gồm nhiều 'mảnh' (parts) lồng nhau. Đi đệ quy qua từng mảnh để:
     lấy phần chữ (ưu tiên text/plain) và gom danh sách tệp đính kèm."""
     plain, html, attachments = "", "", []
@@ -263,7 +314,7 @@ def _extract_body(payload: dict) -> tuple[str, list[dict]]:
             walk(child)
 
     walk(payload)
-    return (plain or _strip_html(html)), attachments
+    return (plain or _strip_html(html)), html, attachments
 
 
 @gmail_read_retry
@@ -281,7 +332,7 @@ def get_message(access_token: str, msg_id: str) -> Email:
         r.raise_for_status()
         msg = r.json()
 
-    text, attachments = _extract_body(msg.get("payload", {}))
+    text, html, attachments = _extract_body(msg.get("payload", {}))
     # Tách thành các đoạn (ngăn bởi dòng trống) cho FE hiển thị từng <p>.
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()] or [msg.get("snippet", "")]
     name, addr = parseaddr(_header(msg, "From"))
@@ -307,7 +358,8 @@ def get_message(access_token: str, msg_id: str) -> Email:
         category=cls.category.color,   # type: ignore[arg-type]
         label=cls.category.label,      # nhãn khớp danh sách → mở chi tiết không "nhảy màu"
         attachments=([{"name": a["name"], "size": a["size"]} for a in attachments] or None),  # type: ignore[arg-type]
-        folder="inbox",
+        html=(html or None),                  # HTML gốc để FE render đúng chuẩn Gmail
+        folder=_folder_from_labels(labels),   # suy đúng thư mục từ nhãn (sent/drafts/trash/archive)
     )
     _cache_set(cache_key, email)
     return email
@@ -351,3 +403,75 @@ def get_attachment(
     pad = "=" * (-len(data_b64) % 4)                    # bù cho đủ bội số 4 (yêu cầu base64)
     raw = base64.urlsafe_b64decode(data_b64 + pad)
     return raw, found["mime"], found["name"]
+
+
+# ══════════ ĐỒNG BỘ LŨY TIẾN + PUSH (store-of-record) ══════════
+# Ý tưởng: KHÔNG polling. Bật Gmail watch() (Pub/Sub) 1 lần → mỗi khi hộp thư đổi,
+# Google đẩy 1 thông báo kèm historyId → worker gọi history.list(startHistoryId) chỉ để
+# biết ID thư nào THÊM/XOÁ/ĐỔI NHÃN, rồi fetch đúng các thư đó về DB. Đọc web = đọc DB.
+
+def get_profile_history_id(access_token: str) -> str | None:
+    """historyId hiện tại của hộp thư — làm mốc bắt đầu cho các lần incremental sync sau."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    with httpx.Client(timeout=15) as client:
+        r = client.get(GMAIL_PROFILE, headers=headers)
+        r.raise_for_status()
+        return str(r.json().get("historyId") or "") or None
+
+
+def list_history(access_token: str, start_history_id: str) -> dict:
+    """Lấy MỌI thay đổi kể từ `start_history_id`. Trả {added, deleted, updated, history_id}.
+    added/updated/deleted = danh sách message id. Ném HistoryExpired nếu mốc quá cũ (HTTP 404)."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    added: set[str] = set()
+    deleted: set[str] = set()
+    updated: set[str] = set()
+    latest = start_history_id
+    page_token: str | None = None
+    with httpx.Client(timeout=15) as client:
+        while True:
+            params = {"startHistoryId": start_history_id, "maxResults": 500}
+            if page_token:
+                params["pageToken"] = page_token
+            r = client.get(GMAIL_HISTORY, headers=headers, params=params)
+            if r.status_code == 404:
+                raise HistoryExpired(start_history_id)
+            r.raise_for_status()
+            data = r.json()
+            latest = str(data.get("historyId") or latest)
+            for h in data.get("history", []):
+                for a in h.get("messagesAdded", []):
+                    added.add(a["message"]["id"])
+                for d in h.get("messagesDeleted", []):
+                    deleted.add(d["message"]["id"])
+                for key in ("labelsAdded", "labelsRemoved"):
+                    for lc in h.get(key, []):
+                        updated.add(lc["message"]["id"])
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+    # Thư vừa thêm rồi lại xoá trong cùng khoảng → coi là xoá.
+    added -= deleted
+    updated -= deleted
+    return {"added": list(added), "deleted": list(deleted),
+            "updated": list(updated - added), "history_id": latest}
+
+
+def watch(access_token: str, topic_name: str, label_ids: list[str] | None = None) -> dict:
+    """BẬT Gmail Push: mọi thay đổi hộp thư → Google publish lên Pub/Sub `topic_name`
+    (dạng 'projects/<proj>/topics/<topic>'). Trả {historyId, expiration} — watch hết hạn ~7 ngày,
+    phải gọi lại định kỳ. CẦN: đã tạo topic + cấp quyền publish cho gmail-api-push@system.gserviceaccount.com."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    body = {"topicName": topic_name, "labelIds": label_ids or ["INBOX"],
+            "labelFilterBehavior": "INCLUDE"}
+    with httpx.Client(timeout=15) as client:
+        r = client.post(GMAIL_WATCH, headers=headers, json=body)
+        r.raise_for_status()
+        return r.json()
+
+
+def stop_watch(access_token: str) -> None:
+    """TẮT Gmail Push cho hộp thư này."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    with httpx.Client(timeout=15) as client:
+        client.post(GMAIL_STOP, headers=headers)

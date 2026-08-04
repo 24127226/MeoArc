@@ -38,7 +38,10 @@ import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
-import { api, type StoredMessage } from '@/lib/api'
+import { api, apiBaseUrl, type StoredMessage } from '@/lib/api'
+import { useSubscription, isOutOfTokens } from '@/lib/subscription'
+import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
+import { PricingScreen } from '@/components/layout/pricing-screen'
 import { normalize } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
@@ -730,14 +733,15 @@ function MeltingWave({ roofRef }: { roofRef: React.RefObject<HTMLDivElement | nu
               <stop offset="1" stopColor="#050f22" />
             </linearGradient>
             <linearGradient id="mw-white" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#ffffff" />
-              <stop offset="0.5" stopColor="#f1ece1" />
-              <stop offset="1" stopColor="#d9d1c2" />
+              <stop offset="0" stopColor="#F5F7FF" />
+              <stop offset="0.5" stopColor="#E2E6FB" />
+              <stop offset="1" stopColor="#C6CBF4" />
             </linearGradient>
+            {/* dải thứ ba: tím điện thay cho đỏ cũ, khớp palette Iridescent */}
             <linearGradient id="mw-red" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#c8413c" />
-              <stop offset="0.5" stopColor="#a62b2b" />
-              <stop offset="1" stopColor="#7c1c1c" />
+              <stop offset="0" stopColor="#977DFF" />
+              <stop offset="0.5" stopColor="#6B3FE8" />
+              <stop offset="1" stopColor="#3E1FA8" />
             </linearGradient>
           </defs>
 
@@ -791,6 +795,8 @@ export function ChatPanel({
   injectedCommand,
   onInjectConsumed,
   onOpenEmail,
+  focusSignal,
+  onClose,
 }: {
   emails: Email[]
   actions: EmailActions
@@ -798,6 +804,10 @@ export function ChatPanel({
   onInjectConsumed?: () => void
   /** Mở 1 thư (chuyển panel phải sang chi tiết) — dùng khi bấm thư trong kết quả AI. */
   onOpenEmail?: (id: string) => void
+  /** Tăng lên mỗi khi bấm tab "AI Agent" ở nav → bung composer + focus ô chat. */
+  focusSignal?: number
+  /** Đóng panel AI → trả Hộp thư về full-width (nút X trên header + tab AI Agent). */
+  onClose?: () => void
 }) {
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
@@ -810,6 +820,9 @@ export function ChatPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [voiceOpen, setVoiceOpen] = useState(false)
+  // Gói + hạn mức token: hiện cạnh ô nhập, chặn gửi khi cạn, mở trang nâng cấp.
+  const { status: sub, refresh: refreshSub, setStatus: setSub } = useSubscription()
+  const [pricingOpen, setPricingOpen] = useState(false)
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
   const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
@@ -1028,6 +1041,11 @@ export function ChatPanel({
   const send = (raw: string, viaVoice = false) => {
     const text = raw.trim()
     if (!text || thinking) return
+    // Cạn hạn mức token → chặn ngay ở client, khỏi gọi backend chỉ để nhận lỗi.
+    if (isOutOfTokens(sub)) {
+      setPricingOpen(true)
+      return
+    }
     // Thêm tin user + đặt tiêu đề phiên nếu là tin đầu tiên
     setSessions((prev) =>
       prev.map((s) => {
@@ -1059,6 +1077,7 @@ export function ChatPanel({
         }
         push({ id: uid(), role: 'agent', reply })
         if (viaVoice) speak(replyToSpeech(reply))
+        void refreshSub() // lượt vừa rồi đã tiêu token → cập nhật lại đồng hồ
       })
       .catch(() => {
         setThinking(false)
@@ -1077,6 +1096,19 @@ export function ChatPanel({
     onInjectConsumed?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injectedCommand])
+
+  // Bấm tab "AI Agent" ở nav → bung ô nhập (nếu đang thu gọn) + focus con trỏ vào chat
+  // + cuộn xuống cuối. Nhờ vậy nút không còn "vô tác dụng" khi chat đã hiển thị sẵn.
+  useEffect(() => {
+    if (!focusSignal) return
+    setComposerOpen(true)
+    const t = window.setTimeout(() => {
+      const el = document.getElementById('meoarc-composer-input') as HTMLTextAreaElement | null
+      el?.focus()
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [focusSignal])
 
   const markResolved = (id: string) =>
     updateMessages((prev) =>
@@ -1163,6 +1195,21 @@ export function ChatPanel({
       })
       return false
     }
+  }
+
+  // UC010 — "Viết lại": nhờ AGENT soạn lại ĐÚNG bản nháp này (giữ người nhận + chủ đề),
+  // KHÔNG tạo email mới. Neo theo chủ đề/người nhận để agent không lạc đề (fix bug rewrite
+  // ra email khác hẳn). Agent trả về 1 thẻ nháp mới đã viết lại.
+  const rewriteDraft = (
+    draft: { to: string; subject: string; body: string; replyToId?: string },
+    instruction: string,
+  ) => {
+    const instr = instruction.trim()
+    send(
+      `Viết lại bản nháp email vừa rồi (chủ đề “${draft.subject}”, gửi ${draft.to})` +
+        `${instr ? ` theo yêu cầu: “${instr}”` : ''}. ` +
+        `Giữ NGUYÊN người nhận và chủ đề, chỉ đổi cách hành văn — tuyệt đối không đổi chủ đề.`,
+    )
   }
 
   // UC017 — áp dụng kết quả tự lái vào hộp thư thật
@@ -1262,6 +1309,14 @@ export function ChatPanel({
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
       <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} onResult={(t) => send(t, true)} />
+
+      {/* Trang chọn gói — chiếm trọn khung hình */}
+      <PricingScreen
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        status={sub}
+        onChanged={setSub}
+      />
       
       {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
       <header data-cat-perch="bottom" className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
@@ -1362,6 +1417,16 @@ export function ChatPanel({
             >
               <Sparkles className="size-4" />
             </button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                title="Đóng trợ lý — về Hộp thư"
+                aria-label="Đóng trợ lý AI"
+                className="flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-destructive/40 hover:text-foreground shadow-sm"
+              >
+                <X className="size-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1432,6 +1497,7 @@ export function ChatPanel({
                   onApprove={approvePlan}
                   onReject={rejectPlan}
                   onSendDraft={sendDraft}
+                  onRewrite={rewriteDraft}
                   onResolve={markResolved}
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
@@ -1458,6 +1524,9 @@ export function ChatPanel({
         className="roof-ledge relative px-6 py-4"
       >
         <WaterDivider />
+
+        {/* Cạn hạn mức → nói rõ lý do trợ lý ngừng trả lời + lối nâng cấp */}
+        <QuotaBanner status={sub} onUpgrade={() => setPricingOpen(true)} />
 
         {/* Kỹ năng AI — LUÔN hiện (không thu gọn) */}
         <div className="mb-2 flex flex-wrap gap-2">
@@ -1514,10 +1583,23 @@ export function ChatPanel({
                     setComposerOpen(false)
                   }
                 }}
-                placeholder="Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
-                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0"
+                placeholder={
+                  isOutOfTokens(sub)
+                    ? 'Đã hết token — nâng gói để hỏi tiếp…'
+                    : "Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
+                }
+                disabled={isOutOfTokens(sub)}
+                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
               />
-              <Button size="icon" variant="primary" className="rounded-xl" onClick={() => send(input)}>
+              {/* Đồng hồ token — luôn nằm cạnh ô nhập như các trợ lý AI khác */}
+              <TokenMeter status={sub} onUpgrade={() => setPricingOpen(true)} />
+              <Button
+                size="icon"
+                variant="primary"
+                className="rounded-xl"
+                disabled={isOutOfTokens(sub)}
+                onClick={() => send(input)}
+              >
                 <Send className="size-4" />
               </Button>
             </div>
@@ -1746,15 +1828,20 @@ export function ChatPanel({
   )
 }
 
+// MOCK viết lại (chỉ dùng khi CHƯA nối backend). Nguyên tắc: GIỮ nội dung/chủ đề gốc,
+// chỉ khoác văn phong theo yêu cầu — KHÔNG trả email mẫu cứng lạc đề. Bản thật do agent viết lại.
 function rewriteVariant(base: string, instr: string): string {
+  const body = base.trim()
   const i = normalize(instr)
-  if (/(ngan|short|gon|suc tich)/.test(i))
-    return 'Dạ em chào,\n\nEm đã nhận được email và sẽ phản hồi sớm ạ. Em cảm ơn.\n\nTrân trọng,\nAnh Quân'
   if (/(trang trong|formal|lich su)/.test(i))
-    return 'Kính gửi Quý Thầy/Cô,\n\nEm xin trân trọng phản hồi về nội dung email và sẽ hoàn tất, cập nhật trong thời gian sớm nhất.\n\nEm xin chân thành cảm ơn.\nTrân trọng,\nPhạm Trần Anh Quân'
+    return `Kính gửi anh/chị,\n\n${body}\n\nEm xin chân thành cảm ơn.\nTrân trọng.`
   if (/(than thien|friendly|gan gui)/.test(i))
-    return 'Chào anh/chị,\n\nEm nhận được mail rồi nhé, em xử lý sớm rồi báo lại liền ạ. Cảm ơn anh/chị nhiều!\n\nAnh Quân'
-  return `${base}${instr ? `\n\n(Đã điều chỉnh theo: “${instr}”.)` : '\n\n(Đã viết lại.)'}`
+    return `Chào anh/chị,\n\n${body}\n\nCảm ơn anh/chị nhiều nhé!`
+  if (/(ngan|short|gon|suc tich)/.test(i)) {
+    const lines = body.split(/\n+/).map((s) => s.trim()).filter(Boolean)
+    return lines.slice(0, 2).join('\n\n')
+  }
+  return instr ? `${body}\n\n(Đã điều chỉnh theo: “${instr}”.)` : `${body}\n\n(Đã viết lại.)`
 }
 
 function DraftCard({
@@ -1763,6 +1850,7 @@ function DraftCard({
   spotCls,
   id,
   onSendDraft,
+  onRewrite,
   onResolve,
 }: {
   reply: Extract<AgentReply, { kind: 'draft' }>
@@ -1773,6 +1861,7 @@ function DraftCard({
     id: string,
     draft: { to: string; subject: string; body: string; replyToId?: string },
   ) => Promise<boolean>
+  onRewrite?: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -1789,10 +1878,18 @@ function DraftCard({
     'w-full rounded-lg border border-border/50 bg-popover-foreground/5 px-2.5 py-1.5 text-sm text-popover-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
 
   const doRewrite = () => {
+    const instr = rwText.trim()
     setRwOpen(false)
+    // Backend thật: nhờ AGENT viết lại đúng bản nháp này (giữ chủ đề + người nhận).
+    // Mock/demo (chưa nối backend): biến thể cục bộ GIỮ nội dung gốc, không lạc đề.
+    if (apiBaseUrl && onRewrite) {
+      onRewrite({ to, subject, body, replyToId: reply.replyToId }, instr)
+      setRwText('')
+      return
+    }
     setRewriting(true)
     window.setTimeout(() => {
-      setBody((b) => rewriteVariant(b, rwText))
+      setBody((b) => rewriteVariant(b, instr))
       setRwText('')
       setRewriting(false)
     }, 650)
@@ -1802,9 +1899,9 @@ function DraftCard({
     return (
       <Card className="rose-glass shadow-float overflow-hidden relative">
         {done === 'sent' && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex size-12 items-center justify-center rounded-full bg-[#a8392f] text-[#fbf0e2] font-serif font-bold text-lg border-2 border-[#f2dcc0]/40 shadow-md rotate-[-12deg] opacity-80 animate-in fade-in zoom-in duration-500">
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex size-12 items-center justify-center rounded-full bg-active text-active-foreground font-serif font-bold text-lg border-2 border-accent/40 shadow-md rotate-[-12deg] opacity-85 animate-in fade-in zoom-in duration-500">
             M
-            <div className="absolute inset-0.5 rounded-full border border-dashed border-[#fbf0e2]/30" />
+            <div className="absolute inset-0.5 rounded-full border border-dashed border-active-foreground/30" />
           </div>
         )}
         <CardHeader>
@@ -1840,7 +1937,7 @@ function DraftCard({
               onChange={(e) => setSubject(e.target.value)}
             />
             <textarea
-              className={cn(fieldCls, 'min-h-28 resize-none font-serif leading-relaxed bg-[#fbf0e2]/90 text-[#3a1414] shadow-inner')}
+              className={cn(fieldCls, 'min-h-28 resize-none font-serif leading-relaxed bg-elevated text-foreground shadow-inner')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
@@ -2004,21 +2101,15 @@ function CategorizeWidget({
                 onClick={() => cycleLabel(r.id)}
                 disabled={resolved || off}
                 title="Bấm để đổi nhãn"
-                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#452216] dark:text-[#f7e4d7] ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#1b1b2c] dark:text-[#E6E8F5] ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
                 style={
                   {
-                    // Sử dụng Tailwind CSS Variable hoặc phối trực tiếp:
-                    backgroundColor: `color-mix(in srgb, ${c.bar} 75%, #fbf5eb)`, // Khóa độ đục ban ngày bằng nền cát ấm
+                    // Pha màu nhãn với nền của theme hiện tại để chip không bị đục
+                    backgroundColor: `color-mix(in srgb, ${c.bar} 70%, var(--background))`,
                     ['--tw-ring-color']: c.bar, // Viền đặc màu nhãn không loãng
                   } as CSSProperties
                 }
               >
-                {/* Thêm một mẹo nhỏ đè class cho Dark Mode bằng Tailwind nếu muốn tùy biến sâu hơn: */}
-                <style>{`
-                  .dark .dark\\:bg-dark-tag {
-                    background-color: color-mix(in srgb, ${c.bar} 40%, #3c050f) !important;
-                  }
-                `}</style>
                 <span className="size-1.5 rounded-full" style={{ backgroundColor: c.bar }} />
                 {r.label}
               </button>
@@ -2066,6 +2157,7 @@ function AgentMessage({
   onApprove,
   onReject,
   onSendDraft,
+  onRewrite,
   onResolve,
   onApplyCategorize,
   onAutopilotApply,
@@ -2081,6 +2173,7 @@ function AgentMessage({
     id: string,
     draft: { to: string; subject: string; body: string; replyToId?: string },
   ) => Promise<boolean>
+  onRewrite: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
@@ -2338,6 +2431,7 @@ function AgentMessage({
         spotCls={spotCls}
         id={message.id}
         onSendDraft={onSendDraft}
+        onRewrite={onRewrite}
         onResolve={onResolve}
       />
     </AgentRow>

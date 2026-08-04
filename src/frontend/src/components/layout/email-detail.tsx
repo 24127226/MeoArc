@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useMemo, type CSSProperties } from 'react'
 import {
   ArrowLeft,
   Archive,
@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrl } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { useToast } from '@/components/ui/toast'
+import { useTheme } from '@/components/theme-provider'
 import { CATEGORY } from '@/data/categories'
 import type { Email } from '@/data/emails'
 import type { EmailActions } from '@/lib/email-actions'
@@ -49,6 +50,9 @@ function contextActions(email: Email): ContextAction[] {
   return acts.slice(0, 3)
 }
 
+// Cache tóm tắt LLM theo email id → mở lại thư khỏi gọi LLM lần nữa (đỡ quota).
+const summaryCache = new Map<string, string[]>()
+
 export function EmailDetail({
   email,
   onClose,
@@ -61,12 +65,42 @@ export function EmailDetail({
   onAgentAction?: (command: string) => void
 }) {
   const c = CATEGORY[email.category]
+  const { theme } = useTheme()
   const [labelOpen, setLabelOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showSummary, setShowSummary] = useState(true)
   const id = email.id
   const toast = useToast()
   const actionsList = contextActions(email)
+
+  // UC008 — thẻ tóm tắt gọi LLM THẬT (backend). Lazy khi mở thẻ + cache theo email (đỡ quota);
+  // lỗi/quota/mock → lùi về tóm tắt trích cục bộ (aiSummary). KHÔNG bao giờ chặn UI.
+  const [llmSummary, setLlmSummary] = useState<string[] | null>(() => summaryCache.get(id) ?? null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  useEffect(() => {
+    if (!apiBaseUrl || !showSummary) return
+    const cached = summaryCache.get(email.id)
+    if (cached) {
+      setLlmSummary(cached)
+      return
+    }
+    let cancelled = false
+    setSummaryLoading(true)
+    setLlmSummary(null)
+    api
+      .summarizeEmail(email.id)
+      .then((pts) => {
+        if (cancelled || !pts?.length) return
+        summaryCache.set(email.id, pts)
+        setLlmSummary(pts)
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setSummaryLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [email.id, showSummary])
+  const points = llmSummary ?? aiSummary(email)
 
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in slide-in-from-right-4">
@@ -141,7 +175,7 @@ export function EmailDetail({
               </span>
               {!showSummary && (
                 <span className="block truncate text-xs text-muted-foreground">
-                  {email.tldr ?? aiSummary(email)[0]}
+                  {email.tldr ?? points[0]}
                 </span>
               )}
             </span>
@@ -157,14 +191,22 @@ export function EmailDetail({
               {email.tldr && (
                 <p className="text-sm font-medium leading-relaxed text-foreground">{email.tldr}</p>
               )}
-              <ul className="space-y-1">
-                {aiSummary(email).map((s, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-foreground/90">
-                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-active" />
-                    <span className="min-w-0">{s}</span>
-                  </li>
-                ))}
-              </ul>
+              {summaryLoading && !llmSummary ? (
+                <div className="space-y-2">
+                  <div className="skeleton h-3 w-3/4 rounded" />
+                  <div className="skeleton h-3 w-full rounded" />
+                  <div className="skeleton h-3 w-2/3 rounded" />
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {points.map((s, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-foreground/90">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-active" />
+                      <span className="min-w-0">{s}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
@@ -236,14 +278,18 @@ export function EmailDetail({
           {/* Vạch ngăn */}
           <div className="my-4 h-px bg-border/60" />
 
-          {/* Body */}
-          <div className="space-y-3 text-sm leading-relaxed text-foreground">
-            {email.body.map((p, i) => (
-              <p key={i} className="whitespace-pre-line">
-                {p}
-              </p>
-            ))}
-          </div>
+          {/* Body — HTML GỐC (đúng chuẩn Gmail, iframe sandbox) nếu có; không thì text sạch đã tinh chỉnh */}
+          {email.html ? (
+            <EmailHtmlBody html={email.html} dark={theme === 'dark'} />
+          ) : (
+            <div className="max-w-[68ch] space-y-4 text-[15px] leading-[1.75] text-foreground/90 [overflow-wrap:anywhere]">
+              {cleanParagraphs(email.body).map((p, i) => (
+                <p key={i} className="whitespace-pre-line">
+                  {renderRich(p)}
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* Tệp đính kèm */}
           {email.attachments && email.attachments.length > 0 && (
@@ -345,6 +391,92 @@ export function EmailDetail({
         </DialogContent>
       </Dialog>
     </aside>
+  )
+}
+
+// Nhận diện URL trong text đã strip-HTML → biến thành LINK RÚT GỌN (tránh chuỗi tracking dài
+// cả trăm ký tự làm vỡ bố cục). Đọc êm & gọn như Gmail.
+const URL_RE = /(https?:\/\/[^\s<>()]+)/g
+function renderRich(text: string) {
+  return text.split(URL_RE).map((part, i) => {
+    if (i % 2 === 0) return <span key={i}>{part}</span>
+    let label = part.replace(/^https?:\/\/(www\.)?/, '')
+    if (label.length > 42) label = label.slice(0, 42) + '…'
+    return (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="break-all font-medium text-active underline decoration-active/40 underline-offset-2 hover:decoration-active"
+      >
+        {label}
+      </a>
+    )
+  })
+}
+
+// Dọn đoạn văn: gộp khoảng trắng/dòng trống thừa, bỏ đoạn rỗng → hết cảm giác "lộn xộn".
+function cleanParagraphs(body: string[]): string[] {
+  return body
+    .map((p) => p.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim())
+    .filter(Boolean)
+}
+
+// Dọn HTML email trước khi render (phòng thủ nhiều lớp — iframe sandbox KHÔNG cho chạy script
+// đã chặn XSS, nhưng vẫn cắt <script>/<iframe>/handler on*/javascript: cho chắc).
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1="#"')
+}
+
+/** Render HTML GỐC của email đúng chuẩn Gmail — trong iframe SANDBOX (không cho JS chạy),
+ *  tự canh chiều cao theo nội dung, link mở tab mới, ảnh co vừa khung, hỗ trợ dark mode. */
+function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
+  const ref = useRef<HTMLIFrameElement>(null)
+  const srcDoc = useMemo(() => {
+    const base =
+      `html,body{margin:0;padding:0;background:transparent;` +
+      `font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
+      `font-size:15px;line-height:1.65;overflow-wrap:anywhere;word-break:break-word}` +
+      `img{max-width:100%!important;height:auto}*{max-width:100%}` +
+      `table{max-width:100%!important;width:auto!important}` +
+      `blockquote{margin:0 0 0 .8em;padding-left:.8em;border-left:2px solid #ccc;color:#777}`
+    // NHẬP GIA TÙY TỤC: DARK → đảo màu để hoà vào nền tối MeoArc (bố cục & nội dung GIỮ NGUYÊN),
+    // rồi đảo NGƯỢC ảnh/video/nền-ảnh để chúng vẫn đúng màu. LIGHT → giữ tự nhiên trên nền sáng.
+    const themed = dark
+      ? `html{filter:invert(0.9) hue-rotate(180deg)}` +
+        `img,picture,video,svg,image,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}` +
+        `body{color:#1a1a1a}`
+      : `body{color:#14141f}a{color:#6D5BE0}`
+    return (
+      `<!doctype html><html><head><meta charset="utf-8"><base target="_blank">` +
+      `<style>${base}${themed}</style></head><body>${sanitizeHtml(html)}</body></html>`
+    )
+  }, [html, dark])
+  const resize = () => {
+    const f = ref.current
+    const b = f?.contentDocument?.body
+    if (f && b) f.style.height = `${b.scrollHeight + 20}px`
+  }
+  return (
+    <iframe
+      ref={ref}
+      title="Nội dung email"
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      srcDoc={srcDoc}
+      onLoad={() => {
+        resize()
+        // ảnh tải trễ → canh lại vài nhịp
+        window.setTimeout(resize, 300)
+        window.setTimeout(resize, 1200)
+      }}
+      className="w-full border-0"
+      style={{ minHeight: 100 }}
+    />
   )
 }
 

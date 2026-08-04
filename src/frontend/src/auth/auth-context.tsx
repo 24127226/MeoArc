@@ -13,6 +13,8 @@ type AuthContextValue = {
   isLoading: boolean
   /** Mock: giả lập luồng OAuth Google (backend thật là repo khác). */
   loginWithGoogle: () => Promise<void>
+  /** Đa provider — đăng nhập bằng Microsoft/Outlook. */
+  loginWithOutlook: () => Promise<void>
   /** Đăng xuất khỏi phiên (UC002). */
   logout: () => void
   /** Thu hồi quyền Gmail: gọi Google bỏ quyền + xoá phiên (mạnh hơn logout, UC002). */
@@ -81,6 +83,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false)
   }
 
+  const loginWithOutlook = async () => {
+    if (USE_BACKEND) {
+      window.location.href = `${apiBaseUrl}/auth/outlook/start`  // backend đẩy sang Microsoft
+      return new Promise<void>(() => {})
+    }
+    setIsLoading(true)
+    await new Promise((r) => setTimeout(r, 1100))
+    setUser(DEMO_USER)
+    setIsLoading(false)
+  }
+
   const logout = () => {
     if (USE_BACKEND) void api.logout().catch(() => {})
     setUser(null)
@@ -94,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, loginWithGoogle, logout, revokeAccess }}
+      value={{ user, isAuthenticated: !!user, isLoading, loginWithGoogle, loginWithOutlook, logout, revokeAccess }}
     >
       {children}
     </AuthContext.Provider>

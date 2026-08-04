@@ -12,7 +12,7 @@
 import asyncio
 from datetime import datetime, timezone
 
-from app.services import gmail_service, gmail_actions, gmail_send
+from app.services import gmail_service, gmail_actions, gmail_send, mail  # noqa: F401 (gmail_* giữ cho test monkeypatch)
 from app.schemas.email import Email
 from app.tools.registry import tool_registry, ToolCategory, RequestContext
 from app.tools.schemas import (
@@ -68,7 +68,7 @@ async def search_emails(inp: SearchEmailsInput, ctx: RequestContext) -> SearchEm
     elif inp.is_read is False:
         q = (q + " is:unread").strip()        # chỉ thư chưa đọc
     emails, _ = await asyncio.to_thread(
-        gmail_service.list_messages, ctx.access_token, q=(q or None), max_results=inp.limit,
+        mail.list_messages, ctx.email_provider, ctx.access_token, q=(q or None), max_results=inp.limit,
     )
     items = [_to_summary(e) for e in emails]
     return SearchEmailsOutput(
@@ -83,7 +83,7 @@ async def categorize_emails(inp: CategorizeEmailsInput, ctx: RequestContext) -> 
     Cá nhân). CHỈ ĐỀ XUẤT — không áp nhãn ngay; người dùng duyệt/sửa rồi mới áp (human-in-the-loop).
     Đây là tool ĐỌC, chạy tất định (0 quota), nhanh."""
     emails, _ = await asyncio.to_thread(
-        gmail_service.list_messages, ctx.access_token,
+        mail.list_messages, ctx.email_provider, ctx.access_token,
         q=(inp.query or None), max_results=inp.limit,
     )
     items: list[CategorizedItem] = []
@@ -114,7 +114,7 @@ async def semantic_search(inp: SemanticSearchInput, ctx: RequestContext) -> Sear
 
     # 1) Lấy nhóm ứng viên = các thư GẦN NHẤT (re-rank tại chỗ, không cần index trước)
     emails, _ = await asyncio.to_thread(
-        gmail_service.list_messages, ctx.access_token, max_results=inp.pool,
+        mail.list_messages, ctx.email_provider, ctx.access_token, max_results=inp.pool,
     )
     if not emails:
         return SearchEmailsOutput(success=True, message="Hộp thư trống.", data=[], total_found=0)
@@ -138,7 +138,7 @@ async def semantic_search(inp: SemanticSearchInput, ctx: RequestContext) -> Sear
 @tool_registry.register(category=ToolCategory.READ, input_schema=GetEmailInput)
 async def get_email(inp: GetEmailInput, ctx: RequestContext) -> GetEmailOutput:
     """Lấy NỘI DUNG ĐẦY ĐỦ một email (thân thư + đính kèm) để đọc, tóm tắt hoặc trả lời."""
-    e = await asyncio.to_thread(gmail_service.get_message, ctx.access_token, inp.email_id)
+    e = await asyncio.to_thread(mail.get_message, ctx.email_provider, ctx.access_token, inp.email_id)
     detail = EmailDetail(
         body_text="\n\n".join(e.body),
         attachments=[a.name for a in (e.attachments or [])],
@@ -150,7 +150,7 @@ async def get_email(inp: GetEmailInput, ctx: RequestContext) -> GetEmailOutput:
 @tool_registry.register(category=ToolCategory.READ, input_schema=ListLabelsInput)
 async def list_labels(inp: ListLabelsInput, ctx: RequestContext) -> ListLabelsOutput:
     """Liệt kê tên mọi nhãn trong hộp thư (để dùng trước khi gắn/bỏ nhãn)."""
-    names = await asyncio.to_thread(gmail_actions.list_label_names, ctx.access_token)
+    names = await asyncio.to_thread(mail.list_labels, ctx.email_provider, ctx.access_token)
     return ListLabelsOutput(success=True, message=f"Có {len(names)} nhãn.", data=names)
 
 
@@ -159,7 +159,7 @@ async def list_labels(inp: ListLabelsInput, ctx: RequestContext) -> ListLabelsOu
 async def send_email(inp: SendEmailInput, ctx: RequestContext) -> SendEmailOutput:
     """GỬI một email mới. Chỉ gọi sau khi người dùng đã xác nhận (registry tự đánh dấu cần duyệt)."""
     res = await asyncio.to_thread(
-        gmail_send.send_email, ctx.access_token, ", ".join(inp.to), inp.subject, inp.body,
+        mail.send_email, ctx.email_provider, ctx.access_token, ", ".join(inp.to), inp.subject, inp.body,
         cc=inp.cc or None, bcc=inp.bcc or None,
     )
     return SendEmailOutput(
@@ -173,7 +173,7 @@ async def reply_email(inp: ReplyEmailInput, ctx: RequestContext) -> ReplyEmailOu
     """TRẢ LỜI một email (giữ đúng luồng). Lưu ý: `instructions` ở đây coi như NỘI DUNG ĐÃ CHỐT
     để gửi — agent nên soạn/duyệt nội dung TRƯỚC rồi mới gọi tool này (TODO nhóm: tách bước soạn)."""
     res = await asyncio.to_thread(
-        gmail_send.reply_email, ctx.access_token, inp.email_id, inp.instructions,
+        mail.reply_email, ctx.email_provider, ctx.access_token, inp.email_id, inp.instructions,
     )
     return ReplyEmailOutput(
         success=True, message="Đã gửi trả lời.",
@@ -188,13 +188,12 @@ async def apply_labels(inp: ApplyLabelsInput, ctx: RequestContext) -> ApplyLabel
     modified = 0
     for name in inp.labels_to_add:
         modified += await asyncio.to_thread(
-            gmail_actions.apply_label, ctx.access_token, inp.email_ids, name,
+            mail.apply_label, ctx.email_provider, ctx.access_token, inp.email_ids, name,
         )
     for name in inp.labels_to_remove:
-        if name.upper() in _SYSTEM_LABELS:    # nhãn tự tạo cần resolve id → TODO nhóm
-            await asyncio.to_thread(
-                gmail_actions.modify_labels, ctx.access_token, inp.email_ids, None, [name.upper()],
-            )
+        await asyncio.to_thread(
+            mail.remove_label, ctx.email_provider, ctx.access_token, inp.email_ids, name,
+        )
     return ApplyLabelsOutput(
         success=True, message=f"Đã cập nhật nhãn cho {len(inp.email_ids)} thư.",
         data={"modified_count": modified, "failed_ids": []},
@@ -205,20 +204,17 @@ async def apply_labels(inp: ApplyLabelsInput, ctx: RequestContext) -> ApplyLabel
 async def bulk_action(inp: BulkActionInput, ctx: RequestContext) -> BulkActionOutput:
     """Thao tác HÀNG LOẠT: xoá (thùng rác) / đánh dấu đã đọc / chưa đọc / gắn / bỏ nhãn."""
     a = inp.action
+    p, tok, ids = ctx.email_provider, ctx.access_token, inp.email_ids
     if a == BulkAction.DELETE:
-        n = await asyncio.to_thread(gmail_actions.trash, ctx.access_token, inp.email_ids)
+        n = await asyncio.to_thread(mail.trash, p, tok, ids)
     elif a == BulkAction.MARK_READ:
-        n = await asyncio.to_thread(
-            gmail_actions.modify_labels, ctx.access_token, inp.email_ids, None, ["UNREAD"])
+        n = await asyncio.to_thread(mail.set_read, p, tok, ids, True)
     elif a == BulkAction.MARK_UNMARKED:
-        n = await asyncio.to_thread(
-            gmail_actions.modify_labels, ctx.access_token, inp.email_ids, ["UNREAD"], None)
+        n = await asyncio.to_thread(mail.set_read, p, tok, ids, False)
     elif a == BulkAction.APPLY_LABEL:
-        n = await asyncio.to_thread(
-            gmail_actions.apply_label, ctx.access_token, inp.email_ids, inp.label_name)
+        n = await asyncio.to_thread(mail.apply_label, p, tok, ids, inp.label_name)
     else:  # REMOVE_LABEL
-        n = await asyncio.to_thread(
-            gmail_actions.modify_labels, ctx.access_token, inp.email_ids, None, [inp.label_name])
+        n = await asyncio.to_thread(mail.remove_label, p, tok, ids, inp.label_name)
     return BulkActionOutput(
         success=True, message=f"Đã xử lý {n}/{len(inp.email_ids)} thư.",
         data={"success_count": n, "failed_count": len(inp.email_ids) - n, "failed_ids": []},

@@ -18,20 +18,31 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.services.email_service import list_emails  # logic lấy email (tầng service)
 
 # --- Nấc 3: database (ORM) ---
-from fastapi import Depends, HTTPException, status, UploadFile, File
+from fastapi import Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from app.core.db import Base, engine, get_db
+from app.core.config import settings  # cờ tính năng (vd mailbox_store_enabled) dùng ở nhiều route
 from app.models.user import User  # noqa: F401 — phải import để create_all "thấy" bảng users
 from app.models.session import AuthSession  # noqa: F401 — để create_all tạo cả bảng sessions
 from app.models.conversation import Conversation  # noqa: F401 — UC011: tạo bảng conversations
-from app.repo import user_repo, conversation_repo
+from app.models.audit import AuditLog  # noqa: F401 — tạo bảng audit_logs (accountability)
+from app.models.notification import Notification  # noqa: F401 — tạo bảng notifications
+from app.models.subscription import Subscription  # noqa: F401 — tạo bảng subscriptions (quota token)
+from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
+from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
+from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
+from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
+from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
+from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
+import logging
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.conversation import ConversationSummary, ConversationDetail, UpdateConversationReq
 
 # --- Nấc 4b: đăng nhập ---
-from app.core.deps import get_current_user, get_current_session, get_gmail_token
-from app.services import gmail_service
+from app.core.deps import get_current_user, get_current_session, get_gmail_token, get_provider
+from app.services import gmail_service, mail, sync_service
 from app.api import auth as auth_routes
+from fastapi import BackgroundTasks  # hàng đợi nhẹ (in-process) cho webhook/sync chạy nền
 
 # --- Nấc 6a: hành động Gmail (ghi) ---
 from fastapi import Response
@@ -81,8 +92,32 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 async def observability_and_security(request: Request, call_next):
     rid = set_request_id()                      # log của request này đều mang rid
     t0 = _time.perf_counter()
-    response = await call_next(request)
+
+    # NFR-Scalability: chặn payload khổng lồ TRƯỚC khi đọc vào RAM. Không chặn thì
+    # vài request 500MB đủ làm hết bộ nhớ tiến trình và kéo sập cả server.
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > limits.MAX_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"error": {"code": 413, "message": "Nội dung gửi lên quá lớn."}},
+        )
+
+    try:
+        response = await call_next(request)
+    except limits.ProviderBusy as busy:
+        # Quá tải CÓ KIỂM SOÁT: hệ thống còn sống, chỉ đang hết suất gọi ra ngoài.
+        # Trả 503 + Retry-After để client (và load balancer) biết mà thử lại,
+        # thay vì để request treo tới lúc timeout rồi báo lỗi 500 khó hiểu.
+        limits.metrics.note_rejection("busy")
+        limits.metrics.observe((_time.perf_counter() - t0) * 1000, 503)
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": "5", "X-Request-ID": rid},
+            content={"error": {"code": 503, "message": str(busy)}},
+        )
+
     elapsed_ms = (_time.perf_counter() - t0) * 1000
+    limits.metrics.observe(elapsed_ms, response.status_code)
     # Đo được mới nói chuyện "tốc độ": FE/DevTools đọc 2 header này để soi độ trễ từng call.
     response.headers["X-Request-ID"] = rid
     response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.0f}"
@@ -133,6 +168,63 @@ def health(db: Session = Depends(get_db)):
         "version": app.version,
     }
     return body if db_ok else JSONResponse(status_code=503, content=body)
+
+
+# ── NFR-Scalability: /metrics — nhìn được hệ thống đang thở thế nào ──────────
+# Không đo thì không biết lúc nào sắp quá tải, và khi sập cũng không biết vì sao.
+# Ba con số đáng nhìn nhất: độ trễ p95 (người dùng CẢM nhận được), số suất gọi ra
+# ngoài còn trống (gần 0 = đang nghẽn), và số kết nối DB đang mượn.
+@app.get("/metrics")
+async def metrics():
+    from app.core.db import engine
+    snap = limits.metrics.snapshot()
+    pool = getattr(engine, "pool", None)
+    try:
+        snap["db_pool"] = {
+            "size": pool.size(), "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
+    except Exception:
+        snap["db_pool"] = "n/a"
+    snap["kv_backend"] = kv.backend_name
+    snap["thread_pool"] = _thread_pool_size()
+    return snap
+
+
+def _thread_pool_size() -> int | str:
+    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này).
+
+    LƯU Ý: current_default_thread_limiter() chỉ đọc được khi đang ở trong vòng lặp
+    bất đồng bộ — gọi từ một route `def` thường sẽ ném lỗi và trả 'n/a'. Vì vậy cả
+    hàm này lẫn nơi gọi nó (/metrics, startup) đều phải là `async`.
+    """
+    try:
+        import anyio.to_thread
+        return anyio.to_thread.current_default_thread_limiter().total_tokens
+    except Exception:
+        return "n/a"
+
+
+@app.on_event("startup")
+async def _tune_runtime() -> None:
+    """Nới số luồng cho các route đồng bộ.
+
+    FastAPI chạy route `def` trong một pool mặc định 40 luồng. Route của mình chờ
+    I/O rất lâu (Gmail ~2.5s, mô hình còn lâu hơn) chứ không tốn CPU, nên 40 luồng
+    là nghẽn quá sớm: người thứ 41 phải xếp hàng dù server đang rảnh. Nới rộng để
+    chịu được nhiều người chờ I/O cùng lúc — trần thật sự nằm ở semaphore gọi ra
+    ngoài, chỗ đó mới là tài nguyên khan hiếm.
+    """
+    try:
+        import anyio.to_thread
+        anyio.to_thread.current_default_thread_limiter().total_tokens = settings.web_thread_pool
+        logging.getLogger("app.limits").info(
+            "Thread pool = %s · provider slots = %s · llm slots = %s · KV = %s",
+            settings.web_thread_pool, settings.max_provider_concurrency,
+            settings.max_llm_concurrency, kv.backend_name,
+        )
+    except Exception as exc:  # noqa: BLE001 — chỉ là tinh chỉnh, hỏng thì chạy mặc định
+        logging.getLogger("app.limits").warning("Không nới được thread pool: %s", exc)
 
 
 # ── Nấc 9 (#2): CHUẨN HOÁ định dạng lỗi ──────────────────────────────
@@ -195,18 +287,41 @@ async def root():
 @app.get("/emails")
 def get_emails(
     folder: str = "inbox",
-    q: str | None = None,            # UC005: từ khoá tìm kiếm
+    # NFR-Scalability: chặn TỪ CỬA. `limit` không giới hạn thì một request
+    # ?limit=5000 sẽ bắn 5000 lệnh gọi Gmail — đủ để một người làm nghẽn cả hệ thống
+    # và đốt sạch hạn ngạch chung. `q` dài vô tận cũng làm truy vấn DB phình.
+    q: str | None = Query(None, max_length=limits.MAX_QUERY_LEN),
     unread: bool | None = None,      # bộ lọc nhanh: chỉ thư chưa đọc
     starred: bool | None = None,     # chỉ thư gắn sao
     attachment: bool | None = None,  # chỉ thư có đính kèm
     category: str | None = None,     # màu chip của FE — Gmail KHÔNG có khái niệm này → bỏ qua ở server
-    cursor: str | None = None,       # Nấc 9 (#3): token trang KẾ để lấy thêm thư (>30)
-    limit: int = 30,
+    cursor: str | None = Query(None, max_length=512),  # token trang KẾ
+    limit: int = Query(30, ge=1, le=limits.MAX_PAGE_SIZE),
     fresh: bool = False,             # nút "Làm mới": bỏ qua cache 60s, ép lấy bản mới nhất
     token: str = Depends(get_gmail_token),
+    provider: str = Depends(get_provider),  # 'google' | 'microsoft' → định tuyến Gmail/Outlook
+    session: AuthSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
 ):
-    items, next_cursor = gmail_service.list_messages(
-        token, folder=folder, q=q, unread=unread, starred=starred,
+    # Trần lượt đọc theo người: bảo vệ hạn ngạch nhà cung cấp khỏi tab kẹt vòng lặp.
+    if limits.rate_limited("read", session.user_id, settings.read_rate_limit_per_min):
+        limits.metrics.note_rejection("rate")
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Bạn đang tải thư quá nhanh. Chờ một chút rồi thử lại nhé.",
+            headers={"Retry-After": "30"},
+        )
+    # STORE-OF-RECORD: bật cờ + DB đã có thư của user ⇒ phục vụ TỪ DB, KHÔNG gọi Gmail
+    # (chống rate-limit — yêu cầu nhóm). DB còn "lạnh" (chưa sync) ⇒ lùi về live như cũ.
+    if settings.mailbox_store_enabled and email_store_repo.has_any(db, session.user_id, provider):
+        items, next_cursor = email_store_repo.get_page(
+            db, session.user_id, provider, folder=folder, q=q, unread=unread,
+            starred=starred, attachment=attachment, limit=limit, cursor=cursor,
+        )
+        return {"items": items, "nextCursor": next_cursor, "criteria": [], "source": "db"}
+
+    items, next_cursor = mail.list_messages(
+        provider, token, folder=folder, q=q, unread=unread, starred=starred,
         attachment=attachment, page_token=cursor, max_results=limit, bypass_cache=fresh,
     )
     return {"items": items, "nextCursor": next_cursor, "criteria": []}
@@ -214,8 +329,58 @@ def get_emails(
 
 # ── Nấc 5b: xem CHI TIẾT 1 thư (UC004) — thân thư đầy đủ + đính kèm ──
 @app.get("/emails/{email_id}")
-def get_email(email_id: str, token: str = Depends(get_gmail_token)):
-    return gmail_service.get_message(token, email_id)
+def get_email(email_id: str, token: str = Depends(get_gmail_token),
+              provider: str = Depends(get_provider),
+              session: AuthSession = Depends(get_current_session),
+              db: Session = Depends(get_db)):
+    # Chi tiết LUÔN lấy LIVE (có HTML gốc + mới nhất; 1 call/thư, cache 60s). Store phục vụ LIST.
+    # Lỗi live (offline / thư đã xoá) → lùi về bản DB nếu có.
+    try:
+        live = mail.get_message(provider, token, email_id)
+        if settings.mailbox_store_enabled:
+            try:
+                email_store_repo.upsert(db, session.user_id, provider, live,
+                                        folder=live.folder or "inbox", full=True)
+            except Exception:
+                db.rollback()
+        return live
+    except Exception:
+        if settings.mailbox_store_enabled:
+            cached = email_store_repo.get_one(db, session.user_id, provider, email_id)
+            if cached is not None:
+                return cached
+        raise
+
+
+@app.post("/emails/{email_id}/summarize")
+def summarize_email(email_id: str, token: str = Depends(get_gmail_token),
+                    provider: str = Depends(get_provider)):
+    """UC008 — Tóm tắt 1 email bằng LLM → trả list gạch đầu dòng cho thẻ 'Tóm tắt · AI' ở
+    màn chi tiết. LLM chưa cấu hình / thư rỗng / lỗi → lùi về TRÍCH đoạn đầu (fallback an toàn)."""
+    import re as _re
+    email = mail.get_message(provider, token, email_id)
+    body = "\n".join(email.body or []).strip() or email.preview
+
+    def _extract() -> list[str]:
+        pts = [p.strip() for p in (email.body or []) if len(p.strip()) > 20][:3]
+        return pts or [email.preview or "(thư rỗng)"]
+
+    if not settings.agent_enabled or not body:
+        return {"points": _extract(), "source": "extract"}
+    try:
+        from app.core.llm import create_llm
+        from app.agent.nodes.agent_node import coerce_text
+        prompt = (
+            "Tóm tắt email dưới đây thành 2–4 gạch đầu dòng NGẮN GỌN bằng tiếng Việt, "
+            "mỗi dòng 1 ý chính. CHỈ trả các gạch đầu dòng, không mở đầu/kết luận.\n\n"
+            f"Tiêu đề: {email.subject}\nNội dung:\n{body[:4000]}"
+        )
+        text = coerce_text(getattr(create_llm().invoke(prompt), "content", "")) or ""
+        pts = [_re.sub(r"^[\-\*•\d\.\)\s]+", "", ln).strip() for ln in text.splitlines()]
+        pts = [p for p in pts if p][:5]
+        return {"points": pts or _extract(), "source": "llm"}
+    except Exception:
+        return {"points": _extract(), "source": "extract"}
 
 
 # ── Nấc 6a: HÀNH ĐỘNG Gmail (UC006) — đánh dấu đọc · sao · lưu trữ · xoá ──
@@ -240,46 +405,137 @@ def _write(action) -> ActionResult:
     return ActionResult(affected=_guard(action))
 
 
+def _record(
+    db: Session,
+    user_id: int,
+    *,
+    action: str,
+    ids: list[str] | None = None,
+    tool_name: str = "",
+    actor_type: str = "user",
+    status: str = "success",
+    details: dict | None = None,
+    conversation_id: str | None = None,
+    notify: str | None = None,
+    notify_type: str = "info",
+) -> None:
+    """Ghi 1 dòng AuditLog (LUÔN) + sinh 1 Notification (nếu có `notify`). Gọi SAU khi
+    hành động Gmail đã thành công. Nuốt mọi lỗi phụ trợ: audit/notify hỏng KHÔNG được
+    làm sập response của hành động chính (accountability là 'thêm', không phải 'chặn')."""
+    try:
+        audit_repo.log(
+            db, user_id=user_id, action=action, tool_name=tool_name, actor_type=actor_type,
+            affected_email_ids=ids or [], status=status, details=details or {},
+            conversation_id=conversation_id,
+        )
+        if notify:
+            notification_repo.create(db, user_id=user_id, message=notify, type=notify_type)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _turn_tokens(messages: list) -> int:
+    """Ước lượng token đã tiêu của LƯỢT hiện tại (từ HumanMessage cuối → tránh cộng dồn lượt cũ).
+    Ưu tiên usage_metadata model báo (Gemini/Groq đều có); thiếu thì ước ~4 ký tự/token."""
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    turn = messages[last_human:]
+    total, have_meta = 0, False
+    for m in turn:
+        if getattr(m, "type", None) != "ai":
+            continue
+        um = getattr(m, "usage_metadata", None)
+        if isinstance(um, dict) and um.get("total_tokens"):
+            total += int(um["total_tokens"])
+            have_meta = True
+    if have_meta:
+        return total
+    from app.agent.nodes.agent_node import coerce_text
+    chars = sum(len(coerce_text(getattr(m, "content", "")) or "") for m in turn)
+    return max(1, chars // 4)
+
+
+def _wt(fn) -> None:
+    """WRITE-THROUGH: cập nhật store `emails` sau khi hành động đã chạy thật trên Gmail/Graph.
+    Chỉ khi bật cờ store; nuốt lỗi để KHÔNG bao giờ phá hành động chính (best-effort)."""
+    if not settings.mailbox_store_enabled:
+        return
+    try:
+        fn()
+    except Exception:
+        pass
+
+
 @app.post("/emails/actions/read", response_model=ActionResult)
-def action_read(req: ReadReq, token: str = Depends(get_gmail_token)):
-    """Đánh dấu đã/chưa đọc. Đã đọc = BỚT nhãn UNREAD; chưa đọc = THÊM UNREAD."""
-    if req.read:
-        return _write(lambda: gmail_actions.modify_labels(token, req.ids, remove=["UNREAD"]))
-    return _write(lambda: gmail_actions.modify_labels(token, req.ids, add=["UNREAD"]))
+def action_read(req: ReadReq, token: str = Depends(get_gmail_token),
+                provider: str = Depends(get_provider),
+                session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Đánh dấu đã/chưa đọc (Gmail: nhãn UNREAD · Outlook: isRead)."""
+    result = _write(lambda: mail.set_read(provider, token, req.ids, req.read))
+    _wt(lambda: email_store_repo.mark_read(db, session.user_id, provider, req.ids, req.read))
+    # Hành động NHẸ, đảo được → chỉ audit, KHÔNG làm phiền bằng notification.
+    _record(db, session.user_id, action="mark_read" if req.read else "mark_unread",
+            ids=req.ids, tool_name="bulk_action")
+    return result
 
 
 @app.post("/emails/actions/important", response_model=ActionResult)
-def action_important(req: ImportantReq, token: str = Depends(get_gmail_token)):
-    """Gắn/bỏ sao. value=True → THÊM nhãn STARRED; value=False → BỚT STARRED."""
-    if req.value:
-        return _write(lambda: gmail_actions.modify_labels(token, req.ids, add=["STARRED"]))
-    return _write(lambda: gmail_actions.modify_labels(token, req.ids, remove=["STARRED"]))
+def action_important(req: ImportantReq, token: str = Depends(get_gmail_token),
+                     provider: str = Depends(get_provider),
+                     session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Gắn/bỏ sao (Gmail: STARRED · Outlook: flag)."""
+    result = _write(lambda: mail.set_flag(provider, token, req.ids, req.value))
+    _wt(lambda: email_store_repo.set_starred(db, session.user_id, provider, req.ids, req.value))
+    _record(db, session.user_id, action="star" if req.value else "unstar",
+            ids=req.ids, tool_name="bulk_action")
+    return result
 
 
 @app.post("/emails/actions/archive", response_model=ActionResult)
-def action_archive(req: IdsReq, token: str = Depends(get_gmail_token)):
-    """Lưu trữ = BỚT nhãn INBOX → thư rời 'Hộp thư đến' nhưng vẫn còn trong 'Tất cả thư'."""
-    return _write(lambda: gmail_actions.modify_labels(token, req.ids, remove=["INBOX"]))
+def action_archive(req: IdsReq, token: str = Depends(get_gmail_token),
+                   provider: str = Depends(get_provider),
+                   session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Lưu trữ (Gmail: bỏ nhãn INBOX · Outlook: chuyển thư mục Archive)."""
+    result = _write(lambda: mail.archive(provider, token, req.ids))
+    _wt(lambda: email_store_repo.move_folder(db, session.user_id, provider, req.ids, "archive"))
+    _record(db, session.user_id, action="archive", ids=req.ids, tool_name="bulk_action",
+            notify=f"Đã lưu trữ {len(req.ids)} thư.", notify_type="info")
+    return result
 
 
 @app.post("/emails/actions/delete", response_model=ActionResult)
-def action_delete(req: IdsReq, token: str = Depends(get_gmail_token)):
-    """Xoá = chuyển vào THÙNG RÁC (xoá mềm, khôi phục được). Không xoá vĩnh viễn (an toàn)."""
-    return _write(lambda: gmail_actions.trash(token, req.ids))
+def action_delete(req: IdsReq, token: str = Depends(get_gmail_token),
+                  provider: str = Depends(get_provider),
+                  session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Xoá = vào THÙNG RÁC (Gmail: trash · Outlook: chuyển Deleted Items) — khôi phục được."""
+    result = _write(lambda: mail.trash(provider, token, req.ids))
+    _wt(lambda: email_store_repo.move_folder(db, session.user_id, provider, req.ids, "trash"))
+    _record(db, session.user_id, action="delete", ids=req.ids, tool_name="bulk_action",
+            notify=f"Đã chuyển {len(req.ids)} thư vào thùng rác.", notify_type="warning")
+    return result
 
 
 @app.post("/emails/actions/label", response_model=ActionResult)
-def action_label(req: LabelReq, token: str = Depends(get_gmail_token)):
-    """Gắn NHÃN cho thư (UC006). BE tự tạo nhãn Gmail nếu chưa có rồi gắn vào từng thư."""
-    return _write(lambda: gmail_actions.apply_label(token, req.ids, req.label))
+def action_label(req: LabelReq, token: str = Depends(get_gmail_token),
+                 provider: str = Depends(get_provider),
+                 session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Gắn NHÃN (Gmail: label tự tạo · Outlook: categories) cho thư (UC006)."""
+    result = _write(lambda: mail.apply_label(provider, token, req.ids, req.label))
+    _wt(lambda: email_store_repo.set_label(db, session.user_id, provider, req.ids, req.label))
+    _record(db, session.user_id, action="apply_label", ids=req.ids, tool_name="apply_labels",
+            details={"label": req.label},
+            notify=f"Đã gắn nhãn “{req.label}” cho {len(req.ids)} thư.", notify_type="success")
+    return result
 
 
 @app.post("/emails/{email_id}/read", response_model=ActionResult)
-def mark_read_one(email_id: str, req: ReadOneReq, token: str = Depends(get_gmail_token)):
-    """Đánh dấu MỘT thư đã/chưa đọc — FE gọi khi MỞ thư (UC004)."""
-    if req.read:
-        return _write(lambda: gmail_actions.modify_labels(token, [email_id], remove=["UNREAD"]))
-    return _write(lambda: gmail_actions.modify_labels(token, [email_id], add=["UNREAD"]))
+def mark_read_one(email_id: str, req: ReadOneReq, token: str = Depends(get_gmail_token),
+                  provider: str = Depends(get_provider)):
+    """Đánh dấu MỘT thư đã/chưa đọc — FE gọi khi MỞ thư (UC004). Không audit (quá thường)."""
+    return _write(lambda: mail.set_read(provider, token, [email_id], req.read))
 
 
 @app.get("/emails/{email_id}/attachments/{name}")
@@ -298,25 +554,278 @@ def download_attachment(email_id: str, name: str, token: str = Depends(get_gmail
 
 # ── Nấc 6b: GỬI & TRẢ LỜI thư thật (UC010) ───────────────────────────
 @app.post("/emails/send", response_model=SendResult)
-def send_email_route(req: SendReq, token: str = Depends(get_gmail_token)):
-    """Soạn & gửi thư mới (kèm tệp). Body khớp `SendEmailInput` của FE + attachmentIds."""
+def send_email_route(req: SendReq, bg: BackgroundTasks, token: str = Depends(get_gmail_token),
+                     provider: str = Depends(get_provider),
+                     session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Soạn & gửi thư mới (kèm tệp — Gmail). Body khớp `SendEmailInput` + attachmentIds."""
     # Đổi danh sách id tệp → nội dung thật (bytes) đã cất ở /uploads. Id không tồn tại → bỏ qua.
     attachments = [
         {"name": f["name"], "content": f["content"], "mime": f["mime"]}
         for fid in (req.attachmentIds or [])
         if (f := upload_store.get(fid))
     ]
-    res = _guard(lambda: gmail_send.send_email(
-        token, req.to, req.subject, req.body, cc=req.cc, bcc=req.bcc, attachments=attachments,
+    res = _guard(lambda: mail.send_email(
+        provider, token, req.to, req.subject, req.body, cc=req.cc, bcc=req.bcc, attachments=attachments,
     ))
-    return SendResult(id=res.get("id", ""), threadId=res.get("threadId"))
+    new_id = res.get("id", "")
+    _record(db, session.user_id, action="send_email", tool_name="send_email",
+            ids=[new_id] if new_id else [], details={"to": req.to, "subject": req.subject},
+            notify=f"Đã gửi email tới {req.to}.", notify_type="success")
+    if settings.mailbox_store_enabled:
+        bg.add_task(_bg_sync, session.user_id, provider, token)  # Sent hiện ngay
+    return SendResult(id=new_id, threadId=res.get("threadId"))
 
 
 @app.post("/emails/{email_id}/reply", response_model=SendResult)
-def reply_email_route(email_id: str, req: ReplyReq, token: str = Depends(get_gmail_token)):
+def reply_email_route(email_id: str, req: ReplyReq, bg: BackgroundTasks,
+                      token: str = Depends(get_gmail_token),
+                      provider: str = Depends(get_provider),
+                      session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
     """Trả lời thư email_id: BE tự suy người nhận/tiêu đề/luồng từ thư gốc, chỉ cần `body`."""
-    res = _guard(lambda: gmail_send.reply_email(token, email_id, req.body))
-    return SendResult(id=res.get("id", ""), threadId=res.get("threadId"))
+    res = _guard(lambda: mail.reply_email(provider, token, email_id, req.body))
+    new_id = res.get("id", "")
+    _record(db, session.user_id, action="reply_email", tool_name="reply_email",
+            ids=[i for i in (email_id, new_id) if i], details={"reply_to": email_id},
+            notify="Đã gửi trả lời trong đúng luồng thư.", notify_type="success")
+    if settings.mailbox_store_enabled:
+        bg.add_task(_bg_sync, session.user_id, provider, token)  # Sent hiện ngay
+    return SendResult(id=new_id, threadId=res.get("threadId"))
+
+
+# ── UC010: LƯU NHÁP · GỢI Ý AI · AUTOCOMPLETE NGƯỜI NHẬN ────────────────────
+@app.post("/emails/draft")
+def save_draft(req: SendReq, token: str = Depends(get_gmail_token),
+               provider: str = Depends(get_provider),
+               session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Lưu BẢN NHÁP (không gửi) — tạo nháp trên Gmail/Outlook + upsert vào store (folder='drafts')
+    để hiện NGAY ở tab Nháp dù chưa sync lại."""
+    attachments = [
+        {"name": f["name"], "content": f["content"], "mime": f["mime"]}
+        for fid in (req.attachmentIds or []) if (f := upload_store.get(fid))
+    ]
+    res = _guard(lambda: mail.create_draft(provider, token, req.to, req.subject, req.body,
+                                           cc=req.cc, bcc=req.bcc, attachments=attachments))
+    gid = (res.get("message") or {}).get("id") or res.get("id") or ""
+    try:
+        if settings.mailbox_store_enabled and gid:
+            from app.schemas.email import Email
+            recipient = (req.to or "").strip() or "(chưa có người nhận)"
+            em = Email(id=gid, sender=recipient, senderEmail=(req.to or "").strip(),
+                       senderInitial=(recipient.lstrip("(")[:1].upper() or "?"), to=(req.to or ""),
+                       subject=req.subject or "(không tiêu đề)", preview=(req.body or "")[:120],
+                       body=[req.body or ""], time="", date="", unread=False, starred=False,
+                       category="sky", label="Nháp", folder="drafts",
+                       threadId=(res.get("message") or {}).get("threadId"))
+            email_store_repo.upsert(db, session.user_id, provider, em, folder="drafts", full=True)
+    except Exception:
+        db.rollback()
+    return {"id": gid}
+
+
+@app.post("/emails/compose/suggest")
+def compose_suggest(payload: dict):
+    """Smart Compose — gợi ý ĐOẠN TIẾP THEO khi soạn thư, dựa trên tiêu đề + phần đang gõ.
+    LLM chưa cấu hình / lỗi → trả rỗng (FE tự ẩn gợi ý)."""
+    subject = (payload or {}).get("subject", "")
+    body = (payload or {}).get("body", "")
+    if not settings.agent_enabled:
+        return {"suggestion": ""}
+    try:
+        from app.core.llm import create_llm
+        from app.agent.nodes.agent_node import coerce_text
+        prompt = (
+            "Bạn là trợ lý viết email tiếng Việt. Dựa trên TIÊU ĐỀ và phần người dùng ĐANG viết, "
+            "gợi ý PHẦN TIẾP THEO (nối liền mạch, tự nhiên, tối đa 1–2 câu). CHỈ trả phần nối tiếp, "
+            "KHÔNG lặp lại phần đã viết, KHÔNG giải thích.\n\n"
+            f"Tiêu đề: {subject}\nĐang viết:\n{body}\n\nGợi ý tiếp theo:"
+        )
+        text = coerce_text(getattr(create_llm().invoke(prompt), "content", "")) or ""
+        return {"suggestion": text.strip()[:300]}
+    except Exception:
+        return {"suggestion": ""}
+
+
+@app.get("/contacts")
+def contacts(q: str = "", limit: int = 8, provider: str = Depends(get_provider),
+             session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Autocomplete người nhận (như Gmail) — suy từ sender/recipient các thư đã đồng bộ trong store."""
+    return {"items": email_store_repo.contacts(db, session.user_id, provider, q, min(max(limit, 1), 20))}
+
+
+# ── ĐỒNG BỘ HỘP THƯ → DB store (chống rate-limit) ───────────────────────────
+# Chiến lược: Gmail Push (Pub/Sub) đẩy thông báo khi hộp thư đổi → webhook này nhận →
+# đồng bộ LŨY TIẾN (chỉ phần thay đổi) vào DB. User đọc web = đọc DB, KHÔNG gọi Gmail.
+
+def _bg_sync(user_id: int, provider: str, token: str) -> None:
+    """Đồng bộ lũy tiến ở NỀN sau hành động GHI (gửi/trả lời/agent) → Sent/Inbox trong web cập nhật
+    NGAY mà không cần Pub/Sub. Mở phiên DB riêng; nuốt lỗi (không phá response chính)."""
+    from app.core.db import SessionLocal
+    d = SessionLocal()
+    try:
+        sync_service.incremental_sync(d, user_id, provider, token)
+    except Exception:
+        pass
+    finally:
+        d.close()
+
+
+def _bg_pubsub(email_address: str) -> None:
+    """Chạy NỀN sau khi webhook đã trả 2xx (Pub/Sub yêu cầu phản hồi nhanh). Mở phiên DB riêng."""
+    from app.core.db import SessionLocal
+    db = SessionLocal()
+    try:
+        n = sync_service.handle_pubsub(db, email_address)
+        import logging
+        logging.getLogger("app.sync").info("Pub/Sub sync %s: %d thư", email_address, n)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@app.post("/gmail/push", status_code=status.HTTP_204_NO_CONTENT)
+async def gmail_push(request: Request, bg: BackgroundTasks, token: str | None = None):
+    """WEBHOOK Gmail Push (Pub/Sub push subscription trỏ vào đây). Giải mã thông báo lấy
+    emailAddress rồi ĐẨY việc đồng bộ sang nền, trả 204 NGAY (Pub/Sub retry nếu chậm/lỗi).
+    Bảo vệ tối thiểu bằng ?token= khớp PUBSUB_VERIFY_TOKEN (nếu có cấu hình)."""
+    import base64 as _b64, json as _json, logging as _log
+    if settings.pubsub_verify_token and token != settings.pubsub_verify_token:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "token webhook không hợp lệ")
+    try:
+        envelope = await request.json()
+        data_b64 = (envelope.get("message") or {}).get("data") or ""
+        payload = _json.loads(_b64.b64decode(data_b64).decode("utf-8")) if data_b64 else {}
+        email_address = payload.get("emailAddress")
+    except Exception as exc:
+        _log.getLogger("app.sync").warning("Pub/Sub payload lỗi: %s", exc)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if email_address:
+        bg.add_task(_bg_pubsub, email_address)   # HÀNG ĐỢI nhẹ: tách việc nặng khỏi phản hồi
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/sync/run")
+def sync_run(bg: BackgroundTasks, background: bool = False,
+             token: str = Depends(get_gmail_token), provider: str = Depends(get_provider),
+             session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Đồng bộ hộp thư của PHIÊN đang đăng nhập vào DB (nút 'Đồng bộ ngay' / gọi định kỳ).
+    background=true → chạy nền, trả ngay. Mặc định chạy đồng bộ và trả số thư đã cập nhật."""
+    if background:
+        uid, prov, tok = session.user_id, provider, token
+        def _job():
+            from app.core.db import SessionLocal
+            d = SessionLocal()
+            try:
+                sync_service.incremental_sync(d, uid, prov, tok)
+            finally:
+                d.close()
+        bg.add_task(_job)
+        return {"queued": True}
+    n = sync_service.incremental_sync(db, session.user_id, provider, token)
+    return {"synced": n, "provider": provider}
+
+
+@app.post("/gmail/watch")
+def gmail_watch(token: str = Depends(get_gmail_token), provider: str = Depends(get_provider),
+                session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """BẬT Gmail Push cho hộp thư này (cần GMAIL_PUBSUB_TOPIC). Lưu hạn watch để gia hạn sau.
+    Chỉ Gmail — Outlook dùng Graph subscriptions (hướng nâng cấp)."""
+    if provider != "google":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "watch chỉ hỗ trợ Gmail (google).")
+    if not settings.gmail_pubsub_topic:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chưa cấu hình GMAIL_PUBSUB_TOPIC trong .env.")
+    res = _guard(lambda: gmail_service.watch(token, settings.gmail_pubsub_topic))
+    state = sync_service._get_state(db, session.user_id, "google")
+    exp = res.get("expiration")
+    if exp:
+        from datetime import datetime as _dt, timezone as _tz
+        state.watch_expiration = _dt.fromtimestamp(int(exp) / 1000, tz=_tz.utc).replace(tzinfo=None)
+    if res.get("historyId"):
+        state.history_id = str(res["historyId"])
+    db.commit()
+    return {"watching": True, "expiration": res.get("expiration"),
+            "historyId": res.get("historyId")}
+
+
+# ── ACCOUNTABILITY: AuditLog + Notification ─────────────────────────────────
+# AuditLog = nhật ký KỸ THUẬT "agent/user đã làm gì lên email nào" (hiện thực ý
+# Toolcall_Email trong Design bằng affected_email_ids). Notification = thông báo
+# hướng NGƯỜI DÙNG, sinh kèm các hành động đáng chú ý. Chỉ đọc phiên của CHÍNH user.
+@app.get("/audit")
+def get_audit(limit: int = 50,
+              session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """N hành động gần nhất của user — để soi 'agent đã đụng gì' (accountability)."""
+    rows = audit_repo.list_recent(db, session.user_id, limit=min(max(limit, 1), 200))
+    return {"items": [{
+        "id": r.id, "action": r.action, "toolName": r.tool_name, "actorType": r.actor_type,
+        "affectedEmailIds": r.affected_email_ids, "status": r.status, "details": r.details,
+        "createdAt": r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]}
+
+
+def _notif_dto(n) -> dict:
+    return {"id": n.id, "type": n.type, "message": n.message, "read": n.read,
+            "createdAt": n.created_at.isoformat() if n.created_at else None}
+
+
+@app.get("/notifications")
+def get_notifications(limit: int = 50,
+                      session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    rows = notification_repo.list_for_user(db, session.user_id, limit=min(max(limit, 1), 200))
+    return {"items": [_notif_dto(n) for n in rows],
+            "unread": notification_repo.unread_count(db, session.user_id)}
+
+
+@app.get("/notifications/unread-count")
+def get_unread_count(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    return {"unread": notification_repo.unread_count(db, session.user_id)}
+
+
+@app.post("/notifications/read-all")
+def read_all_notifications(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    return {"marked": notification_repo.mark_all_read(db, session.user_id)}
+
+
+@app.post("/notifications/{notif_id}/read")
+def read_notification(notif_id: int,
+                      session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    n = notification_repo.mark_read(db, session.user_id, notif_id)
+    if not n:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy thông báo")
+    return _notif_dto(n)
+
+
+# ── SUBSCRIPTION: gói + hạn mức token (freemium kiểu sản phẩm AI) ────────────
+@app.get("/subscription")
+def get_subscription(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Gói hiện tại + token đã dùng/còn lại (ngày & tháng) — FE hiện thanh usage."""
+    sub = subscription_repo.get_or_create(db, session.user_id)
+    return subscription_repo.status(db, sub)
+
+
+@app.get("/subscription/plans")
+def list_plans():
+    """Danh mục 3 gói (Miễn phí / Pro / Pro Max) kèm hạn mức + giá hiển thị.
+    FE dựng trang nâng cấp từ đây → số liệu chỉ nằm MỘT chỗ (app/core/plans.py)."""
+    return {"plans": plans.public_catalog()}
+
+
+@app.post("/subscription/tier")
+def set_subscription_tier(payload: dict,
+                          session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Đổi gói (free/pro/max). ĐỒ ÁN: stub nâng cấp — sản phẩm thật sẽ qua cổng THANH TOÁN
+    rồi mới set tier (không cho client tự nâng gói)."""
+    tier = (payload or {}).get("tier", "free")
+    if not plans.is_valid_tier(tier):
+        raise HTTPException(status_code=400, detail=f"Gói không hợp lệ: {tier}")
+    sub = subscription_repo.set_tier(db, session.user_id, tier)
+    audit_repo.log(db, user_id=session.user_id, action="subscription.change_tier",
+                   status="success", details={"tier": tier})
+    return subscription_repo.status(db, sub)
 
 
 # ── Pha 3 (tích hợp): AGENT THẬT — LangGraph + Gemini + tool Gmail ───
@@ -529,8 +1038,10 @@ def _preview_of(display_messages: list) -> str:
 @app.post("/agent/chat")
 async def agent_chat(
     payload: dict,
+    bg: BackgroundTasks,                                  # sync nền sau lượt (Sent/Inbox cập nhật ngay)
     session: AuthSession = Depends(get_current_session),  # phải đăng nhập (agent đụng hộp thư thật)
-    token: str = Depends(get_gmail_token),                # token Gmail còn hạn (tự refresh)
+    token: str = Depends(get_gmail_token),                # token còn hạn (tự refresh, đa provider)
+    provider: str = Depends(get_provider),                # 'google'|'microsoft' → tool route Gmail/Outlook
     db: Session = Depends(get_db),                        # UC011: lưu/đọc lịch sử phiên
 ):
     from app.core.config import settings
@@ -565,6 +1076,18 @@ async def agent_chat(
             ),
         }
 
+    # SUBSCRIPTION: chặn khi CHẠM trần token của gói (free/pro) — theo ngày HOẶC tháng.
+    # Kiểm TRƯỚC khi gọi LLM (không đốt thêm token khi đã hết hạn mức). Chặn MỀM: báo lịch sự,
+    # gợi ý nâng cấp; các nút bấm khác vẫn dùng bình thường.
+    sub = subscription_repo.get_or_create(db, session.user_id)
+    if subscription_repo.is_over_quota(db, sub):
+        st = subscription_repo.status(db, sub)
+        return {"kind": "text", "conversationId": incoming_id,
+                "text": (f"🎟️ Bạn đã dùng hết hạn mức token gói “{sub.tier}” "
+                         f"(ngày: {st['daily']['used']:,}/{st['daily']['limit']:,}). "
+                         "Chờ sang kỳ mới hoặc nâng cấp gói để tiếp tục dùng trợ lý AI. "
+                         "Các thao tác bấm-nút (đọc/gắn nhãn/gửi qua nút) vẫn dùng bình thường.")}
+
     # CHẠY AGENT — lazy-import bên trong + bọc try/except để lỗi LLM/tool KHÔNG thành 500,
     # mà báo nhẹ nhàng (giữ trải nghiệm mượt + an toàn).
     conv = None  # bind trước try: except cần biết phiên đã tạo chưa (trả đúng conversationId)
@@ -586,7 +1109,7 @@ async def agent_chat(
         ctx = RequestContext(
             user_id=str(session.user_id),
             access_token=token,
-            email_provider="gmail",
+            email_provider=provider,   # tool trong graph route đúng Gmail/Outlook theo phiên
             conversation_id=conv.id,
         )
         # State khởi đầu: lịch sử cũ + tin mới → agent thấy CẢ hội thoại (luồng hỏi-xác-nhận → gửi…).
@@ -601,6 +1124,17 @@ async def agent_chat(
         }
         # Graph lo TỪ A-Z: agent (nghĩ) ↔ tools (chạy) → responder (ép thẻ) hoặc dừng (thuần text).
         result = await _AGENT_GRAPH.ainvoke(init_state)
+
+        # SUBSCRIPTION: cộng token đã tiêu của lượt này vào hạn mức ngày/tháng.
+        try:
+            subscription_repo.add_usage(db, sub, _turn_tokens(result.get("messages") or []))
+        except Exception:
+            pass  # đo/ghi token hỏng KHÔNG được làm sập câu trả lời
+
+        # Agent có thể vừa gửi/xoá/gắn nhãn → sync nền để Hộp thư/Đã gửi trong web cập nhật NGAY
+        # (không chờ Pub/Sub). incremental_sync nhẹ (history.list + fetch phần đổi).
+        if settings.mailbox_store_enabled:
+            bg.add_task(_bg_sync, session.user_id, provider, token)
 
         # responder_node (khi có dữ liệu tool) đóng gói sẵn AgentReply vào final_output (thẻ FE).
         out = result.get("final_output")

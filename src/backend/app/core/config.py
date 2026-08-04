@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
 
+    # ── Microsoft OAuth (Outlook — đa provider). Đăng ký app ở Azure AD (Entra):
+    #   ms_client_id ← MS_CLIENT_ID, ms_client_secret ← MS_CLIENT_SECRET.
+    #   ms_tenant="common" = cho phép cả tài khoản cá nhân + tổ chức đăng nhập.
+    #   ĐỂ TRỐNG ms_client_id = tắt nút Outlook (app chỉ chạy Google như cũ).
+    ms_client_id: str = ""
+    ms_client_secret: str = ""
+    ms_redirect_uri: str = "http://localhost:8000/auth/outlook/callback"
+    ms_tenant: str = "common"
+
     # ── Database ──
     # Nhóm CHỐT dùng PostgreSQL → đặt DATABASE_URL trong .env, vd:
     #   postgresql+psycopg://USER:PASSWORD@localhost:5432/meoarc
@@ -67,9 +76,43 @@ class Settings(BaseSettings):
     agent_rate_limit_per_min: int = 8
     upload_max_mb: int = 15
 
+    # ── NFR-Scalability: TRẦN TÀI NGUYÊN khi nhiều người dùng cùng lúc ──
+    # read_rate_limit_per_min ← READ_RATE_LIMIT_PER_MIN : trần lượt ĐỌC thư mỗi người
+    #   mỗi phút. Rộng tay hơn agent (đọc rẻ hơn gọi mô hình) nhưng vẫn phải có trần:
+    #   một tab bị kẹt vòng lặp cũng đủ làm nghẽn hạn ngạch Gmail của cả hệ thống.
+    read_rate_limit_per_min: int = 90
+    # max_provider_concurrency ← MAX_PROVIDER_CONCURRENCY : tổng số lệnh gọi Gmail/Graph
+    #   được phép chạy song song TRONG CẢ TIẾN TRÌNH. Mỗi request dựng danh sách bắn 8
+    #   lệnh; không có trần thì 50 người vào cùng lúc = 400 kết nối → nhà cung cấp trả 429.
+    max_provider_concurrency: int = 32
+    # max_llm_concurrency ← MAX_LLM_CONCURRENCY : số lượt gọi mô hình chạy song song.
+    #   LLM chậm và đắt nhất, lại có hạn ngạch riêng → trần chặt hơn nhiều.
+    max_llm_concurrency: int = 6
+    # web_thread_pool ← WEB_THREAD_POOL : số luồng cho các route đồng bộ. FastAPI mặc
+    #   định 40; route của mình chờ I/O lâu (Gmail ~2.5s) nên cần rộng hơn.
+    web_thread_pool: int = 96
+
     # redis_url ← REDIS_URL : đặt (vd redis://localhost:6379/0) → cache + rate-limit chạy
     #   trên Redis (chia sẻ được giữa nhiều worker khi scale). ĐỂ TRỐNG = in-memory như cũ.
     redis_url: str = ""
+
+    # ── EMAIL STORE-OF-RECORD (đọc-từ-DB, chống rate-limit) ──
+    # mailbox_store_enabled ← MAILBOX_STORE_ENABLED : BẬT thì /emails và /emails/{id} đọc
+    #   thẳng từ DB đã đồng bộ (không gọi Gmail lúc user mở web). ĐỂ TẮT (mặc định) = giữ
+    #   nguyên luồng live cũ — an toàn tuyệt đối cho demo, bật khi đã chạy /sync/run.
+    mailbox_store_enabled: bool = False
+    #   mailbox_sync_page ← MAILBOX_SYNC_PAGE : số thư/thư-mục kéo về mỗi lần initial sync.
+    mailbox_sync_page: int = 40
+    #   gmail_pubsub_topic ← GMAIL_PUBSUB_TOPIC : 'projects/<proj>/topics/<topic>'. Đặt để
+    #   gọi được gmail.watch() (bật Push). Để trống = chỉ đồng bộ thủ công/định kỳ (/sync/run).
+    gmail_pubsub_topic: str = ""
+    #   gmail_pubsub_pull_subscription ← GMAIL_PUBSUB_PULL_SUBSCRIPTION :
+    #   'projects/<proj>/subscriptions/<sub>'. Dùng cho worker KÉO (app/workers/pubsub_puller.py)
+    #   — nhận Gmail Push KHÔNG cần URL public/ngrok. Để trống = không chạy worker pull.
+    gmail_pubsub_pull_subscription: str = ""
+    #   pubsub_verify_token ← PUBSUB_VERIFY_TOKEN : token ?token=... bảo vệ webhook /gmail/push
+    #   (khớp với token cấu hình trong Pub/Sub push subscription). Để trống = không kiểm.
+    pubsub_verify_token: str = ""
 
     # ── Bảo mật: mã hoá token Gmail khi lưu DB (NFR-Security) ──
     # token_encryption_key ← TOKEN_ENCRYPTION_KEY : khoá Fernet (base64 32 byte).

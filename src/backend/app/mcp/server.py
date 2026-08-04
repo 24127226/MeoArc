@@ -38,8 +38,8 @@ from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.models.session import AuthSession
-from app.repo import session_repo
-from app.services import auth_service
+from app.repo import session_repo, audit_repo
+from app.services import auth_service, auth_service_ms
 from app.tools.registry import tool_registry, RequestContext
 import app.tools.email_tools  # noqa: F401 — import ĐỂ các tool tự đăng ký vào registry
 
@@ -67,7 +67,9 @@ def _resolve_ctx() -> RequestContext:
     """
     env_token = os.getenv("MEOARC_ACCESS_TOKEN")
     if env_token:
-        return RequestContext(user_id="env", access_token=env_token, email_provider="gmail")
+        # Demo env: cho ép provider qua MEOARC_PROVIDER ('microsoft' để test Outlook), mặc định google.
+        return RequestContext(user_id="env", access_token=env_token,
+                              email_provider=os.getenv("MEOARC_PROVIDER", "google"))
 
     now = time.monotonic()
     if _CTX_CACHE["ctx"] is not None and now - _CTX_CACHE["ts"] < _CTX_TTL:
@@ -82,18 +84,52 @@ def _resolve_ctx() -> RequestContext:
         ).first()
         if s is None:
             raise RuntimeError("Chưa có phiên đăng nhập nào — hãy đăng nhập trên web trước đã.")
+        # ĐA PROVIDER: token MS cất chung cột google_* → phân nhánh làm mới theo provider phiên.
+        provider = session_repo.get_provider(db, s.token)
         token = s.google_access_token
-        # Token Gmail sống ~1h → sắp hết hạn mà còn refresh_token thì xin token mới.
         if (
             s.google_token_expiry
             and s.google_token_expiry <= _utcnow() + timedelta(seconds=60)
             and s.google_refresh_token
         ):
-            token, expires_in = auth_service.refresh_access_token(s.google_refresh_token)
+            if provider == "microsoft":
+                token, expires_in = auth_service_ms.refresh_access_token(s.google_refresh_token)
+            else:
+                token, expires_in = auth_service.refresh_access_token(s.google_refresh_token)
             session_repo.update_access_token(db, s, token, expires_in)
-        ctx = RequestContext(user_id=str(s.user_id), access_token=token, email_provider="gmail")
+        ctx = RequestContext(user_id=str(s.user_id), access_token=token, email_provider=provider)
         _CTX_CACHE.update(ctx=ctx, ts=now)
         return ctx
+    finally:
+        db.close()
+
+
+def _ok(res) -> bool:
+    """Tool coi là THÀNH CÔNG trừ khi trả dict có success=False (nhánh lỗi của _call/registry)."""
+    return not (isinstance(res, dict) and res.get("success") is False)
+
+
+def _audit_mcp(action: str, tool_name: str, ids: list[str] | None, res,
+               details: dict | None = None) -> None:
+    """Ghi 1 dòng AuditLog actor_type='mcp' cho hành động GHI do agent NGOÀI gọi qua MCP
+    (accountability đồng nhất với web/agent nội bộ). Chỉ ghi khi biết user_id thật của phiên
+    (bỏ qua demo env token vì user_id='env' không phải FK users.id). Nuốt mọi lỗi phụ trợ."""
+    ctx = _CTX_CACHE.get("ctx")
+    uid = getattr(ctx, "user_id", None) if ctx else None
+    if not (uid and str(uid).isdigit()):
+        return
+    db = SessionLocal()
+    try:
+        audit_repo.log(
+            db, user_id=int(uid), action=action, tool_name=tool_name, actor_type="mcp",
+            affected_email_ids=ids or [], status="success" if _ok(res) else "failed",
+            details=details or {}, conversation_id=None,
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -179,8 +215,10 @@ async def send_email(to: list[str], subject: str, body: str,
             "to": to, "cc": cc or [], "bcc": bcc or [], "subject": subject,
             "body_preview": body[:300] + ("…" if len(body) > 300 else ""),
         })
-    return await _call("send_email", {"to": to, "subject": subject, "body": body,
-                                      "cc": cc or [], "bcc": bcc or []})
+    res = await _call("send_email", {"to": to, "subject": subject, "body": body,
+                                     "cc": cc or [], "bcc": bcc or []})
+    _audit_mcp("send_email", "send_email", [], res, {"to": to, "subject": subject})
+    return res
 
 
 async def reply_email(email_id: str, reply_body: str, confirm: bool = False) -> dict:
@@ -191,15 +229,20 @@ async def reply_email(email_id: str, reply_body: str, confirm: bool = False) -> 
             "email_id": email_id,
             "reply_preview": reply_body[:300] + ("…" if len(reply_body) > 300 else ""),
         })
-    return await _call("reply_email", {"email_id": email_id, "instructions": reply_body})
+    res = await _call("reply_email", {"email_id": email_id, "instructions": reply_body})
+    _audit_mcp("reply_email", "reply_email", [email_id], res, {"email_id": email_id})
+    return res
 
 
 async def apply_labels(email_ids: list[str], labels_to_add: list[str] | None = None,
                        labels_to_remove: list[str] | None = None) -> dict:
     """Thêm/bớt nhãn cho các email (đảo ngược được nên không cần confirm)."""
-    return await _call("apply_labels", {"email_ids": email_ids,
-                                        "labels_to_add": labels_to_add or [],
-                                        "labels_to_remove": labels_to_remove or []})
+    res = await _call("apply_labels", {"email_ids": email_ids,
+                                       "labels_to_add": labels_to_add or [],
+                                       "labels_to_remove": labels_to_remove or []})
+    _audit_mcp("apply_label", "apply_labels", email_ids, res,
+               {"add": labels_to_add or [], "remove": labels_to_remove or []})
+    return res
 
 
 async def bulk_action(email_ids: list[str], action: str, label_name: str | None = None,
@@ -212,8 +255,11 @@ async def bulk_action(email_ids: list[str], action: str, label_name: str | None 
             "action": "delete", "so_thu": len(email_ids),
             "email_ids_dau": email_ids[:5], "con_lai": max(0, len(email_ids) - 5),
         })
-    return await _call("bulk_action", {"email_ids": email_ids, "action": action,
-                                       "label_name": label_name})
+    res = await _call("bulk_action", {"email_ids": email_ids, "action": action,
+                                      "label_name": label_name})
+    _audit_mcp(f"bulk_{action.strip().lower()}", "bulk_action", email_ids, res,
+               {"action": action, "count": len(email_ids), "label_name": label_name})
+    return res
 
 
 # Đăng ký tool với MCP — giữ hàm gốc ở module-level để test gọi thẳng được.
