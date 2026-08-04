@@ -76,6 +76,22 @@ class Settings(BaseSettings):
     agent_rate_limit_per_min: int = 8
     upload_max_mb: int = 15
 
+    # ── NFR-Scalability: TRẦN TÀI NGUYÊN khi nhiều người dùng cùng lúc ──
+    # read_rate_limit_per_min ← READ_RATE_LIMIT_PER_MIN : trần lượt ĐỌC thư mỗi người
+    #   mỗi phút. Rộng tay hơn agent (đọc rẻ hơn gọi mô hình) nhưng vẫn phải có trần:
+    #   một tab bị kẹt vòng lặp cũng đủ làm nghẽn hạn ngạch Gmail của cả hệ thống.
+    read_rate_limit_per_min: int = 90
+    # max_provider_concurrency ← MAX_PROVIDER_CONCURRENCY : tổng số lệnh gọi Gmail/Graph
+    #   được phép chạy song song TRONG CẢ TIẾN TRÌNH. Mỗi request dựng danh sách bắn 8
+    #   lệnh; không có trần thì 50 người vào cùng lúc = 400 kết nối → nhà cung cấp trả 429.
+    max_provider_concurrency: int = 32
+    # max_llm_concurrency ← MAX_LLM_CONCURRENCY : số lượt gọi mô hình chạy song song.
+    #   LLM chậm và đắt nhất, lại có hạn ngạch riêng → trần chặt hơn nhiều.
+    max_llm_concurrency: int = 6
+    # web_thread_pool ← WEB_THREAD_POOL : số luồng cho các route đồng bộ. FastAPI mặc
+    #   định 40; route của mình chờ I/O lâu (Gmail ~2.5s) nên cần rộng hơn.
+    web_thread_pool: int = 96
+
     # redis_url ← REDIS_URL : đặt (vd redis://localhost:6379/0) → cache + rate-limit chạy
     #   trên Redis (chia sẻ được giữa nhiều worker khi scale). ĐỂ TRỐNG = in-memory như cũ.
     redis_url: str = ""

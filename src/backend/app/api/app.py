@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.services.email_service import list_emails  # logic lấy email (tầng service)
 
 # --- Nấc 3: database (ORM) ---
-from fastapi import Depends, HTTPException, status, UploadFile, File
+from fastapi import Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from app.core.db import Base, engine, get_db
 from app.core.config import settings  # cờ tính năng (vd mailbox_store_enabled) dùng ở nhiều route
@@ -32,6 +32,9 @@ from app.models.session_provider import SessionProvider  # noqa: F401 — tạo 
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
 from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
+from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
+from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
+import logging
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.conversation import ConversationSummary, ConversationDetail, UpdateConversationReq
 
@@ -89,8 +92,32 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 async def observability_and_security(request: Request, call_next):
     rid = set_request_id()                      # log của request này đều mang rid
     t0 = _time.perf_counter()
-    response = await call_next(request)
+
+    # NFR-Scalability: chặn payload khổng lồ TRƯỚC khi đọc vào RAM. Không chặn thì
+    # vài request 500MB đủ làm hết bộ nhớ tiến trình và kéo sập cả server.
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > limits.MAX_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"error": {"code": 413, "message": "Nội dung gửi lên quá lớn."}},
+        )
+
+    try:
+        response = await call_next(request)
+    except limits.ProviderBusy as busy:
+        # Quá tải CÓ KIỂM SOÁT: hệ thống còn sống, chỉ đang hết suất gọi ra ngoài.
+        # Trả 503 + Retry-After để client (và load balancer) biết mà thử lại,
+        # thay vì để request treo tới lúc timeout rồi báo lỗi 500 khó hiểu.
+        limits.metrics.note_rejection("busy")
+        limits.metrics.observe((_time.perf_counter() - t0) * 1000, 503)
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": "5", "X-Request-ID": rid},
+            content={"error": {"code": 503, "message": str(busy)}},
+        )
+
     elapsed_ms = (_time.perf_counter() - t0) * 1000
+    limits.metrics.observe(elapsed_ms, response.status_code)
     # Đo được mới nói chuyện "tốc độ": FE/DevTools đọc 2 header này để soi độ trễ từng call.
     response.headers["X-Request-ID"] = rid
     response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.0f}"
@@ -141,6 +168,63 @@ def health(db: Session = Depends(get_db)):
         "version": app.version,
     }
     return body if db_ok else JSONResponse(status_code=503, content=body)
+
+
+# ── NFR-Scalability: /metrics — nhìn được hệ thống đang thở thế nào ──────────
+# Không đo thì không biết lúc nào sắp quá tải, và khi sập cũng không biết vì sao.
+# Ba con số đáng nhìn nhất: độ trễ p95 (người dùng CẢM nhận được), số suất gọi ra
+# ngoài còn trống (gần 0 = đang nghẽn), và số kết nối DB đang mượn.
+@app.get("/metrics")
+async def metrics():
+    from app.core.db import engine
+    snap = limits.metrics.snapshot()
+    pool = getattr(engine, "pool", None)
+    try:
+        snap["db_pool"] = {
+            "size": pool.size(), "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
+    except Exception:
+        snap["db_pool"] = "n/a"
+    snap["kv_backend"] = kv.backend_name
+    snap["thread_pool"] = _thread_pool_size()
+    return snap
+
+
+def _thread_pool_size() -> int | str:
+    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này).
+
+    LƯU Ý: current_default_thread_limiter() chỉ đọc được khi đang ở trong vòng lặp
+    bất đồng bộ — gọi từ một route `def` thường sẽ ném lỗi và trả 'n/a'. Vì vậy cả
+    hàm này lẫn nơi gọi nó (/metrics, startup) đều phải là `async`.
+    """
+    try:
+        import anyio.to_thread
+        return anyio.to_thread.current_default_thread_limiter().total_tokens
+    except Exception:
+        return "n/a"
+
+
+@app.on_event("startup")
+async def _tune_runtime() -> None:
+    """Nới số luồng cho các route đồng bộ.
+
+    FastAPI chạy route `def` trong một pool mặc định 40 luồng. Route của mình chờ
+    I/O rất lâu (Gmail ~2.5s, mô hình còn lâu hơn) chứ không tốn CPU, nên 40 luồng
+    là nghẽn quá sớm: người thứ 41 phải xếp hàng dù server đang rảnh. Nới rộng để
+    chịu được nhiều người chờ I/O cùng lúc — trần thật sự nằm ở semaphore gọi ra
+    ngoài, chỗ đó mới là tài nguyên khan hiếm.
+    """
+    try:
+        import anyio.to_thread
+        anyio.to_thread.current_default_thread_limiter().total_tokens = settings.web_thread_pool
+        logging.getLogger("app.limits").info(
+            "Thread pool = %s · provider slots = %s · llm slots = %s · KV = %s",
+            settings.web_thread_pool, settings.max_provider_concurrency,
+            settings.max_llm_concurrency, kv.backend_name,
+        )
+    except Exception as exc:  # noqa: BLE001 — chỉ là tinh chỉnh, hỏng thì chạy mặc định
+        logging.getLogger("app.limits").warning("Không nới được thread pool: %s", exc)
 
 
 # ── Nấc 9 (#2): CHUẨN HOÁ định dạng lỗi ──────────────────────────────
@@ -203,19 +287,30 @@ async def root():
 @app.get("/emails")
 def get_emails(
     folder: str = "inbox",
-    q: str | None = None,            # UC005: từ khoá tìm kiếm
+    # NFR-Scalability: chặn TỪ CỬA. `limit` không giới hạn thì một request
+    # ?limit=5000 sẽ bắn 5000 lệnh gọi Gmail — đủ để một người làm nghẽn cả hệ thống
+    # và đốt sạch hạn ngạch chung. `q` dài vô tận cũng làm truy vấn DB phình.
+    q: str | None = Query(None, max_length=limits.MAX_QUERY_LEN),
     unread: bool | None = None,      # bộ lọc nhanh: chỉ thư chưa đọc
     starred: bool | None = None,     # chỉ thư gắn sao
     attachment: bool | None = None,  # chỉ thư có đính kèm
     category: str | None = None,     # màu chip của FE — Gmail KHÔNG có khái niệm này → bỏ qua ở server
-    cursor: str | None = None,       # Nấc 9 (#3): token trang KẾ để lấy thêm thư (>30)
-    limit: int = 30,
+    cursor: str | None = Query(None, max_length=512),  # token trang KẾ
+    limit: int = Query(30, ge=1, le=limits.MAX_PAGE_SIZE),
     fresh: bool = False,             # nút "Làm mới": bỏ qua cache 60s, ép lấy bản mới nhất
     token: str = Depends(get_gmail_token),
     provider: str = Depends(get_provider),  # 'google' | 'microsoft' → định tuyến Gmail/Outlook
     session: AuthSession = Depends(get_current_session),
     db: Session = Depends(get_db),
 ):
+    # Trần lượt đọc theo người: bảo vệ hạn ngạch nhà cung cấp khỏi tab kẹt vòng lặp.
+    if limits.rate_limited("read", session.user_id, settings.read_rate_limit_per_min):
+        limits.metrics.note_rejection("rate")
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Bạn đang tải thư quá nhanh. Chờ một chút rồi thử lại nhé.",
+            headers={"Retry-After": "30"},
+        )
     # STORE-OF-RECORD: bật cờ + DB đã có thư của user ⇒ phục vụ TỪ DB, KHÔNG gọi Gmail
     # (chống rate-limit — yêu cầu nhóm). DB còn "lạnh" (chưa sync) ⇒ lùi về live như cũ.
     if settings.mailbox_store_enabled and email_store_repo.has_any(db, session.user_id, provider):

@@ -65,6 +65,7 @@ _CATS = ["moss", "sea", "sun", "cherry", "sky", "terra", "wine"]
 import hashlib
 
 from app.core.kv import kv
+from app.core.limits import provider_slot  # trần số lệnh gọi Gmail song song toàn tiến trình
 
 _CACHE_TTL = 60  # giây
 
@@ -225,8 +226,11 @@ def list_messages(
     tag = folder if folder in _VALID_TAGS else "inbox"  # nhãn folder gắn vào mỗi Email
 
     # Dùng chung 1 connection pool cho cả B1 lẫn B2 (giữ keep-alive, đỡ bắt tay TLS lại).
-    limits = httpx.Limits(max_connections=_LIST_WORKERS, max_keepalive_connections=_LIST_WORKERS)
-    with httpx.Client(timeout=15, limits=limits) as client:
+    http_limits = httpx.Limits(max_connections=_LIST_WORKERS, max_keepalive_connections=_LIST_WORKERS)
+    # NFR-Scalability: xin SUẤT gọi nhà cung cấp. Mỗi request bắn 8 lệnh song song;
+    # không có trần toàn cục thì 50 người vào cùng lúc = 400 kết nối → Gmail trả 429
+    # hàng loạt và mọi người cùng hỏng. Hết suất thì xếp hàng, quá lâu thì báo bận.
+    with provider_slot(), httpx.Client(timeout=15, limits=http_limits) as client:
         # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()
