@@ -60,9 +60,16 @@ from app.services import upload_store
 # --- Nấc 10: thực thi sau duyệt (cầu nối agent ↔ service, KHÔNG phải LLM) ---
 from app.schemas.agent import ExecutePlanReq, ExecuteResult, AutopilotApplyReq, OkResult
 
-# Tạo bảng trong DB nếu chưa có. (Cách này hợp để HỌC; dự án thật dùng Alembic —
-# công cụ "migration" quản lý thay đổi cấu trúc bảng theo thời gian.)
-Base.metadata.create_all(bind=engine)
+# ── Tạo bảng: Alembic là NGUỒN SỰ THẬT, create_all chỉ còn là lưới an toàn ──
+# `create_all` chỉ TẠO BẢNG MỚI, KHÔNG sửa bảng đã có: thêm một cột vào bảng đang
+# chạy là nó im lặng bỏ qua (nhóm đã gặp đúng vấn đề này và phải né bằng bảng riêng
+# `session_providers`). Nên từ nay MỌI thay đổi cấu trúc đi qua Alembic:
+#     uv run alembic revision --autogenerate -m "mo ta thay doi"
+#     uv run alembic upgrade head
+# Đặt AUTO_CREATE_TABLES=false ở môi trường thật để tắt hẳn lưới an toàn này —
+# khi đó database chỉ đổi khi có người chạy di trú, không đổi lén lúc khởi động.
+if settings.auto_create_tables:
+    Base.metadata.create_all(bind=engine)
 
 # ── NFR-Observability: BẬT hệ thống log có request-id + xoay file (logs/app.log) ──
 # Hạ tầng này develop đã viết sẵn ở core/logging.py nhưng CHƯA từng được gọi → giờ nối vào.

@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     #   worker ở đây để app tự chia trần cho đúng.
     web_concurrency: int = 1
 
+    # auto_create_tables ← AUTO_CREATE_TABLES : bật thì lúc khởi động app tự tạo bảng
+    #   còn thiếu (tiện cho máy dev và cho test). Ở môi trường THẬT nên đặt false:
+    #   cấu trúc database chỉ được đổi khi có người chạy `alembic upgrade`, không đổi
+    #   lén lúc khởi động. Alembic mới là nguồn sự thật của schema.
+    auto_create_tables: bool = True
+
     # ── Dọn dữ liệu cũ (data retention) — cùng tinh thần "trần + TTL" ở NFR.md ──
     # Ba bảng chỉ thêm không bớt: sessions, audit_logs, notifications.
     # maintenance_interval_min ← MAINTENANCE_INTERVAL_MIN : chu kỳ chạy dọn (phút).
