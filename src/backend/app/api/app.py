@@ -34,6 +34,8 @@ from app.repo import user_repo, conversation_repo, audit_repo, notification_repo
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
 from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
+from app.core.breaker import CircuitOpen, llm_breaker, provider_breaker
+from app.core import errors  # thu thập lỗi: Sentry khi có DSN, không thì ghi log
 from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
 import logging
 from app.schemas.user import UserCreate, UserOut
@@ -112,6 +114,17 @@ async def observability_and_security(request: Request, call_next):
 
     try:
         response = await call_next(request)
+    except CircuitOpen as broken:
+        # Dịch vụ ngoài đang sập kéo dài → từ chối NGAY, không bắt người dùng chờ
+        # rồi cũng hỏng. Retry-After nói rõ khi nào đáng thử lại.
+        limits.metrics.note_rejection("busy")
+        limits.metrics.observe((_time.perf_counter() - t0) * 1000, 503)
+        logging.getLogger("app.breaker").info("Từ chối vì mạch mở: %s", broken.name)
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": str(int(broken.retry_after) + 1), "X-Request-ID": rid},
+            content={"error": {"code": 503, "message": str(broken)}},
+        )
     except limits.ProviderBusy as busy:
         # Quá tải CÓ KIỂM SOÁT: hệ thống còn sống, chỉ đang hết suất gọi ra ngoài.
         # Trả 503 + Retry-After để client (và load balancer) biết mà thử lại,
@@ -183,7 +196,7 @@ def health(db: Session = Depends(get_db)):
 # Ba con số đáng nhìn nhất: độ trễ p95 (người dùng CẢM nhận được), số suất gọi ra
 # ngoài còn trống (gần 0 = đang nghẽn), và số kết nối DB đang mượn.
 @app.get("/metrics")
-async def metrics():
+def metrics():
     from app.core.db import engine
     snap = limits.metrics.snapshot()
     pool = getattr(engine, "pool", None)
@@ -197,14 +210,25 @@ async def metrics():
     snap["kv_backend"] = kv.backend_name
     snap["thread_pool"] = _thread_pool_size()
     snap["workers"] = settings.web_concurrency
-    # Số dòng các bảng chỉ-thêm: nhìn được dữ liệu có đang phình không.
-    # Chạy trong luồng riêng vì đây là truy vấn DB đồng bộ trong route async.
-    try:
-        import anyio.to_thread
-        snap["table_rows"] = await anyio.to_thread.run_sync(_table_rows_once)
-    except Exception:
-        snap["table_rows"] = "n/a"
+    # Trạng thái ngắt mạch: 'mo' nghĩa là dịch vụ ngoài đang sập và ta đang tạm ngừng gọi.
+    snap["ngat_mach"] = {
+        "nha_cung_cap_thu": provider_breaker.snapshot(),
+        "mo_hinh_ai": llm_breaker.snapshot(),
+    }
+    # Số dòng các bảng nằm ở /admin/data-size, KHÔNG gộp vào đây.
+    # /metrics bị hệ thống giám sát gọi liên tục nên phải nhẹ và không chạm database;
+    # gộp truy vấn đếm vào đây từng làm chính endpoint này treo cứng (đo được).
     return snap
+
+
+@app.get("/admin/data-size")
+def data_size(db: Session = Depends(get_db)):
+    """Số dòng các bảng chỉ-thêm — nhìn được dữ liệu có đang phình không.
+
+    Tách khỏi /metrics vì có chạm database: /metrics phải nhẹ để giám sát gọi
+    liên tục, còn cái này chỉ xem khi cần.
+    """
+    return {"table_rows": maintenance.table_sizes(db)}
 
 
 def _table_rows_once() -> dict:
@@ -216,18 +240,19 @@ def _table_rows_once() -> dict:
         db.close()
 
 
-def _thread_pool_size() -> int | str:
-    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này).
+# Số luồng thực tế đã áp dụng được, GHI LẠI NGAY LÚC KHỞI ĐỘNG.
+#
+# Vì sao không đọc trực tiếp trong /metrics: bộ giới hạn luồng của anyio chỉ đọc
+# được từ trong vòng lặp bất đồng bộ. Từng làm /metrics thành `async def` để đọc
+# cho được, nhưng route async ở đây TREO CỨNG (đo được: /health `def` trả 200
+# bình thường, /metrics `async` không bao giờ trả). Ghi lại lúc khởi động vừa
+# đúng vừa tránh hẳn vấn đề đó.
+_thread_pool_applied: int | str = "chua-ap-dung"
 
-    LƯU Ý: current_default_thread_limiter() chỉ đọc được khi đang ở trong vòng lặp
-    bất đồng bộ — gọi từ một route `def` thường sẽ ném lỗi và trả 'n/a'. Vì vậy cả
-    hàm này lẫn nơi gọi nó (/metrics, startup) đều phải là `async`.
-    """
-    try:
-        import anyio.to_thread
-        return anyio.to_thread.current_default_thread_limiter().total_tokens
-    except Exception:
-        return "n/a"
+
+def _thread_pool_size() -> int | str:
+    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này)."""
+    return _thread_pool_applied
 
 
 @app.on_event("startup")
@@ -240,9 +265,13 @@ async def _tune_runtime() -> None:
     chịu được nhiều người chờ I/O cùng lúc — trần thật sự nằm ở semaphore gọi ra
     ngoài, chỗ đó mới là tài nguyên khan hiếm.
     """
+    errors.setup_error_tracking()
+    global _thread_pool_applied
     try:
         import anyio.to_thread
-        anyio.to_thread.current_default_thread_limiter().total_tokens = settings.web_thread_pool
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        limiter.total_tokens = settings.web_thread_pool
+        _thread_pool_applied = limiter.total_tokens  # đọc lại để chắc đã ăn
         logging.getLogger("app.limits").info(
             "Thread pool = %s · provider slots = %s · llm slots = %s · KV = %s",
             settings.web_thread_pool, settings.max_provider_concurrency,
@@ -250,6 +279,9 @@ async def _tune_runtime() -> None:
         )
     except Exception as exc:  # noqa: BLE001 — chỉ là tinh chỉnh, hỏng thì chạy mặc định
         logging.getLogger("app.limits").warning("Không nới được thread pool: %s", exc)
+
+
+_maintenance_task = None  # tham chiếu tới vòng dọn nền, để lúc tắt còn huỷ được
 
 
 @app.on_event("startup")
@@ -281,7 +313,11 @@ async def _start_maintenance_loop() -> None:
                 logging.getLogger("app.maintenance").warning("Lượt dọn lỗi: %s", exc)
             await asyncio.sleep(every_min * 60)
 
-    asyncio.create_task(loop())
+    # Giữ tham chiếu để lúc tắt máy còn HUỶ được. Không giữ thì: (1) Python có thể
+    # thu gom task giữa chừng, (2) quan trọng hơn — lúc tắt, vòng lặp vô hạn này
+    # vẫn chạy và giữ tiến trình lại, khiến mỗi lần triển khai đều bị treo.
+    global _maintenance_task
+    _maintenance_task = asyncio.create_task(loop())
     logging.getLogger("app.maintenance").info(
         "Dọn dữ liệu mỗi %s phút · giữ nhật ký %s ngày · thông báo đã đọc %s ngày",
         every_min, settings.audit_retention_days, settings.notification_retention_days,
@@ -296,6 +332,43 @@ def _run_maintenance_once() -> dict:
         return maintenance.run_maintenance(db)
     finally:
         db.close()
+
+
+@app.on_event("shutdown")
+async def _tat_may_em() -> None:
+    """Đóng tài nguyên gọn gàng khi tắt.
+
+    Mỗi lần triển khai bản mới là một lần tắt máy. Không đóng pool kết nối thì
+    Postgres còn giữ những kết nối "ma" cho tới lúc hết giờ — triển khai vài lần
+    liên tiếp là cạn slot kết nối và bản mới không nối được vào database.
+
+    (Uvicorn đã tự chờ các request đang chạy xong trước khi gọi tới đây, nên
+    không cần tự đếm request dở dang.)
+    """
+    import asyncio
+
+    log = logging.getLogger("app.shutdown")
+
+    # 1) Dừng vòng dọn dữ liệu. Bỏ qua bước này thì vòng lặp vô hạn còn chạy và
+    #    giữ tiến trình lại — mỗi lần triển khai bản mới sẽ treo ở khâu tắt.
+    global _maintenance_task
+    if _maintenance_task is not None:
+        _maintenance_task.cancel()
+        try:
+            await _maintenance_task
+        except (asyncio.CancelledError, Exception):  # noqa: B014 — tắt máy, nuốt mọi lỗi
+            pass
+        _maintenance_task = None
+        log.info("Đã dừng vòng dọn dữ liệu")
+
+    # 2) Trả kết nối database. Không trả thì Postgres còn giữ kết nối "ma" tới lúc
+    #    hết giờ — triển khai vài lần liên tiếp là cạn slot và bản mới không nối được.
+    try:
+        from app.core.db import engine
+        engine.dispose()
+        log.info("Đã đóng pool kết nối database")
+    except Exception as exc:  # noqa: BLE001 — tắt máy thì không được ném lỗi ra
+        log.warning("Không đóng được pool: %s", exc)
 
 
 @app.post("/admin/maintenance")

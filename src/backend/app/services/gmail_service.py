@@ -66,6 +66,7 @@ import hashlib
 
 from app.core.kv import kv
 from app.core.limits import provider_slot  # trần số lệnh gọi Gmail song song toàn tiến trình
+from app.core.breaker import guard_provider  # Gmail sập kéo dài → ngắt hẳn, hỏng nhanh thay vì chờ lâu
 
 _CACHE_TTL = 60  # giây
 
@@ -230,7 +231,7 @@ def list_messages(
     # NFR-Scalability: xin SUẤT gọi nhà cung cấp. Mỗi request bắn 8 lệnh song song;
     # không có trần toàn cục thì 50 người vào cùng lúc = 400 kết nối → Gmail trả 429
     # hàng loạt và mọi người cùng hỏng. Hết suất thì xếp hàng, quá lâu thì báo bận.
-    with provider_slot(), httpx.Client(timeout=15, limits=http_limits) as client:
+    with provider_slot(), guard_provider(), httpx.Client(timeout=15, limits=http_limits) as client:
         # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()

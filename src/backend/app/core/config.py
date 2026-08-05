@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     #   lén lúc khởi động. Alembic mới là nguồn sự thật của schema.
     auto_create_tables: bool = True
 
+    # sentry_dsn ← SENTRY_DSN : điền vào là lỗi được gửi kèm ngữ cảnh lên Sentry;
+    #   để trống thì ghi log nội bộ như cũ (0 phụ thuộc, đúng kiểu cắm-rút của kv.py).
+    #   Bộ lọc trong app/core/errors.py che mọi trường có thể chứa nội dung thư.
+    sentry_dsn: str = ""
+    # app_env ← APP_ENV : nhãn môi trường ('development'/'staging'/'production'),
+    #   gắn vào báo cáo lỗi để phân biệt lỗi máy dev với lỗi người dùng thật gặp.
+    app_env: str = "development"
+
     # ── Dọn dữ liệu cũ (data retention) — cùng tinh thần "trần + TTL" ở NFR.md ──
     # Ba bảng chỉ thêm không bớt: sessions, audit_logs, notifications.
     # maintenance_interval_min ← MAINTENANCE_INTERVAL_MIN : chu kỳ chạy dọn (phút).
