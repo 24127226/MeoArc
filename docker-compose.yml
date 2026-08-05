@@ -36,6 +36,15 @@ services:
     environment:
       # Ghi đè: trong mạng compose, Postgres tên là `db` (không phải localhost)
       DATABASE_URL: postgresql+psycopg://postgres:meoarc_local@db:5432/meoarc
+      # ── Chạy nhiều tiến trình (NFR scale-out) ────────────────────────────
+      # WEB_CONCURRENCY phải KHỚP số worker thực tế của uvicorn: trần gọi ra ngoài
+      # (32 suất Gmail, 6 suất LLM) nằm TRONG từng tiến trình, nên app đọc số này
+      # để chia đều. Khai sai thành 1 mà chạy 4 worker thì tổng thành 4×32 = 128
+      # kết nối — vượt gấp bốn ý định và vẫn khiến Gmail trả 429.
+      # Nhiều worker thì BẮT BUỘC đặt REDIS_URL (uncomment dịch vụ redis bên dưới),
+      # nếu không mỗi worker giữ cache và bộ đếm rate-limit riêng → đếm sai.
+      WEB_CONCURRENCY: 1
+      # REDIS_URL: redis://redis:6379/0   # bật cùng `--profile redis`
     depends_on:
       db:
         condition: service_healthy

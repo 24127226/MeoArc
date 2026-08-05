@@ -33,6 +33,7 @@ from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — t�
 from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
+from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
 from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
 import logging
 from app.schemas.user import UserCreate, UserOut
@@ -188,7 +189,24 @@ async def metrics():
         snap["db_pool"] = "n/a"
     snap["kv_backend"] = kv.backend_name
     snap["thread_pool"] = _thread_pool_size()
+    snap["workers"] = settings.web_concurrency
+    # Số dòng các bảng chỉ-thêm: nhìn được dữ liệu có đang phình không.
+    # Chạy trong luồng riêng vì đây là truy vấn DB đồng bộ trong route async.
+    try:
+        import anyio.to_thread
+        snap["table_rows"] = await anyio.to_thread.run_sync(_table_rows_once)
+    except Exception:
+        snap["table_rows"] = "n/a"
     return snap
+
+
+def _table_rows_once() -> dict:
+    from app.core.db import SessionLocal
+    db = SessionLocal()
+    try:
+        return maintenance.table_sizes(db)
+    finally:
+        db.close()
 
 
 def _thread_pool_size() -> int | str:
@@ -225,6 +243,58 @@ async def _tune_runtime() -> None:
         )
     except Exception as exc:  # noqa: BLE001 — chỉ là tinh chỉnh, hỏng thì chạy mặc định
         logging.getLogger("app.limits").warning("Không nới được thread pool: %s", exc)
+
+
+@app.on_event("startup")
+async def _start_maintenance_loop() -> None:
+    """Khởi động vòng dọn dữ liệu cũ chạy nền.
+
+    Ba bảng sessions / audit_logs / notifications chỉ thêm mà không bao giờ bớt;
+    chạy vài tháng với vài nghìn người là index phình và mọi truy vấn chậm dần.
+
+    Chạy NHIỀU WORKER thì cả bốn tiến trình đều muốn dọn cùng lúc → dùng khoá trên
+    KV để mỗi chu kỳ chỉ một tiến trình làm thật. Đặt MAINTENANCE_INTERVAL_MIN=0
+    để tắt (ví dụ khi muốn dùng cron bên ngoài thay thế).
+    """
+    import asyncio
+
+    every_min = settings.maintenance_interval_min
+    if every_min <= 0:
+        logging.getLogger("app.maintenance").info("Dọn dữ liệu tự động: TẮT")
+        return
+
+    async def loop() -> None:
+        await asyncio.sleep(60)  # để app khởi động xong đã, đừng tranh việc lúc mở máy
+        while True:
+            try:
+                if maintenance.try_acquire_lock("maintenance", every_min * 60):
+                    # chạy trong luồng riêng: đây là việc DB đồng bộ, không được chẹn event loop
+                    await asyncio.to_thread(_run_maintenance_once)
+            except Exception as exc:  # noqa: BLE001 — dọn hỏng thì thôi, app vẫn phải sống
+                logging.getLogger("app.maintenance").warning("Lượt dọn lỗi: %s", exc)
+            await asyncio.sleep(every_min * 60)
+
+    asyncio.create_task(loop())
+    logging.getLogger("app.maintenance").info(
+        "Dọn dữ liệu mỗi %s phút · giữ nhật ký %s ngày · thông báo đã đọc %s ngày",
+        every_min, settings.audit_retention_days, settings.notification_retention_days,
+    )
+
+
+def _run_maintenance_once() -> dict:
+    """Một lượt dọn với session DB riêng (không dùng chung session của request)."""
+    from app.core.db import SessionLocal
+    db = SessionLocal()
+    try:
+        return maintenance.run_maintenance(db)
+    finally:
+        db.close()
+
+
+@app.post("/admin/maintenance")
+def trigger_maintenance(session: AuthSession = Depends(get_current_session)):
+    """Chạy dọn ngay, không chờ tới chu kỳ — tiện khi trình bày và khi cần dọn gấp."""
+    return {"purged": _run_maintenance_once()}
 
 
 # ── Nấc 9 (#2): CHUẨN HOÁ định dạng lỗi ──────────────────────────────

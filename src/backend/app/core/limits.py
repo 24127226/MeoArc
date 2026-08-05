@@ -44,8 +44,20 @@ def clamp_page_size(n: int | None, default: int = 30) -> int:
 # 50 người cùng mở hộp thư = 400 kết nối đồng thời → Gmail trả 429 hàng loạt
 # và mọi người cùng hỏng. Semaphore đặt TRẦN TOÀN CỤC cho cả tiến trình:
 # quá trần thì xếp hàng chờ, chứ không bắn thêm.
-_provider_gate = threading.BoundedSemaphore(settings.max_provider_concurrency)
-_llm_gate = threading.BoundedSemaphore(settings.max_llm_concurrency)
+def _per_worker(total: int) -> int:
+    """Chia trần TỔNG cho số tiến trình đang chạy.
+
+    Semaphore chỉ có tác dụng TRONG một tiến trình. Chạy `--workers 4` mà giữ
+    nguyên trần 32 thì thực tế thành 4×32 = 128 kết nối ra ngoài — vượt gấp bốn
+    ý định và vẫn làm nhà cung cấp trả 429. Chia đều để tổng toàn cụm đúng bằng
+    con số đã đặt; luôn để lại ít nhất 1 suất cho mỗi worker.
+    """
+    workers = max(1, settings.web_concurrency)
+    return max(1, total // workers)
+
+
+_provider_gate = threading.BoundedSemaphore(_per_worker(settings.max_provider_concurrency))
+_llm_gate = threading.BoundedSemaphore(_per_worker(settings.max_llm_concurrency))
 
 
 @contextmanager
