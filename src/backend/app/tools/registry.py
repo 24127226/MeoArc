@@ -74,6 +74,12 @@ class RequestContext(BaseModel):
     email_provider: str = 'gmail'
     access_token: str
     conversation_id: str | None = None
+    # Gói dịch vụ của người dùng — quyết định cửa sổ quét hộp thư (NFR-08).
+    # Mặc định là gói HẸP NHẤT: quên truyền thì siết lại, không nới ra.
+    tier: str = 'free'
+    # Cửa sổ quét ĐÃ CHỐT trong bản ghi subscription. None → suy từ `tier`.
+    # Có cột này để đổi bảng giá không làm phạm vi của người dùng hiện hữu đổi theo.
+    scan_days: int | None = None
 
 
 # --- Tool Exceptions ---

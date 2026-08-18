@@ -30,6 +30,8 @@ from app.core.db import Base  # noqa: E402
 # ⚠️ Thiếu một dòng import ở đây thì autogenerate tưởng bảng đó "thừa" và sinh
 # lệnh XOÁ BẢNG — mất sạch dữ liệu. Thêm model mới thì nhớ thêm vào danh sách này.
 import app.models.audit  # noqa: E402,F401
+import app.models.confirmation  # noqa: E402,F401
+import app.models.connected_account  # noqa: E402,F401
 import app.models.conversation  # noqa: E402,F401
 import app.models.email_store  # noqa: E402,F401
 import app.models.notification  # noqa: E402,F401

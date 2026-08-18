@@ -30,7 +30,8 @@ from app.models.notification import Notification  # noqa: F401 — tạo bảng 
 from app.models.subscription import Subscription  # noqa: F401 — tạo bảng subscriptions (quota token)
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
-from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
+from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
+                      subscription_repo, email_store_repo, confirmation_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
 from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
@@ -742,6 +743,72 @@ def reply_email_route(email_id: str, req: ReplyReq, bg: BackgroundTasks,
     return SendResult(id=new_id, threadId=res.get("threadId"))
 
 
+# ── HUMAN-IN-THE-LOOP CÓ TRẠNG THÁI (PA2 §1.3.5, FR-02.4) ───────────────────
+# Trước đây việc duyệt chỉ sống ở giao diện: nút bấm gọi thẳng lệnh gửi. Máy chủ
+# không biết có "yêu cầu đang chờ duyệt" nào, nên bấm hai lần là GỬI HAI LẦN.
+# Giờ mỗi hành động không-hoàn-tác có một bản ghi; ràng buộc "chỉ chạy khi đang
+# pending" khiến lần bấm thứ hai không thể thực thi lại.
+@app.get("/confirmations")
+def list_confirmations(session: AuthSession = Depends(get_current_session),
+                       db: Session = Depends(get_db)):
+    """Các yêu cầu còn chờ duyệt của chính người dùng."""
+    return [confirmation_repo.to_dict(r) for r in confirmation_repo.list_pending(db, session.user_id)]
+
+
+@app.post("/confirmations/{req_id}/approve")
+async def approve_confirmation(req_id: str,
+                               token: str = Depends(get_gmail_token),
+                               provider: str = Depends(get_provider),
+                               session: AuthSession = Depends(get_current_session),
+                               db: Session = Depends(get_db)):
+    """Người dùng đồng ý → CHẠY hành động đã chốt, đúng MỘT lần.
+
+    Bấm lại lần nữa trả về kết quả của lần đầu kèm `already: true`, chứ không báo
+    lỗi: bấm hai lần là chuyện thường của người dùng (mạng chậm, lỡ tay), không
+    phải sự cố cần dí vào mặt họ.
+    """
+    req = confirmation_repo.get_owned(db, req_id, session.user_id)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu xác nhận")
+    if req.status == confirmation_repo.REJECTED:
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã bị từ chối trước đó")
+
+    # Cửa duy nhất: chỉ lần gọi chuyển được trạng thái mới được phép chạy hành động.
+    if not confirmation_repo.approve(db, req):
+        return {"status": req.status, "already": True, "result": req.result}
+
+    # Import tại chỗ theo đúng lối app.py đang dùng cho RequestContext (tránh vòng import).
+    from app.tools.registry import RequestContext, tool_registry
+    _sub = subscription_repo.get_or_create(db, session.user_id)
+    import app.tools.email_tools  # noqa: F401 — nạp để các tool tự đăng ký vào registry
+
+    ctx = RequestContext(user_id=str(session.user_id), access_token=token,
+                         email_provider=provider, conversation_id=req.conversation_id,
+                         tier=_sub.tier, scan_days=subscription_repo.scan_days_of(_sub))
+    try:
+        out = await tool_registry.call(req.action, dict(req.args or {}), ctx)
+        res = out.model_dump() if hasattr(out, "model_dump") else dict(out or {})
+    except Exception as exc:                      # noqa: BLE001 — mọi lỗi tool đều phải ghi lại
+        res = {"success": False, "error": str(exc)[:300]}
+    confirmation_repo.save_result(db, req, res)
+    _record(db, session.user_id, action=req.action, tool_name=req.action,
+            ids=[], details={"confirmation_id": req.id},
+            notify=req.description, notify_type="success" if res.get("success", True) else "error")
+    return {"status": req.status, "already": False, "result": res}
+
+
+@app.post("/confirmations/{req_id}/reject")
+def reject_confirmation(req_id: str,
+                        session: AuthSession = Depends(get_current_session),
+                        db: Session = Depends(get_db)):
+    """Người dùng từ chối → hành động KHÔNG chạy, và không ai 'cứu' lại được."""
+    req = confirmation_repo.get_owned(db, req_id, session.user_id)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu xác nhận")
+    doi = confirmation_repo.reject(db, req)
+    return {"status": req.status, "already": not doi}
+
+
 # ── UC010: LƯU NHÁP · GỢI Ý AI · AUTOCOMPLETE NGƯỜI NHẬN ────────────────────
 @app.post("/emails/draft")
 def save_draft(req: SendReq, token: str = Depends(get_gmail_token),
@@ -1136,6 +1203,9 @@ def _confirm_card(messages: list) -> dict | None:
                 "to": ", ".join(to) if isinstance(to, list) else str(to),
                 "subject": args.get("subject") or "(không tiêu đề)",
                 "body": args.get("body") or "",
+                # Chốt tool + tham số để tạo yêu cầu chờ duyệt. Hai khoá gạch dưới này
+                # bị gỡ trước khi trả về FE — chúng chỉ dùng ở tầng máy chủ.
+                "_tool": "send_email", "_args": dict(args),
             }
         if name == "reply_email":
             return {
@@ -1145,6 +1215,7 @@ def _confirm_card(messages: list) -> dict | None:
                 "subject": "Re: (thư gốc)",
                 "body": args.get("instructions") or "",
                 "replyToId": args.get("email_id") or "",
+                "_tool": "reply_email", "_args": dict(args),
             }
         if name == "bulk_action":
             ids = [str(x) for x in (args.get("email_ids") or [])]
@@ -1167,6 +1238,8 @@ def _confirm_card(messages: list) -> dict | None:
                 }
                 if op["type"] == "delete":
                     card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
+                card["_tool"] = "bulk_action"
+                card["_args"] = dict(args)
                 return card
         return None  # tool destructive khác: chưa có thẻ riêng → giữ câu trả lời của agent
     return None
@@ -1257,6 +1330,8 @@ async def agent_chat(
             access_token=token,
             email_provider=provider,   # tool trong graph route đúng Gmail/Outlook theo phiên
             conversation_id=conv.id,
+            tier=sub.tier,             # NFR-08: quyết định cửa sổ quét hộp thư của các tool
+            scan_days=subscription_repo.scan_days_of(sub),   # giá trị đã chốt của người này
         )
         # State khởi đầu: lịch sử cũ + tin mới → agent thấy CẢ hội thoại (luồng hỏi-xác-nhận → gửi…).
         init_state = {
@@ -1305,6 +1380,24 @@ async def agent_chat(
         # không phải câu chữ của LLM).
         confirm_card = _confirm_card(result["messages"])
         if confirm_card:
+            # Ghi lại yêu cầu chờ duyệt và gắn id vào thẻ. Không có bản ghi này thì
+            # nút "Duyệt" lại gọi thẳng lệnh gửi như trước — bấm hai lần là gửi hai lần.
+            try:
+                _cr = confirmation_repo.create(
+                    db, user_id=session.user_id,
+                    action=confirm_card.get("_tool") or "send_email",
+                    description=confirm_card.get("confirmLabel")
+                    or f"Gửi thư: {confirm_card.get('subject') or ''}".strip(),
+                    args=confirm_card.get("_args") or {},
+                    conversation_id=conv.id,
+                )
+                confirm_card["confirmationId"] = _cr.id
+            except Exception:
+                # Ghi hỏng thì vẫn hiện thẻ (người dùng không bị kẹt), chỉ mất tính
+                # chống-bấm-trùng của lượt này — nên nuốt lỗi chứ không chặn luồng.
+                logging.getLogger("app.confirm").warning("Không tạo được yêu cầu xác nhận", exc_info=True)
+            confirm_card.pop("_tool", None)
+            confirm_card.pop("_args", None)
             out = confirm_card
 
         # UI/UX: đính danh sách thư THẬT (bấm mở được) từ search_emails CỦA LƯỢT NÀY → FE render

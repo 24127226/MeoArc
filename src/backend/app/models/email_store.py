@@ -62,10 +62,12 @@ class StoredEmail(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     starred: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Nhãn AI (UC009/UC015) — khớp schema Email của FE.
+    # ── Nhãn AI: BA TRỤC theo PA1 §4.2.9 ─────────────────────────────────────
+    # Category LUÔN có; Priority và Status CHỈ có với thư mang tính công việc.
     ai_category: Mapped[str] = mapped_column(String, default="sky")   # 1 trong 7 màu chip
     ai_label: Mapped[str | None] = mapped_column(String, nullable=True)
-    ai_priority: Mapped[str | None] = mapped_column(String, nullable=True)  # action/waiting/fyi
+    ai_priority: Mapped[str | None] = mapped_column(String, nullable=True)   # High | Medium | Low
+    ai_status: Mapped[str | None] = mapped_column(String, nullable=True)     # Todo | Waiting | Done
     ai_tldr: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     time_s: Mapped[str] = mapped_column(String, default="")   # nhãn giờ ngắn
@@ -74,6 +76,32 @@ class StoredEmail(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)   # "System sync timestamp"
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    # ── PA2 §1.3.9: applyAILabels(category, priority, status) ────────────────
+    def apply_ai_labels(self, category: str, priority: str | None,
+                        status: str | None, *, label: str | None = None) -> None:
+        """Gắn CẢ BA nhãn AI trong MỘT thao tác (PA2 §1.3.9: "All three parameters
+        must be set simultaneously").
+
+        Vì sao phải đi cùng nhau: ba nhãn là kết quả của MỘT lượt phân tích. Cho phép
+        gán lẻ thì sớm muộn cũng có thư mang Priority của lượt phân tích này và Status
+        của lượt trước — người dùng thấy "High / Done" và không hiểu chuyện gì.
+
+        Thư không mang tính công việc thì priority và status phải là **None**, không
+        phải "Low"/"Done": None nghĩa là ĐÂY KHÔNG PHẢI VIỆC, còn Low nghĩa là đã xét
+        và kết luận việc nhẹ. Nhầm hai thứ đó là đổ cả hộp thư quảng cáo vào danh sách
+        việc cần làm.
+        """
+        self.ai_category = category
+        # Ép cặp đôi: thiếu một trong hai thì bỏ cả hai, không giữ trạng thái nửa vời.
+        if priority is None or status is None:
+            self.ai_priority = None
+            self.ai_status = None
+        else:
+            self.ai_priority = priority
+            self.ai_status = status
+        if label is not None:
+            self.ai_label = label
 
 
 class MailboxSync(Base):

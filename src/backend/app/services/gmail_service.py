@@ -180,6 +180,7 @@ def list_messages(
     page_token: str | None = None,
     max_results: int = 30,
     bypass_cache: bool = False,
+    scan_after: str | None = None,   # ngày ISO 'YYYY-MM-DD' — mốc sớm nhất được quét
 ) -> tuple[list[Email], str | None]:
     """Lấy danh sách thư theo THƯ MỤC + LỌC + PHÂN TRANG, dịch sang Email.
     Trả về (danh_sách_Email, cursor_trang_kế) — cursor None nghĩa là hết thư.
@@ -190,7 +191,8 @@ def list_messages(
     """
     # CACHE: khoá gồm ĐỦ tiêu chí (kể cả lọc + trang) để không trả nhầm kết quả cũ.
     cache_key = ("list", access_token, folder, q or "",
-                 bool(unread), bool(starred), bool(attachment), page_token or "")
+                 bool(unread), bool(starred), bool(attachment), page_token or "",
+                 scan_after or "")
     # bypass_cache=True (nút "Làm mới") → KHÔNG đọc cache, ép hỏi Gmail lấy bản mới nhất.
     if not bypass_cache:
         cached = _cache_get(cache_key)
@@ -204,6 +206,11 @@ def list_messages(
 
     # Gom các toán tử lọc nhanh → ghép vào q (Gmail cho phép kèm cùng labelIds).
     extra = []
+    # NFR-SCO-01: cửa sổ quét theo gói, vd `after:2026/05/09`. Ghép vào `extra` nên nó
+    # tự có mặt ở CẢ BA nhánh dựng truy vấn bên dưới — thêm riêng từng nhánh thì kiểu gì
+    # cũng sót một chỗ, và chỗ sót đó lặng lẽ quét quá phạm vi.
+    if scan_after:
+        extra.append(f"after:{scan_after.replace('-', '/')}")
     if unread:
         extra.append("is:unread")
     if starred:

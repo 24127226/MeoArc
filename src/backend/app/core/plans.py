@@ -17,9 +17,11 @@ TIERS: dict[str, dict] = {
         "label": "Miễn phí",
         "tagline": "Đủ dùng cho việc học và hộp thư cá nhân",
         "price_vnd": 0,
+        "scan_days": 90,          # NFR-SCO-01 — cửa sổ quét hộp thư
         "daily_tokens": 100_000,
         "monthly_tokens": 2_000_000,
         "features": [
+            "Trợ lý quét 90 ngày thư gần nhất",
             "Khoảng 20–40 lượt hỏi trợ lý mỗi ngày",
             "Tóm tắt, phân loại 7 nhóm, soạn thư",
             "Kết nối 1 hộp thư (Gmail hoặc Outlook)",
@@ -29,9 +31,11 @@ TIERS: dict[str, dict] = {
         "label": "Pro",
         "tagline": "Cho người dùng thư nhiều mỗi ngày",
         "price_vnd": 99_000,
+        "scan_days": 180,
         "daily_tokens": 2_000_000,
         "monthly_tokens": 40_000_000,
         "features": [
+            "Trợ lý quét 180 ngày thư gần nhất",
             "Gấp 20 lần hạn mức Miễn phí",
             "Kết nối đồng thời Gmail và Outlook",
             "Kỹ năng nâng cao: Digest, Triage, Brief cuộc họp",
@@ -42,9 +46,11 @@ TIERS: dict[str, dict] = {
         "label": "Pro Max",
         "tagline": "Dùng thoải mái, cho khối lượng công việc lớn",
         "price_vnd": 299_000,
+        "scan_days": 365,
         "daily_tokens": 10_000_000,
         "monthly_tokens": 200_000_000,
         "features": [
+            "Trợ lý quét 365 ngày thư gần nhất",
             "Gấp 100 lần hạn mức Miễn phí",
             "Không giới hạn số hộp thư kết nối",
             "Truy cập MCP cho trợ lý ngoài (Claude Desktop, Codex…)",
@@ -74,6 +80,7 @@ def public_catalog() -> list[dict]:
             "label": TIERS[key]["label"],
             "tagline": TIERS[key]["tagline"],
             "priceVnd": TIERS[key]["price_vnd"],
+            "scanDays": TIERS[key]["scan_days"],
             "dailyTokens": TIERS[key]["daily_tokens"],
             "monthlyTokens": TIERS[key]["monthly_tokens"],
             "features": TIERS[key]["features"],

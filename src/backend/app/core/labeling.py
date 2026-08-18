@@ -138,3 +138,114 @@ def classify(sender_email: str, sender_name: str = "",
 
 def category_by_key(key: str) -> Category | None:
     return _BY_KEY.get(key)
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ TRỤC THỨ HAI & BA: ĐỘ ƯU TIÊN và TRẠNG THÁI VIỆC (PA1 §4.2.9)     ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Đặc tả chia nhãn AI thành BA trục độc lập:                        ║
+# ║   • Category  — LUÔN gán, đúng 1 trong 7 giá trị (ở trên)         ║
+# ║   • Priority  — High / Medium / Low                               ║
+# ║   • Status    — Todo / Waiting / Done                             ║
+# ║ Hai trục sau CHỈ gán cho thư "mang tính công việc" (task-like);   ║
+# ║ thư còn lại phải để NULL, không được nhét giá trị mặc định.       ║
+# ║                                                                    ║
+# ║ Vì sao null quan trọng: "Low/Done" nghĩa là ĐÃ XÉT rồi kết luận    ║
+# ║ việc này nhẹ; null nghĩa là KHÔNG PHẢI việc. Nhét mặc định vào là  ║
+# ║ đổ 300 bản tin quảng cáo vào danh sách việc của người dùng.        ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+import unicodedata
+from enum import Enum
+
+
+class Priority(str, Enum):
+    HIGH = "High"
+    MEDIUM = "Medium"
+    LOW = "Low"
+
+
+class TaskStatus(str, Enum):
+    TODO = "Todo"
+    WAITING = "Waiting"
+    DONE = "Done"
+
+
+# Nhóm gần như không bao giờ sinh việc cho người dùng.
+_KHONG_PHAI_VIEC = {MANG_XH.key, MUA_SAM.key}
+
+def _bo_dau(s: str) -> str:
+    """Bỏ dấu tiếng Việt trước khi so khớp. Tiêu đề thư rất hay được gõ không dấu
+    ("nhac nop bao cao"), nên các mẫu bên dưới viết KHÔNG DẤU và mọi văn bản đều
+    được đưa về không dấu — nhờ vậy bắt được cả hai lối viết bằng một bộ mẫu."""
+    s = unicodedata.normalize("NFD", s or "")
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    return s.replace("đ", "d").replace("Đ", "D").lower()
+
+
+# Các mẫu dưới đây viết KHÔNG DẤU — xem _bo_dau() ở trên.
+# Thư đòi NGƯỜI DÙNG làm gì đó → Todo.
+_PAT_CAN_LAM = re.compile(
+    r"(deadline|han nop|han chot|due|vui long|yeu cau|phan hoi|reply|"
+    r"xac nhan|confirm|nop bai|nop bao cao|nop ban|gui lai|thanh toan|"
+    r"action required|phong van|interview|moi hop|meeting|duyet|approve)", re.I)
+
+# Thư báo "bóng đang ở sân người khác" → Waiting.
+_PAT_DANG_CHO = re.compile(
+    r"(dang cho|cho phan hoi|cho duyet|da gui|dang xu ly|pending|waiting|"
+    r"in review|dang xem xet|se phan hoi|we will get back)", re.I)
+
+# Thư báo việc đã xong → Done.
+_PAT_XONG = re.compile(
+    r"(da hoan tat|hoan thanh|thanh cong|da duyet|approved|completed|"
+    r"da thanh toan|da nhan|receipt|merged|da xac nhan)", re.I)
+
+# Dấu hiệu GẤP → đẩy Priority lên High.
+_PAT_GAP = re.compile(
+    r"(gap|khan|urgent|asap|hom nay|ngay mai|deadline|han chot|"
+    r"immediately|canh bao|security alert|qua han|overdue)", re.I)
+
+@dataclass(frozen=True)
+class AiLabels:
+    """Kết quả một lượt phân tích — ĐỦ CẢ BA trục, gắn vào thư trong CÙNG một thao tác."""
+    category: Category
+    priority: Priority | None
+    status: TaskStatus | None
+    task_like: bool
+    confidence: str
+    reason: str
+
+
+def analyze(sender_email: str, sender_name: str = "",
+            subject: str = "", snippet: str = "") -> AiLabels:
+    """Phân tích một thư ra ĐỦ ba nhãn AI (PA1 §4.2.9).
+
+    Trả về một khối duy nhất chứ không phải ba lời gọi riêng: ba trục này là kết quả
+    của MỘT lượt suy luận, tách ra gọi lẻ là mở đường cho trạng thái nửa vời — thư có
+    Priority mà không có Status, hoặc ngược lại.
+    """
+    c = classify(sender_email, sender_name, subject, snippet)
+    hay = _bo_dau(f"{subject}\n{snippet}")
+
+    # Nhóm mạng xã hội / mua sắm: không phải việc, kể cả khi có chữ "vui lòng".
+    if c.category.key in _KHONG_PHAI_VIEC:
+        return AiLabels(c.category, None, None, False, c.confidence, c.reason)
+
+    if _PAT_XONG.search(hay):
+        status = TaskStatus.DONE
+    elif _PAT_DANG_CHO.search(hay):
+        status = TaskStatus.WAITING
+    elif _PAT_CAN_LAM.search(hay):
+        status = TaskStatus.TODO
+    else:
+        # Không có dấu hiệu nào → không phải việc. Hai trục kia để NULL.
+        return AiLabels(c.category, None, None, False, c.confidence, c.reason)
+
+    if _PAT_GAP.search(hay):
+        priority = Priority.HIGH
+    elif status is TaskStatus.DONE:
+        priority = Priority.LOW          # đã xong thì không còn giành sự chú ý
+    else:
+        priority = Priority.MEDIUM
+
+    return AiLabels(c.category, priority, status, True, c.confidence, c.reason)
