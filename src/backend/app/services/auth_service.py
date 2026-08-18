@@ -6,16 +6,27 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 from urllib.parse import urlencode
+from datetime import datetime, timedelta, timezone
+
 import httpx
 from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.repo import user_repo, session_repo
+from app.repo import connected_account_repo, user_repo, session_repo
 
 # 3 địa chỉ chuẩn của Google trong luồng OAuth:
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"      # trang đăng nhập
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"             # đổi code → token
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"  # lấy hồ sơ
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"           # thu hồi quyền (UC002)
+
+# Quyền xin từ Google. Tách thành hằng số để LƯU LẠI được vào connected_account_scopes —
+# có lưu thì mới trả lời được câu "agent ngoài có được phép làm việc này không" (FR-05.2)
+# mà không phải hỏi lại Google.
+SCOPES = [
+    "openid", "email", "profile",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.send",
+]
 
 
 def build_google_auth_url() -> str:
@@ -35,11 +46,7 @@ def build_google_auth_url() -> str:
         # Nấc 6b thêm gmail.send: GỬI thư là quyền RIÊNG, gmail.modify KHÔNG bao gồm.
         # Gộp cả 2 scope ngay từ đầu → người dùng chỉ phải đăng nhập lại MỘT lần
         # là dùng được cả hành động nhãn (6a) lẫn gửi thư (6b).
-        "scope": (
-            "openid email profile"
-            " https://www.googleapis.com/auth/gmail.modify"
-            " https://www.googleapis.com/auth/gmail.send"
-        ),
+        "scope": " ".join(SCOPES),
         "access_type": "offline",       # xin kèm refresh_token (token làm mới sống lâu)
         # "consent" = LUÔN hiện màn đồng ý → Google MỚI trả refresh_token mỗi lần đăng nhập.
         # (Chỉ "select_account" thì lần sau Google thường KHÔNG trả refresh_token nữa.)
@@ -119,5 +126,17 @@ def login_with_code(db: Session, code: str):
         google_access_token=access_token,
         google_refresh_token=refresh_token,
         access_expires_in=expires_in,
+    )
+    # Kết nối hộp thư sống LÂU HƠN phiên đăng nhập (v6 §7): đăng xuất rồi vào lại
+    # không phải cấp quyền lại từ đầu. Token vẫn ghi vào phiên như cũ trong giai đoạn
+    # chuyển tiếp, nhưng nguồn được ĐỌC từ đây.
+    connected_account_repo.upsert(
+        db, user_id=user.id, provider="google",
+        provider_user_id=str(info.get("id") or email),
+        email_address=email,
+        access_token=access_token, refresh_token=refresh_token,
+        token_expiry=datetime.now(timezone.utc).replace(tzinfo=None)
+        + timedelta(seconds=int(expires_in or 3600)),
+        scopes=SCOPES,
     )
     return user, session.token

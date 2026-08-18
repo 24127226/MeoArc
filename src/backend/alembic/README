@@ -1,0 +1,72 @@
+DI TRÚ DATABASE (Alembic) — MeoArc
+==================================
+
+VÌ SAO CÓ THƯ MỤC NÀY
+---------------------
+`Base.metadata.create_all` chỉ TẠO BẢNG MỚI, KHÔNG sửa bảng đã có. Thêm một cột
+vào bảng đang chạy là nó im lặng bỏ qua — nhóm đã gặp đúng vấn đề này khi muốn
+thêm cột vào `emails` và phải né bằng cách tạo bảng riêng `session_providers`.
+
+Trên sản phẩm thật, đổi schema mà không có công cụ di trú thì hoặc mất dữ liệu,
+hoặc phải sửa tay trên máy chủ đang phục vụ người dùng. Alembic ghi lại từng thay
+đổi thành một file có thể chạy tiến và lùi.
+
+TỪ NAY: mọi thay đổi cấu trúc database đều đi qua đây.
+
+
+LÀM GÌ KHI SỬA MODEL
+--------------------
+1. Sửa file trong `app/models/`.
+2. Nếu là model MỚI, thêm dòng import vào `alembic/env.py`.
+   ⚠️ Quên bước này thì autogenerate tưởng bảng đó "thừa" và sinh lệnh XOÁ BẢNG.
+3. Sinh bản di trú:
+
+       uv run alembic revision --autogenerate -m "mo ta ngan gon thay doi"
+
+4. MỞ FILE VỪA SINH RA VÀ ĐỌC. Autogenerate đoán khá tốt nhưng không phải lúc nào
+   cũng đúng — nhất là khi đổi tên cột (nó hay hiểu thành xoá cột cũ + thêm cột
+   mới, tức là mất sạch dữ liệu cột đó).
+5. Chạy:
+
+       uv run alembic upgrade head
+
+6. Chạy test: `uv run pytest tests/test_migrations.py -v`
+
+
+CÁC LỆNH HAY DÙNG
+-----------------
+    uv run alembic current              # database đang ở phiên bản nào
+    uv run alembic history --verbose    # xem lịch sử các bản di trú
+    uv run alembic upgrade head         # chạy hết các bản còn thiếu
+    uv run alembic downgrade -1         # lùi lại một bước
+    uv run alembic upgrade head --sql   # CHỈ IN SQL ra màn hình, không chạy
+
+
+TRIỂN KHAI LÊN MÁY CHỦ THẬT
+---------------------------
+1. Sao lưu database TRƯỚC (bắt buộc, không có ngoại lệ).
+2. Đọc trước những gì sắp chạy:  `alembic upgrade head --sql`
+3. Đặt `AUTO_CREATE_TABLES=false` để app không tự tạo bảng lúc khởi động —
+   database chỉ được đổi khi có người chủ động chạy di trú.
+4. Chạy `alembic upgrade head` rồi mới khởi động phiên bản app mới.
+
+
+DATABASE ĐÃ CÓ SẴN THÌ SAO
+--------------------------
+Database hiện tại được đánh dấu (`alembic stamp`) là đã ở mức baseline
+`5ac173f90530`, nghĩa là Alembic hiểu "schema này đã tồn tại rồi, đừng tạo lại".
+Nhờ vậy toàn bộ dữ liệu thật được giữ nguyên khi chuyển sang dùng Alembic.
+
+Với database dựng mới hoàn toàn, chỉ cần `alembic upgrade head` là có đủ bảng.
+
+
+HAI CÁI BẪY ĐÃ GẶP (ghi lại để khỏi vấp lại)
+--------------------------------------------
+1. Bảng `sessions` dùng kiểu cột tự mã hoá `EncryptedStr`. Alembic sinh ra
+   `app.core.crypto.EncryptedStr()` nhưng KHÔNG tự thêm dòng import — thiếu nó là
+   di trú chết với NameError. Model nào dùng kiểu tuỳ chỉnh cũng gặp lỗi này.
+
+2. `env.py` ban đầu ghi đè chuỗi kết nối VÔ ĐIỀU KIỆN bằng DATABASE_URL của app.
+   Hậu quả: chạy di trú với database khác (test, bản sao kiểm thử) vẫn bị kéo về
+   database thật — tức là có thể lỡ tay chạy di trú lên nơi đang phục vụ người
+   dùng. Nay chỉ tự điền khi alembic.ini còn để giá trị mẫu.

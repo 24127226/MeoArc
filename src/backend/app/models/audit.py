@@ -9,7 +9,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, JSON, Integer
+from sqlalchemy import Index, text as sa_text, String, DateTime, ForeignKey, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 
@@ -20,6 +20,13 @@ def _utcnow() -> datetime:
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    # Truy vấn thật luôn là "nhật ký của NGƯỜI này, mới nhất trước" (audit_repo.list_recent).
+    # Hai chỉ mục rời trên user_id và created_at không phục vụ được câu đó bằng một chỉ mục
+    # gộp: Postgres phải lọc theo người rồi mới sắp xếp lại. Bảng này chỉ tăng không giảm
+    # nên chênh lệch lớn dần theo thời gian.
+    __table_args__ = (
+        Index("ix_audit_logs_user_recent", "user_id", sa_text("created_at DESC")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)

@@ -9,10 +9,12 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 from urllib.parse import urlencode
+from datetime import datetime, timedelta, timezone
+
 import httpx
 from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.repo import user_repo, session_repo
+from app.repo import connected_account_repo, user_repo, session_repo
 
 _AUTHORITY = "https://login.microsoftonline.com"
 GRAPH_ME = "https://graph.microsoft.com/v1.0/me"
@@ -128,4 +130,14 @@ def login_with_code(db: Session, code: str):
         access_expires_in=expires_in,
     )
     session_repo.set_provider(db, session.token, "microsoft")
+    # Kết nối hộp thư sống lâu hơn phiên (v6 §7) — xem ghi chú ở auth_service.py.
+    connected_account_repo.upsert(
+        db, user_id=user.id, provider="microsoft",
+        provider_user_id=str(info.get("id") or email),
+        email_address=email,
+        access_token=access, refresh_token=refresh,
+        token_expiry=datetime.now(timezone.utc).replace(tzinfo=None)
+        + timedelta(seconds=int(expires_in or 3600)),
+        scopes=_SCOPE.split(),
+    )
     return user, session.token

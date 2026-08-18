@@ -40,7 +40,7 @@ import { useToast } from '@/components/ui/toast'
 import { emailHaystack, interpretNL, matchText } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
-import type { Category, Email } from '@/data/emails'
+import type { Category, Email, TaskStatus } from '@/data/emails'
 
 /** Thanh tag danh mục = 'Tất cả' + ĐỦ 7 nhãn (nguồn duy nhất: CATEGORY_OPTIONS).
  *  Render dạng flex-wrap 2 hàng → thấy hết tag ngay, không phải kéo ngang tìm. */
@@ -49,10 +49,18 @@ const FILTERS: { key: Category | 'all'; label: string }[] = [
   ...CATEGORY_OPTIONS,
 ]
 
-const PRIORITY: Record<'action' | 'waiting', { label: string; cls: string; dot: string }> = {
-  action: { label: 'Cần xử lý', cls: 'bg-spark/20 text-foreground', dot: 'cherry-dot' },
-  waiting: { label: 'Đang đợi', cls: 'bg-active/20 text-foreground', dot: 'bg-active' },
+/* Chip trạng thái việc (PA1 §4.2.9: Todo / Waiting / Done).
+   Hiển thị theo STATUS chứ không theo priority: người dùng cần biết "phải làm gì"
+   trước khi cần biết "gấp cỡ nào". Độ gấp thể hiện bằng sắc thái chip bên dưới. */
+const STATUS_CHIP: Record<TaskStatus, { label: string; cls: string; dot: string }> = {
+  Todo: { label: 'Cần xử lý', cls: 'bg-spark/20 text-foreground', dot: 'cherry-dot' },
+  Waiting: { label: 'Đang đợi', cls: 'bg-active/20 text-foreground', dot: 'bg-active' },
+  Done: { label: 'Xong', cls: 'bg-muted/40 text-muted-foreground', dot: 'bg-muted-foreground/60' },
 }
+
+/* Ưu tiên Cao được nhấn thêm; Medium/Low giữ nguyên nền chip để danh sách không
+   biến thành một bức tường màu đỏ. */
+const HIGH_RING = 'ring-1 ring-spark/50'
 
 const QUICK = [
   { key: 'unread', label: 'Chưa đọc' },
@@ -252,17 +260,19 @@ function EmailCard({
 
           <p className="mt-1 truncate text-xs text-muted-foreground/80 leading-relaxed">{email.preview}</p>
 
-          {(email.label || (email.priority && email.priority !== 'fyi')) && (
+          {(email.label || email.status) && (
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              {email.priority && email.priority !== 'fyi' && (
+              {email.status && (
                 <span
+                  title={email.priority ? `Độ ưu tiên: ${email.priority}` : undefined}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                    PRIORITY[email.priority].cls,
+                    STATUS_CHIP[email.status].cls,
+                    email.priority === 'High' && HIGH_RING,
                   )}
                 >
-                  <span className={cn('size-1.5 rounded-full', PRIORITY[email.priority].dot)} />
-                  {PRIORITY[email.priority].label}
+                  <span className={cn('size-1.5 rounded-full', STATUS_CHIP[email.status].dot)} />
+                  {STATUS_CHIP[email.status].label}
                 </span>
               )}
               {email.label && (

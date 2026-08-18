@@ -856,7 +856,7 @@ export function ChatPanel({
   const suggestions = useMemo(() => {
     const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
     const out: string[] = []
-    const urgent = inbox.find((e) => e.unread && e.priority === 'action')
+    const urgent = inbox.find((e) => e.unread && e.status === 'Todo')
     if (urgent) out.push(`Soạn trả lời ${urgent.sender}`)
     const unread = inbox.filter((e) => e.unread).length
     if (unread > 0) out.push(`Tóm tắt ${unread} thư chưa đọc`)
@@ -867,7 +867,7 @@ export function ChatPanel({
       if (unlabeled >= 2) out.push('Phân loại tự động thư chưa nhãn')
     }
     if (out.length < 3) {
-      const waiting = inbox.find((e) => e.priority === 'waiting')
+      const waiting = inbox.find((e) => e.status === 'Waiting')
       if (waiting) out.push(`Tóm tắt thư của ${waiting.sender}`)
     }
     if (out.length === 0) out.push('Tóm tắt hộp thư hôm nay')
@@ -1161,10 +1161,15 @@ export function ChatPanel({
   // endpoint tất định (không qua LLM) nên "Đã gửi ✓" = thư THẬT SỰ đã đi.
   const sendDraft = async (
     id: string,
-    draft: { to: string; subject: string; body: string; replyToId?: string },
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
   ): Promise<boolean> => {
     try {
-      if (draft.replyToId) {
+      if (draft.confirmationId) {
+        // Đường CHUẨN: máy chủ giữ trạng thái yêu cầu duyệt, nên bấm hai lần vẫn chỉ
+        // gửi một lần (PA2 §1.3.5). Trước đây nút này gọi thẳng lệnh gửi — mở lại hội
+        // thoại cũ rồi bấm lại là thư đi lần nữa.
+        await api.approveConfirmation(draft.confirmationId)
+      } else if (draft.replyToId) {
         await api.replyEmail(draft.replyToId, draft.body)
       } else {
         // "Tên <email>" → chỉ gửi phần địa chỉ cho backend
@@ -1201,7 +1206,7 @@ export function ChatPanel({
   // KHÔNG tạo email mới. Neo theo chủ đề/người nhận để agent không lạc đề (fix bug rewrite
   // ra email khác hẳn). Agent trả về 1 thẻ nháp mới đã viết lại.
   const rewriteDraft = (
-    draft: { to: string; subject: string; body: string; replyToId?: string },
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
     instruction: string,
   ) => {
     const instr = instruction.trim()
@@ -1859,7 +1864,7 @@ function DraftCard({
   id: string
   onSendDraft: (
     id: string,
-    draft: { to: string; subject: string; body: string; replyToId?: string },
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
   ) => Promise<boolean>
   onRewrite?: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
@@ -1988,7 +1993,7 @@ function DraftCard({
           onClick={async () => {
             // GỬI THẬT rồi mới đóng thẻ — thất bại thì giữ thẻ cho user sửa/gửi lại
             setSendingNow(true)
-            const ok = await onSendDraft(id, { to, subject, body, replyToId: reply.replyToId })
+            const ok = await onSendDraft(id, { to, subject, body, replyToId: reply.replyToId, confirmationId: reply.confirmationId })
             setSendingNow(false)
             if (ok) setDone('sent')
           }}
@@ -2171,7 +2176,7 @@ function AgentMessage({
   onReject: (id: string) => void
   onSendDraft: (
     id: string,
-    draft: { to: string; subject: string; body: string; replyToId?: string },
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
   ) => Promise<boolean>
   onRewrite: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void

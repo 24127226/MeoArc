@@ -22,8 +22,10 @@ class AuthSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     #   ForeignKey = "khoá ngoại": liên kết phiên này thuộc về user nào trong bảng users.
 
-    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     #   thời điểm hết hạn — quá hạn thì phiên không còn dùng được.
+    #   index=True: việc dọn định kỳ quét "phiên nào đã hết hạn"; không có chỉ mục
+    #   thì mỗi lần dọn phải đọc TOÀN BỘ bảng — càng nhiều người dùng càng chậm.
 
     google_access_token: Mapped[str | None] = mapped_column(EncryptedStr, nullable=True, default=None)
     #   token Google để GỌI GMAIL (Nấc 5). Sống ngắn (~1h) → sẽ tự làm mới (Nấc 9).

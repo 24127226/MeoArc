@@ -47,7 +47,25 @@ PROMPTS: dict[str, str] = {
 # Thẻ lỗi HẠ TẦNG của app (quota/quá tải/thiếu quyền) — gặp là SKIP, không kết luận hợp đồng.
 INFRA_MARKERS = ("🚦", "⏳", "🔑", "trục trặc", "quota", "hết lượt", "quá tải")
 
-pytestmark = pytest.mark.asyncio
+# ── VÌ SAO BỘ TEST NÀY PHẢI TỰ NGUYỆN BẬT ──────────────────────────────────────
+# Nó gọi Gemini THẬT. Gói miễn phí chỉ cho 10 request/phút, mà một lượt agent tiêu
+# nhiều lượt gọi, nên chạy kèm bộ test thường là gần như chắc chắn đụng 429.
+#
+# Điều tệ là lúc đó app KHÔNG sập — nó suy giảm lịch sự: "Rất tiếc, mình chưa thể
+# phân loại email lúc này". Câu đó không chứa dấu hiệu hạ tầng nào ở INFRA_MARKERS,
+# nên chốt chặn bên dưới không bắt được và test báo SAI HỢP ĐỒNG. Một lỗi hạ tầng
+# đội lốt lỗi sản phẩm — đúng loại kết quả sai mà cả bộ tài liệu kiểm thử cảnh báo.
+#
+# Vậy nên theo đúng quy ước sẵn có của dự án cho test tốn quota (test_live_e2e.py,
+# test_llm_smoke.py): mặc định BỎ QUA, chỉ chạy khi có người chủ ý bật.
+#     MEOARC_LIVE_LLM=1 uv run pytest test_agent.py -v
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(
+        os.environ.get("MEOARC_LIVE_LLM") != "1",
+        reason="Test SỐNG gọi Gemini thật (tốn quota, 10 req/phút) — đặt MEOARC_LIVE_LLM=1 để chạy có chủ đích.",
+    ),
+]
 
 
 # ────────────────────────── HỢP ĐỒNG §2 (PresentReply) ──────────────────────────

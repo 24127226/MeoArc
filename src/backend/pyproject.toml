@@ -16,6 +16,7 @@ requires-python = ">=3.13"
 
 # Các thư viện dự án phụ thuộc. Nấc 0 chỉ cần 2 cái:
 dependencies = [
+    "alembic>=1.19.0",
     "cryptography>=49.0.0",
     "fastapi>=0.110",          # khung web: định nghĩa route, tự sinh trang /docs
     "fastmcp>=3.4.2",

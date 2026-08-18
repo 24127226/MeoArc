@@ -101,23 +101,40 @@ _SELECT = ("id,subject,from,toRecipients,receivedDateTime,sentDateTime,"
 
 
 def list_messages(access_token: str, folder: str = "inbox", q: str | None = None,
-                  max_results: int = 30, page_token: str | None = None, **_ignore):
-    """Danh sách thư 1 thư mục (hoặc tìm theo q). Trả (list[Email], next_url|None)."""
+                  max_results: int = 30, page_token: str | None = None,
+                  scan_after: str | None = None,   # ngày ISO 'YYYY-MM-DD' — mốc sớm nhất được quét
+                  **_ignore):
+    """Danh sách thư 1 thư mục (hoặc tìm theo q). Trả (list[Email], next_url|None).
+
+    NFR-SCO-01 — cửa sổ quét theo gói được áp bằng HAI cách, vì Graph **không cho**
+    dùng `$search` chung với `$filter`:
+      • không có `q`  → `$filter=receivedDateTime ge …` (server lọc, rẻ nhất)
+      • có `q`        → lọc tại chỗ sau khi nhận kết quả
+    Cách nào cũng cho ra cùng một tập thư, nên hành vi không đổi theo việc người dùng
+    có gõ từ khoá hay không.
+    """
     tag = folder if folder in _FOLDER else "inbox"
     params = {"$top": max_results, "$select": _SELECT}
+    loc_tai_cho = False
     if q:
         params["$search"] = f'"{q}"'                      # tìm toàn hộp thư
         url = f"{GRAPH}/me/messages"
+        loc_tai_cho = bool(scan_after)                    # $search không đi cùng $filter
     else:
         params["$orderby"] = "receivedDateTime desc"
         url = f"{GRAPH}/me/mailFolders/{_FOLDER[tag]}/messages"
+        if scan_after:
+            params["$filter"] = f"receivedDateTime ge {scan_after}T00:00:00Z"
     # page_token của Graph là URL @odata.nextLink đầy đủ → gọi thẳng.
     with httpx.Client(timeout=15) as c:
         r = c.get(page_token or url, headers=_hdr(access_token),
                   params=None if page_token else params)
         r.raise_for_status()
         data = r.json()
-    emails = [_to_email(m, tag) for m in data.get("value", [])]
+    raw = data.get("value", [])
+    if loc_tai_cho:
+        raw = [m for m in raw if (m.get("receivedDateTime") or "")[:10] >= scan_after]
+    emails = [_to_email(m, tag) for m in raw]
     return emails, data.get("@odata.nextLink")
 
 

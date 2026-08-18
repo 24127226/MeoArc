@@ -14,7 +14,9 @@ from pydantic import BaseModel
 # `Literal[...]` = "chỉ được nhận đúng các giá trị này". Nếu lỡ gán
 # category="xyz", Pydantic sẽ BÁO LỖI ngay — chặn dữ liệu rác.
 Category = Literal["moss", "sea", "sun", "cherry", "sky", "terra", "wine"]
-Priority = Literal["action", "waiting", "fyi"]
+# PA1 §4.2.9 — hai trục tách rời, chỉ gán cho thư mang tính công việc.
+Priority = Literal["High", "Medium", "Low"]
+TaskStatus = Literal["Todo", "Waiting", "Done"]
 Folder = Literal["inbox", "sent", "drafts", "archive", "trash"]
 
 
@@ -47,7 +49,8 @@ class Email(BaseModel):
     html: str | None = None                 # thân thư HTML gốc (để FE render đúng chuẩn Gmail);
                                             # None khi thư chỉ có text hoặc lấy từ store
     attachments: list[Attachment] | None = None
-    priority: Priority | None = None        # do AI Triage gán; ban đầu có thể trống
+    priority: Priority | None = None        # do AI gán; None = KHÔNG phải việc (không phải "việc nhẹ")
+    status: TaskStatus | None = None        # đi kèm priority — có thì có cả hai, không thì cùng None
     tldr: str | None = None                 # tóm tắt do AI; ban đầu có thể trống
     folder: Folder | None = None            # thiếu = coi như "inbox"
     threadId: str | None = None             # id LUỒNG Gmail (nhóm thư trả lời nhau) — agent cần

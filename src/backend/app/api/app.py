@@ -30,9 +30,13 @@ from app.models.notification import Notification  # noqa: F401 — tạo bảng 
 from app.models.subscription import Subscription  # noqa: F401 — tạo bảng subscriptions (quota token)
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
-from app.repo import user_repo, conversation_repo, audit_repo, notification_repo, subscription_repo, email_store_repo
+from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
+                      subscription_repo, email_store_repo, confirmation_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
+from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
+from app.core.breaker import CircuitOpen, llm_breaker, provider_breaker
+from app.core import errors  # thu thập lỗi: Sentry khi có DSN, không thì ghi log
 from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
 import logging
 from app.schemas.user import UserCreate, UserOut
@@ -59,9 +63,16 @@ from app.services import upload_store
 # --- Nấc 10: thực thi sau duyệt (cầu nối agent ↔ service, KHÔNG phải LLM) ---
 from app.schemas.agent import ExecutePlanReq, ExecuteResult, AutopilotApplyReq, OkResult
 
-# Tạo bảng trong DB nếu chưa có. (Cách này hợp để HỌC; dự án thật dùng Alembic —
-# công cụ "migration" quản lý thay đổi cấu trúc bảng theo thời gian.)
-Base.metadata.create_all(bind=engine)
+# ── Tạo bảng: Alembic là NGUỒN SỰ THẬT, create_all chỉ còn là lưới an toàn ──
+# `create_all` chỉ TẠO BẢNG MỚI, KHÔNG sửa bảng đã có: thêm một cột vào bảng đang
+# chạy là nó im lặng bỏ qua (nhóm đã gặp đúng vấn đề này và phải né bằng bảng riêng
+# `session_providers`). Nên từ nay MỌI thay đổi cấu trúc đi qua Alembic:
+#     uv run alembic revision --autogenerate -m "mo ta thay doi"
+#     uv run alembic upgrade head
+# Đặt AUTO_CREATE_TABLES=false ở môi trường thật để tắt hẳn lưới an toàn này —
+# khi đó database chỉ đổi khi có người chạy di trú, không đổi lén lúc khởi động.
+if settings.auto_create_tables:
+    Base.metadata.create_all(bind=engine)
 
 # ── NFR-Observability: BẬT hệ thống log có request-id + xoay file (logs/app.log) ──
 # Hạ tầng này develop đã viết sẵn ở core/logging.py nhưng CHƯA từng được gọi → giờ nối vào.
@@ -104,6 +115,17 @@ async def observability_and_security(request: Request, call_next):
 
     try:
         response = await call_next(request)
+    except CircuitOpen as broken:
+        # Dịch vụ ngoài đang sập kéo dài → từ chối NGAY, không bắt người dùng chờ
+        # rồi cũng hỏng. Retry-After nói rõ khi nào đáng thử lại.
+        limits.metrics.note_rejection("busy")
+        limits.metrics.observe((_time.perf_counter() - t0) * 1000, 503)
+        logging.getLogger("app.breaker").info("Từ chối vì mạch mở: %s", broken.name)
+        return JSONResponse(
+            status_code=503,
+            headers={"Retry-After": str(int(broken.retry_after) + 1), "X-Request-ID": rid},
+            content={"error": {"code": 503, "message": str(broken)}},
+        )
     except limits.ProviderBusy as busy:
         # Quá tải CÓ KIỂM SOÁT: hệ thống còn sống, chỉ đang hết suất gọi ra ngoài.
         # Trả 503 + Retry-After để client (và load balancer) biết mà thử lại,
@@ -175,7 +197,7 @@ def health(db: Session = Depends(get_db)):
 # Ba con số đáng nhìn nhất: độ trễ p95 (người dùng CẢM nhận được), số suất gọi ra
 # ngoài còn trống (gần 0 = đang nghẽn), và số kết nối DB đang mượn.
 @app.get("/metrics")
-async def metrics():
+def metrics():
     from app.core.db import engine
     snap = limits.metrics.snapshot()
     pool = getattr(engine, "pool", None)
@@ -188,21 +210,50 @@ async def metrics():
         snap["db_pool"] = "n/a"
     snap["kv_backend"] = kv.backend_name
     snap["thread_pool"] = _thread_pool_size()
+    snap["workers"] = settings.web_concurrency
+    # Trạng thái ngắt mạch: 'mo' nghĩa là dịch vụ ngoài đang sập và ta đang tạm ngừng gọi.
+    snap["ngat_mach"] = {
+        "nha_cung_cap_thu": provider_breaker.snapshot(),
+        "mo_hinh_ai": llm_breaker.snapshot(),
+    }
+    # Số dòng các bảng nằm ở /admin/data-size, KHÔNG gộp vào đây.
+    # /metrics bị hệ thống giám sát gọi liên tục nên phải nhẹ và không chạm database;
+    # gộp truy vấn đếm vào đây từng làm chính endpoint này treo cứng (đo được).
     return snap
 
 
-def _thread_pool_size() -> int | str:
-    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này).
+@app.get("/admin/data-size")
+def data_size(db: Session = Depends(get_db)):
+    """Số dòng các bảng chỉ-thêm — nhìn được dữ liệu có đang phình không.
 
-    LƯU Ý: current_default_thread_limiter() chỉ đọc được khi đang ở trong vòng lặp
-    bất đồng bộ — gọi từ một route `def` thường sẽ ném lỗi và trả 'n/a'. Vì vậy cả
-    hàm này lẫn nơi gọi nó (/metrics, startup) đều phải là `async`.
+    Tách khỏi /metrics vì có chạm database: /metrics phải nhẹ để giám sát gọi
+    liên tục, còn cái này chỉ xem khi cần.
     """
+    return {"table_rows": maintenance.table_sizes(db)}
+
+
+def _table_rows_once() -> dict:
+    from app.core.db import SessionLocal
+    db = SessionLocal()
     try:
-        import anyio.to_thread
-        return anyio.to_thread.current_default_thread_limiter().total_tokens
-    except Exception:
-        return "n/a"
+        return maintenance.table_sizes(db)
+    finally:
+        db.close()
+
+
+# Số luồng thực tế đã áp dụng được, GHI LẠI NGAY LÚC KHỞI ĐỘNG.
+#
+# Vì sao không đọc trực tiếp trong /metrics: bộ giới hạn luồng của anyio chỉ đọc
+# được từ trong vòng lặp bất đồng bộ. Từng làm /metrics thành `async def` để đọc
+# cho được, nhưng route async ở đây TREO CỨNG (đo được: /health `def` trả 200
+# bình thường, /metrics `async` không bao giờ trả). Ghi lại lúc khởi động vừa
+# đúng vừa tránh hẳn vấn đề đó.
+_thread_pool_applied: int | str = "chua-ap-dung"
+
+
+def _thread_pool_size() -> int | str:
+    """Số luồng đang cấp cho các route đồng bộ (route `def` chạy trong pool này)."""
+    return _thread_pool_applied
 
 
 @app.on_event("startup")
@@ -215,9 +266,13 @@ async def _tune_runtime() -> None:
     chịu được nhiều người chờ I/O cùng lúc — trần thật sự nằm ở semaphore gọi ra
     ngoài, chỗ đó mới là tài nguyên khan hiếm.
     """
+    errors.setup_error_tracking()
+    global _thread_pool_applied
     try:
         import anyio.to_thread
-        anyio.to_thread.current_default_thread_limiter().total_tokens = settings.web_thread_pool
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        limiter.total_tokens = settings.web_thread_pool
+        _thread_pool_applied = limiter.total_tokens  # đọc lại để chắc đã ăn
         logging.getLogger("app.limits").info(
             "Thread pool = %s · provider slots = %s · llm slots = %s · KV = %s",
             settings.web_thread_pool, settings.max_provider_concurrency,
@@ -225,6 +280,102 @@ async def _tune_runtime() -> None:
         )
     except Exception as exc:  # noqa: BLE001 — chỉ là tinh chỉnh, hỏng thì chạy mặc định
         logging.getLogger("app.limits").warning("Không nới được thread pool: %s", exc)
+
+
+_maintenance_task = None  # tham chiếu tới vòng dọn nền, để lúc tắt còn huỷ được
+
+
+@app.on_event("startup")
+async def _start_maintenance_loop() -> None:
+    """Khởi động vòng dọn dữ liệu cũ chạy nền.
+
+    Ba bảng sessions / audit_logs / notifications chỉ thêm mà không bao giờ bớt;
+    chạy vài tháng với vài nghìn người là index phình và mọi truy vấn chậm dần.
+
+    Chạy NHIỀU WORKER thì cả bốn tiến trình đều muốn dọn cùng lúc → dùng khoá trên
+    KV để mỗi chu kỳ chỉ một tiến trình làm thật. Đặt MAINTENANCE_INTERVAL_MIN=0
+    để tắt (ví dụ khi muốn dùng cron bên ngoài thay thế).
+    """
+    import asyncio
+
+    every_min = settings.maintenance_interval_min
+    if every_min <= 0:
+        logging.getLogger("app.maintenance").info("Dọn dữ liệu tự động: TẮT")
+        return
+
+    async def loop() -> None:
+        await asyncio.sleep(60)  # để app khởi động xong đã, đừng tranh việc lúc mở máy
+        while True:
+            try:
+                if maintenance.try_acquire_lock("maintenance", every_min * 60):
+                    # chạy trong luồng riêng: đây là việc DB đồng bộ, không được chẹn event loop
+                    await asyncio.to_thread(_run_maintenance_once)
+            except Exception as exc:  # noqa: BLE001 — dọn hỏng thì thôi, app vẫn phải sống
+                logging.getLogger("app.maintenance").warning("Lượt dọn lỗi: %s", exc)
+            await asyncio.sleep(every_min * 60)
+
+    # Giữ tham chiếu để lúc tắt máy còn HUỶ được. Không giữ thì: (1) Python có thể
+    # thu gom task giữa chừng, (2) quan trọng hơn — lúc tắt, vòng lặp vô hạn này
+    # vẫn chạy và giữ tiến trình lại, khiến mỗi lần triển khai đều bị treo.
+    global _maintenance_task
+    _maintenance_task = asyncio.create_task(loop())
+    logging.getLogger("app.maintenance").info(
+        "Dọn dữ liệu mỗi %s phút · giữ nhật ký %s ngày · thông báo đã đọc %s ngày",
+        every_min, settings.audit_retention_days, settings.notification_retention_days,
+    )
+
+
+def _run_maintenance_once() -> dict:
+    """Một lượt dọn với session DB riêng (không dùng chung session của request)."""
+    from app.core.db import SessionLocal
+    db = SessionLocal()
+    try:
+        return maintenance.run_maintenance(db)
+    finally:
+        db.close()
+
+
+@app.on_event("shutdown")
+async def _tat_may_em() -> None:
+    """Đóng tài nguyên gọn gàng khi tắt.
+
+    Mỗi lần triển khai bản mới là một lần tắt máy. Không đóng pool kết nối thì
+    Postgres còn giữ những kết nối "ma" cho tới lúc hết giờ — triển khai vài lần
+    liên tiếp là cạn slot kết nối và bản mới không nối được vào database.
+
+    (Uvicorn đã tự chờ các request đang chạy xong trước khi gọi tới đây, nên
+    không cần tự đếm request dở dang.)
+    """
+    import asyncio
+
+    log = logging.getLogger("app.shutdown")
+
+    # 1) Dừng vòng dọn dữ liệu. Bỏ qua bước này thì vòng lặp vô hạn còn chạy và
+    #    giữ tiến trình lại — mỗi lần triển khai bản mới sẽ treo ở khâu tắt.
+    global _maintenance_task
+    if _maintenance_task is not None:
+        _maintenance_task.cancel()
+        try:
+            await _maintenance_task
+        except (asyncio.CancelledError, Exception):  # noqa: B014 — tắt máy, nuốt mọi lỗi
+            pass
+        _maintenance_task = None
+        log.info("Đã dừng vòng dọn dữ liệu")
+
+    # 2) Trả kết nối database. Không trả thì Postgres còn giữ kết nối "ma" tới lúc
+    #    hết giờ — triển khai vài lần liên tiếp là cạn slot và bản mới không nối được.
+    try:
+        from app.core.db import engine
+        engine.dispose()
+        log.info("Đã đóng pool kết nối database")
+    except Exception as exc:  # noqa: BLE001 — tắt máy thì không được ném lỗi ra
+        log.warning("Không đóng được pool: %s", exc)
+
+
+@app.post("/admin/maintenance")
+def trigger_maintenance(session: AuthSession = Depends(get_current_session)):
+    """Chạy dọn ngay, không chờ tới chu kỳ — tiện khi trình bày và khi cần dọn gấp."""
+    return {"purged": _run_maintenance_once()}
 
 
 # ── Nấc 9 (#2): CHUẨN HOÁ định dạng lỗi ──────────────────────────────
@@ -590,6 +741,72 @@ def reply_email_route(email_id: str, req: ReplyReq, bg: BackgroundTasks,
     if settings.mailbox_store_enabled:
         bg.add_task(_bg_sync, session.user_id, provider, token)  # Sent hiện ngay
     return SendResult(id=new_id, threadId=res.get("threadId"))
+
+
+# ── HUMAN-IN-THE-LOOP CÓ TRẠNG THÁI (PA2 §1.3.5, FR-02.4) ───────────────────
+# Trước đây việc duyệt chỉ sống ở giao diện: nút bấm gọi thẳng lệnh gửi. Máy chủ
+# không biết có "yêu cầu đang chờ duyệt" nào, nên bấm hai lần là GỬI HAI LẦN.
+# Giờ mỗi hành động không-hoàn-tác có một bản ghi; ràng buộc "chỉ chạy khi đang
+# pending" khiến lần bấm thứ hai không thể thực thi lại.
+@app.get("/confirmations")
+def list_confirmations(session: AuthSession = Depends(get_current_session),
+                       db: Session = Depends(get_db)):
+    """Các yêu cầu còn chờ duyệt của chính người dùng."""
+    return [confirmation_repo.to_dict(r) for r in confirmation_repo.list_pending(db, session.user_id)]
+
+
+@app.post("/confirmations/{req_id}/approve")
+async def approve_confirmation(req_id: str,
+                               token: str = Depends(get_gmail_token),
+                               provider: str = Depends(get_provider),
+                               session: AuthSession = Depends(get_current_session),
+                               db: Session = Depends(get_db)):
+    """Người dùng đồng ý → CHẠY hành động đã chốt, đúng MỘT lần.
+
+    Bấm lại lần nữa trả về kết quả của lần đầu kèm `already: true`, chứ không báo
+    lỗi: bấm hai lần là chuyện thường của người dùng (mạng chậm, lỡ tay), không
+    phải sự cố cần dí vào mặt họ.
+    """
+    req = confirmation_repo.get_owned(db, req_id, session.user_id)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu xác nhận")
+    if req.status == confirmation_repo.REJECTED:
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã bị từ chối trước đó")
+
+    # Cửa duy nhất: chỉ lần gọi chuyển được trạng thái mới được phép chạy hành động.
+    if not confirmation_repo.approve(db, req):
+        return {"status": req.status, "already": True, "result": req.result}
+
+    # Import tại chỗ theo đúng lối app.py đang dùng cho RequestContext (tránh vòng import).
+    from app.tools.registry import RequestContext, tool_registry
+    _sub = subscription_repo.get_or_create(db, session.user_id)
+    import app.tools.email_tools  # noqa: F401 — nạp để các tool tự đăng ký vào registry
+
+    ctx = RequestContext(user_id=str(session.user_id), access_token=token,
+                         email_provider=provider, conversation_id=req.conversation_id,
+                         tier=_sub.tier, scan_days=subscription_repo.scan_days_of(_sub))
+    try:
+        out = await tool_registry.call(req.action, dict(req.args or {}), ctx)
+        res = out.model_dump() if hasattr(out, "model_dump") else dict(out or {})
+    except Exception as exc:                      # noqa: BLE001 — mọi lỗi tool đều phải ghi lại
+        res = {"success": False, "error": str(exc)[:300]}
+    confirmation_repo.save_result(db, req, res)
+    _record(db, session.user_id, action=req.action, tool_name=req.action,
+            ids=[], details={"confirmation_id": req.id},
+            notify=req.description, notify_type="success" if res.get("success", True) else "error")
+    return {"status": req.status, "already": False, "result": res}
+
+
+@app.post("/confirmations/{req_id}/reject")
+def reject_confirmation(req_id: str,
+                        session: AuthSession = Depends(get_current_session),
+                        db: Session = Depends(get_db)):
+    """Người dùng từ chối → hành động KHÔNG chạy, và không ai 'cứu' lại được."""
+    req = confirmation_repo.get_owned(db, req_id, session.user_id)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu xác nhận")
+    doi = confirmation_repo.reject(db, req)
+    return {"status": req.status, "already": not doi}
 
 
 # ── UC010: LƯU NHÁP · GỢI Ý AI · AUTOCOMPLETE NGƯỜI NHẬN ────────────────────
@@ -986,6 +1203,9 @@ def _confirm_card(messages: list) -> dict | None:
                 "to": ", ".join(to) if isinstance(to, list) else str(to),
                 "subject": args.get("subject") or "(không tiêu đề)",
                 "body": args.get("body") or "",
+                # Chốt tool + tham số để tạo yêu cầu chờ duyệt. Hai khoá gạch dưới này
+                # bị gỡ trước khi trả về FE — chúng chỉ dùng ở tầng máy chủ.
+                "_tool": "send_email", "_args": dict(args),
             }
         if name == "reply_email":
             return {
@@ -995,6 +1215,7 @@ def _confirm_card(messages: list) -> dict | None:
                 "subject": "Re: (thư gốc)",
                 "body": args.get("instructions") or "",
                 "replyToId": args.get("email_id") or "",
+                "_tool": "reply_email", "_args": dict(args),
             }
         if name == "bulk_action":
             ids = [str(x) for x in (args.get("email_ids") or [])]
@@ -1017,6 +1238,8 @@ def _confirm_card(messages: list) -> dict | None:
                 }
                 if op["type"] == "delete":
                     card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
+                card["_tool"] = "bulk_action"
+                card["_args"] = dict(args)
                 return card
         return None  # tool destructive khác: chưa có thẻ riêng → giữ câu trả lời của agent
     return None
@@ -1111,6 +1334,8 @@ async def agent_chat(
             access_token=token,
             email_provider=provider,   # tool trong graph route đúng Gmail/Outlook theo phiên
             conversation_id=conv.id,
+            tier=sub.tier,             # NFR-08: quyết định cửa sổ quét hộp thư của các tool
+            scan_days=subscription_repo.scan_days_of(sub),   # giá trị đã chốt của người này
         )
         # State khởi đầu: lịch sử cũ + tin mới → agent thấy CẢ hội thoại (luồng hỏi-xác-nhận → gửi…).
         init_state = {
@@ -1167,6 +1392,24 @@ async def agent_chat(
         # không phải câu chữ của LLM).
         confirm_card = _confirm_card(result["messages"])
         if confirm_card:
+            # Ghi lại yêu cầu chờ duyệt và gắn id vào thẻ. Không có bản ghi này thì
+            # nút "Duyệt" lại gọi thẳng lệnh gửi như trước — bấm hai lần là gửi hai lần.
+            try:
+                _cr = confirmation_repo.create(
+                    db, user_id=session.user_id,
+                    action=confirm_card.get("_tool") or "send_email",
+                    description=confirm_card.get("confirmLabel")
+                    or f"Gửi thư: {confirm_card.get('subject') or ''}".strip(),
+                    args=confirm_card.get("_args") or {},
+                    conversation_id=conv.id,
+                )
+                confirm_card["confirmationId"] = _cr.id
+            except Exception:
+                # Ghi hỏng thì vẫn hiện thẻ (người dùng không bị kẹt), chỉ mất tính
+                # chống-bấm-trùng của lượt này — nên nuốt lỗi chứ không chặn luồng.
+                logging.getLogger("app.confirm").warning("Không tạo được yêu cầu xác nhận", exc_info=True)
+            confirm_card.pop("_tool", None)
+            confirm_card.pop("_args", None)
             out = confirm_card
 
         # UI/UX: đính danh sách thư THẬT (bấm mở được) từ search_emails CỦA LƯỢT NÀY → FE render

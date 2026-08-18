@@ -34,6 +34,9 @@ export type AgentReply =
       body: string
       /** Có giá trị = bản nháp TRẢ LỜI thư này (gửi qua /emails/{id}/reply, giữ đúng luồng). */
       replyToId?: string
+      /** Id yêu cầu chờ duyệt ở máy chủ (PA2 §1.3.5). Có giá trị thì nút Gửi đi qua
+       *  /confirmations/{id}/approve — bấm hai lần vẫn chỉ gửi một lần. */
+      confirmationId?: string
     }
   // --- Generative widgets (UC014/015/016) — render bento tương tác ---
   | {
@@ -94,18 +97,19 @@ export type AutopilotStep = {
 /** Ra quyết định cho 1 thư dựa trên priority / category / người gửi. */
 function decideAutopilot(e: Email): { action: AutopilotAction; reason: string; risky: boolean } {
   const isBot = /(noreply|no-reply|notification|donotreply|do-not-reply)/i.test(e.senderEmail)
-  if (e.priority === 'action') {
+  if (e.status === 'Todo') {
     return isBot
       ? { action: 'flag', reason: 'Việc cần làm → gắn sao để bạn không quên', risky: false }
       : { action: 'reply', reason: 'Cần bạn phản hồi → Mèo đã soạn sẵn nháp', risky: true }
   }
   if (e.category === 'terra' || e.label === 'Bản tin')
     return { action: 'archive', reason: 'Bản tin định kỳ → lưu trữ cho gọn', risky: false }
-  if (e.priority === 'waiting')
+  if (e.status === 'Waiting')
     return { action: 'keep', reason: 'Đang chờ phản hồi → giữ lại theo dõi', risky: false }
   if (e.category === 'sky' || e.label === 'Deploy')
     return { action: 'archive', reason: 'Thông báo hệ thống đã cũ → lưu trữ', risky: false }
-  if (e.priority === 'fyi')
+  // Không mang tính công việc (cả hai trục đều trống) → chỉ để biết.
+  if (!e.status)
     return { action: 'markRead', reason: 'Chỉ để bạn biết → đánh dấu đã đọc', risky: false }
   return { action: 'keep', reason: 'Cần bạn xem kỹ → giữ lại', risky: false }
 }
@@ -257,11 +261,11 @@ export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   if (/(trieu|triage|uu tien|sap xep)/.test(q)) {
     const unread = emails.filter((e) => e.unread)
     if (!unread.length) return { kind: 'text', text: 'Hộp thư đã sạch — không còn thư chưa đọc 🎉' }
-    const isHigh = (e: Email) => e.priority === 'action' || e.starred
+    const isHigh = (e: Email) => e.priority === 'High' || e.status === 'Todo' || e.starred
     const suggestOf = (e: Email) =>
-      e.priority === 'action'
+      e.status === 'Todo'
         ? 'Trả lời / xử lý ngay'
-        : e.priority === 'waiting'
+        : e.status === 'Waiting'
           ? 'Đang chờ phản hồi'
           : 'Đọc nhanh khi rảnh'
     const toItem = (e: Email) => ({

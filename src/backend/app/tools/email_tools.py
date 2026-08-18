@@ -27,6 +27,7 @@ from app.tools.schemas import (
     ListLabelsInput, ListLabelsOutput,
 )
 from app.core import labeling
+from app.core.scope import cutoff_iso, scope_note
 
 _SYSTEM_LABELS = {"UNREAD", "STARRED", "INBOX", "IMPORTANT", "SPAM", "TRASH"}
 
@@ -82,9 +83,11 @@ async def categorize_emails(inp: CategorizeEmailsInput, ctx: RequestContext) -> 
     (Học tập / Công việc / Tài chính / Mạng xã hội / Mua sắm & Ưu đãi / Cập nhật & Hệ thống /
     Cá nhân). CHỈ ĐỀ XUẤT — không áp nhãn ngay; người dùng duyệt/sửa rồi mới áp (human-in-the-loop).
     Đây là tool ĐỌC, chạy tất định (0 quota), nhanh."""
+    # NFR-SCO-01: phân loại là tác vụ AI quét nội dung SẴN CÓ → giới hạn theo gói.
     emails, _ = await asyncio.to_thread(
         mail.list_messages, ctx.email_provider, ctx.access_token,
         q=(inp.query or None), max_results=inp.limit,
+        scan_after=cutoff_iso(ctx.tier, days=ctx.scan_days),
     )
     items: list[CategorizedItem] = []
     summary: dict[str, int] = {}
@@ -113,11 +116,19 @@ async def semantic_search(inp: SemanticSearchInput, ctx: RequestContext) -> Sear
     from app.core.embeddings import embed_query, embed_texts, rank_by_similarity
 
     # 1) Lấy nhóm ứng viên = các thư GẦN NHẤT (re-rank tại chỗ, không cần index trước)
+    # NFR-SCO-01: tìm theo ngữ nghĩa là tác vụ AI quét nội dung SẴN CÓ → giới hạn theo gói.
     emails, _ = await asyncio.to_thread(
         mail.list_messages, ctx.email_provider, ctx.access_token, max_results=inp.pool,
+        scan_after=cutoff_iso(ctx.tier, days=ctx.scan_days),
     )
     if not emails:
-        return SearchEmailsOutput(success=True, message="Hộp thư trống.", data=[], total_found=0)
+        # Rỗng ở đây có thể vì hộp thư trống THẬT, mà cũng có thể vì thư nằm ngoài cửa sổ
+        # của gói. Nói rõ ra, chứ báo "hộp thư trống" cho người có 2000 thư là báo sai.
+        return SearchEmailsOutput(
+            success=True,
+            message=f"Không có thư nào trong phạm vi quét. {scope_note(ctx.tier)}",
+            data=[], total_found=0,
+        )
 
     # 2) Đổi câu hỏi + (tiêu đề — snippet) từng thư thành vector rồi xếp theo độ gần nghĩa.
     #    embed chạy blocking → đẩy sang thread như mọi lời gọi mạng khác ở file này.

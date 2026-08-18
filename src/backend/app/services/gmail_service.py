@@ -66,6 +66,7 @@ import hashlib
 
 from app.core.kv import kv
 from app.core.limits import provider_slot  # trần số lệnh gọi Gmail song song toàn tiến trình
+from app.core.breaker import guard_provider  # Gmail sập kéo dài → ngắt hẳn, hỏng nhanh thay vì chờ lâu
 
 _CACHE_TTL = 60  # giây
 
@@ -179,6 +180,7 @@ def list_messages(
     page_token: str | None = None,
     max_results: int = 30,
     bypass_cache: bool = False,
+    scan_after: str | None = None,   # ngày ISO 'YYYY-MM-DD' — mốc sớm nhất được quét
 ) -> tuple[list[Email], str | None]:
     """Lấy danh sách thư theo THƯ MỤC + LỌC + PHÂN TRANG, dịch sang Email.
     Trả về (danh_sách_Email, cursor_trang_kế) — cursor None nghĩa là hết thư.
@@ -189,7 +191,8 @@ def list_messages(
     """
     # CACHE: khoá gồm ĐỦ tiêu chí (kể cả lọc + trang) để không trả nhầm kết quả cũ.
     cache_key = ("list", access_token, folder, q or "",
-                 bool(unread), bool(starred), bool(attachment), page_token or "")
+                 bool(unread), bool(starred), bool(attachment), page_token or "",
+                 scan_after or "")
     # bypass_cache=True (nút "Làm mới") → KHÔNG đọc cache, ép hỏi Gmail lấy bản mới nhất.
     if not bypass_cache:
         cached = _cache_get(cache_key)
@@ -203,6 +206,11 @@ def list_messages(
 
     # Gom các toán tử lọc nhanh → ghép vào q (Gmail cho phép kèm cùng labelIds).
     extra = []
+    # NFR-SCO-01: cửa sổ quét theo gói, vd `after:2026/05/09`. Ghép vào `extra` nên nó
+    # tự có mặt ở CẢ BA nhánh dựng truy vấn bên dưới — thêm riêng từng nhánh thì kiểu gì
+    # cũng sót một chỗ, và chỗ sót đó lặng lẽ quét quá phạm vi.
+    if scan_after:
+        extra.append(f"after:{scan_after.replace('-', '/')}")
     if unread:
         extra.append("is:unread")
     if starred:
@@ -230,7 +238,7 @@ def list_messages(
     # NFR-Scalability: xin SUẤT gọi nhà cung cấp. Mỗi request bắn 8 lệnh song song;
     # không có trần toàn cục thì 50 người vào cùng lúc = 400 kết nối → Gmail trả 429
     # hàng loạt và mọi người cùng hỏng. Hết suất thì xếp hàng, quá lâu thì báo bận.
-    with provider_slot(), httpx.Client(timeout=15, limits=http_limits) as client:
+    with provider_slot(), guard_provider(), httpx.Client(timeout=15, limits=http_limits) as client:
         # B1: lấy DANH SÁCH id thư (Gmail chỉ trả id) + token trang kế (nếu còn).
         listing = client.get(GMAIL_LIST, headers=headers, params=params)
         listing.raise_for_status()

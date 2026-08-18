@@ -24,6 +24,12 @@ class Subscription(Base):
     tier: Mapped[str] = mapped_column(String, default="free")     # 'free' | 'pro'
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # NFR-SCO-01 — cửa sổ quét CHỐT theo từng người, không đọc lại từ file cấu hình.
+    # Đọc lại từ cấu hình thì sửa bảng giá một cái là phạm vi của mọi người dùng hiện
+    # hữu đổi theo, kể cả người đã trả tiền cho mức cũ. Khớp cột `mailboxScopeDays`
+    # mà PA2 §1.5.5 đã mô tả.
+    mailbox_scope_days: Mapped[int] = mapped_column(Integer, default=90)
+
     day_key: Mapped[str] = mapped_column(String, default="")       # 'YYYY-MM-DD' — kỳ ngày hiện tại
     tokens_today: Mapped[int] = mapped_column(Integer, default=0)
     month_key: Mapped[str] = mapped_column(String, default="")     # 'YYYY-MM'

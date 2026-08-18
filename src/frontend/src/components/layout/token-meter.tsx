@@ -35,7 +35,14 @@ export function TokenMeter({ status, onUpgrade, compact = false }: {
   return (
     <button
       onClick={onUpgrade}
-      title={`Gói ${status.tierLabel} — đã dùng ${status.daily.used.toLocaleString('vi-VN')} / ${status.daily.limit.toLocaleString('vi-VN')} token hôm nay. Bấm để xem các gói.`}
+      title={
+        `Gói ${status.tierLabel} — đã dùng ${status.daily.used.toLocaleString('vi-VN')} / ` +
+        `${status.daily.limit.toLocaleString('vi-VN')} token hôm nay.
+` +
+        `Trợ lý đọc ${status.scanDays} ngày thư gần nhất; thư cũ hơn vẫn tìm được bằng từ khoá.
+` +
+        `Bấm để xem các gói.`
+      }
       className={cn(
         'group flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-secondary/40 px-2.5 py-1.5',
         'transition-all hover:border-active/50 hover:bg-secondary active:scale-95',
@@ -62,8 +69,14 @@ export function TokenMeter({ status, onUpgrade, compact = false }: {
         )}
       </span>
 
-      <span className="hidden text-[10px] font-medium uppercase tracking-wider text-muted-foreground group-hover:text-active sm:inline">
-        {status.tierLabel}
+      {/* FR-02.7 — chỉ báo phạm vi xử lý AI. Phải HIỆN RA, không nằm trong tooltip:
+          người dùng cần biết trợ lý đọc tới đâu TRƯỚC khi hỏi, chứ không phải sau khi
+          nhận một câu trả lời thiếu thư mà không hiểu vì sao. */}
+      <span className="hidden flex-col items-start gap-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground group-hover:text-active sm:flex">
+        <span>{status.tierLabel}</span>
+        <span className="font-mono tracking-normal tabular-nums normal-case opacity-80">
+          quét {status.scanDays} ngày
+        </span>
       </span>
     </button>
   )

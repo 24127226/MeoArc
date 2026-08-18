@@ -91,6 +91,37 @@ class Settings(BaseSettings):
     # web_thread_pool ← WEB_THREAD_POOL : số luồng cho các route đồng bộ. FastAPI mặc
     #   định 40; route của mình chờ I/O lâu (Gmail ~2.5s) nên cần rộng hơn.
     web_thread_pool: int = 96
+    # web_concurrency ← WEB_CONCURRENCY : số tiến trình uvicorn đang chạy. Semaphore
+    #   giới hạn lệnh gọi ra ngoài nằm TRONG từng tiến trình, nên chạy 4 worker mà
+    #   giữ nguyên trần 32 thì thực tế thành 128 — vượt gấp 4 ý định. Khai báo số
+    #   worker ở đây để app tự chia trần cho đúng.
+    web_concurrency: int = 1
+
+    # auto_create_tables ← AUTO_CREATE_TABLES : bật thì lúc khởi động app tự tạo bảng
+    #   còn thiếu (tiện cho máy dev và cho test). Ở môi trường THẬT nên đặt false:
+    #   cấu trúc database chỉ được đổi khi có người chạy `alembic upgrade`, không đổi
+    #   lén lúc khởi động. Alembic mới là nguồn sự thật của schema.
+    auto_create_tables: bool = True
+
+    # sentry_dsn ← SENTRY_DSN : điền vào là lỗi được gửi kèm ngữ cảnh lên Sentry;
+    #   để trống thì ghi log nội bộ như cũ (0 phụ thuộc, đúng kiểu cắm-rút của kv.py).
+    #   Bộ lọc trong app/core/errors.py che mọi trường có thể chứa nội dung thư.
+    sentry_dsn: str = ""
+    # app_env ← APP_ENV : nhãn môi trường ('development'/'staging'/'production'),
+    #   gắn vào báo cáo lỗi để phân biệt lỗi máy dev với lỗi người dùng thật gặp.
+    app_env: str = "development"
+
+    # ── Dọn dữ liệu cũ (data retention) — cùng tinh thần "trần + TTL" ở NFR.md ──
+    # Ba bảng chỉ thêm không bớt: sessions, audit_logs, notifications.
+    # maintenance_interval_min ← MAINTENANCE_INTERVAL_MIN : chu kỳ chạy dọn (phút).
+    #   Đặt 0 để TẮT hẳn việc dọn tự động.
+    maintenance_interval_min: int = 60
+    # audit_retention_days ← AUDIT_RETENTION_DAYS : giữ nhật ký thao tác bao nhiêu ngày.
+    #   Nhật ký là bằng chứng human-in-the-loop → mặc định giữ khá lâu.
+    audit_retention_days: int = 180
+    # notification_retention_days ← NOTIFICATION_RETENTION_DAYS : chỉ xoá thông báo
+    #   ĐÃ ĐỌC và cũ hơn ngần này ngày; chưa đọc thì giữ nguyên dù cũ tới đâu.
+    notification_retention_days: int = 30
 
     # redis_url ← REDIS_URL : đặt (vd redis://localhost:6379/0) → cache + rate-limit chạy
     #   trên Redis (chia sẻ được giữa nhiều worker khi scale). ĐỂ TRỐNG = in-memory như cũ.

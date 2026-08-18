@@ -64,6 +64,7 @@ def _row_to_email(row: StoredEmail) -> Email:
         label=row.ai_label,
         attachments=atts,                  # type: ignore[arg-type]
         priority=row.ai_priority,          # type: ignore[arg-type]
+        status=row.ai_status,              # type: ignore[arg-type]
         tldr=row.ai_tldr,
         folder=row.folder,                 # type: ignore[arg-type]
         threadId=row.thread_id,
@@ -97,10 +98,8 @@ def upsert(db: Session, user_id: int, provider: str, email: Email, *,
     row.preview = email.preview
     row.is_read = (not email.unread)
     row.starred = email.starred
-    row.ai_category = email.category
-    row.ai_label = email.label
-    if email.priority is not None:
-        row.ai_priority = email.priority
+    # PA2 §1.3.9 — ba nhãn đi qua MỘT cửa, không gán lẻ từng cột.
+    row.apply_ai_labels(email.category, email.priority, email.status, label=email.label)
     if email.tldr is not None:
         row.ai_tldr = email.tldr
     row.time_s = email.time

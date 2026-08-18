@@ -38,7 +38,7 @@ from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.models.session import AuthSession
-from app.repo import session_repo, audit_repo
+from app.repo import session_repo, audit_repo, subscription_repo, connected_account_repo
 from app.services import auth_service, auth_service_ms
 from app.tools.registry import tool_registry, RequestContext
 import app.tools.email_tools  # noqa: F401 — import ĐỂ các tool tự đăng ký vào registry
@@ -84,20 +84,33 @@ def _resolve_ctx() -> RequestContext:
         ).first()
         if s is None:
             raise RuntimeError("Chưa có phiên đăng nhập nào — hãy đăng nhập trên web trước đã.")
-        # ĐA PROVIDER: token MS cất chung cột google_* → phân nhánh làm mới theo provider phiên.
-        provider = session_repo.get_provider(db, s.token)
-        token = s.google_access_token
-        if (
-            s.google_token_expiry
-            and s.google_token_expiry <= _utcnow() + timedelta(seconds=60)
-            and s.google_refresh_token
-        ):
+        # Lấy token từ KẾT NỐI hộp thư — cùng nguồn với web (deps.get_gmail_token).
+        # Hai đường đọc hai nơi thì mỗi bên tự làm mới một bản token, lệch nhau, và lỗi
+        # chỉ lộ ra sau vài giờ khi một bên hết hạn.
+        acc = connected_account_repo.primary_for(db, s.user_id)
+        if acc is not None:
+            provider, token = acc.provider, acc.access_token
+            han, refresh = acc.token_expiry, acc.refresh_token
+        else:
+            provider = session_repo.get_provider(db, s.token)
+            token, han, refresh = s.google_access_token, s.google_token_expiry, s.google_refresh_token
+
+        if han and han <= _utcnow() + timedelta(seconds=60) and refresh:
             if provider == "microsoft":
-                token, expires_in = auth_service_ms.refresh_access_token(s.google_refresh_token)
+                token, expires_in = auth_service_ms.refresh_access_token(refresh)
             else:
-                token, expires_in = auth_service.refresh_access_token(s.google_refresh_token)
-            session_repo.update_access_token(db, s, token, expires_in)
-        ctx = RequestContext(user_id=str(s.user_id), access_token=token, email_provider=provider)
+                token, expires_in = auth_service.refresh_access_token(refresh)
+            if acc is not None:
+                connected_account_repo.update_access_token(
+                    db, acc, token, _utcnow() + timedelta(seconds=int(expires_in or 3600)))
+            else:
+                session_repo.update_access_token(db, s, token, expires_in)
+        # Agent NGOÀI (Claude Desktop…) chịu đúng cửa sổ quét của gói như người dùng web —
+        # nếu không thì đi cửa MCP là lách được giới hạn.
+        _sub = subscription_repo.get_or_create(db, s.user_id)
+        ctx = RequestContext(user_id=str(s.user_id), access_token=token,
+                             email_provider=provider, tier=_sub.tier,
+                             scan_days=subscription_repo.scan_days_of(_sub))
         _CTX_CACHE.update(ctx=ctx, ts=now)
         return ctx
     finally:
