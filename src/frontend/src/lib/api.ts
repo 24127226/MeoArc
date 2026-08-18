@@ -100,6 +100,8 @@ export type SubscriptionStatus = {
   tier: string
   tierLabel: string
   isActive: boolean
+  /** FR-02.7 — số ngày thư gần nhất mà trợ lý được phép quét, theo gói (NFR-08). */
+  scanDays: number
   daily: TokenBucket
   monthly: TokenBucket
 }
@@ -110,6 +112,8 @@ export type Plan = {
   label: string
   tagline: string
   priceVnd: number
+  /** Cửa sổ quét hộp thư của gói này (ngày). */
+  scanDays: number
   dailyTokens: number
   monthlyTokens: number
   features: string[]
@@ -158,6 +162,13 @@ export interface MeoArcApi {
   plans(): Promise<Plan[]>
   /** Đổi gói. Đồ án: không nối cổng thanh toán, đổi thẳng để trình bày luồng. */
   setTier(tier: string): Promise<SubscriptionStatus>
+
+  // Human-in-the-loop có trạng thái (PA2 §1.3.5)
+  /** Duyệt một hành động không hoàn tác. Gọi lại lần nữa KHÔNG chạy lại — máy chủ
+   *  trả về kết quả của lần đầu kèm `already: true`. */
+  approveConfirmation(id: string): Promise<{ status: string; already: boolean; result?: unknown }>
+  /** Từ chối — hành động không được chạy. */
+  rejectConfirmation(id: string): Promise<{ status: string; already: boolean }>
 
   // Agent — UC007 + mọi AI skill (008/009/014/015/016/017)
   sendAgentMessage(
@@ -240,8 +251,9 @@ function filterEmails(all: Email[], q: EmailQuery): EmailListResult {
 const MOCK_PLANS: Plan[] = [
   {
     id: 'free', label: 'Miễn phí', tagline: 'Đủ dùng cho việc học và hộp thư cá nhân',
-    priceVnd: 0, dailyTokens: 100_000, monthlyTokens: 2_000_000,
+    priceVnd: 0, scanDays: 90, dailyTokens: 100_000, monthlyTokens: 2_000_000,
     features: [
+      'Trợ lý quét 90 ngày thư gần nhất',
       'Khoảng 20–40 lượt hỏi trợ lý mỗi ngày',
       'Tóm tắt, phân loại 7 nhóm, soạn thư',
       'Kết nối 1 hộp thư (Gmail hoặc Outlook)',
@@ -249,8 +261,9 @@ const MOCK_PLANS: Plan[] = [
   },
   {
     id: 'pro', label: 'Pro', tagline: 'Cho người dùng thư nhiều mỗi ngày',
-    priceVnd: 99_000, dailyTokens: 2_000_000, monthlyTokens: 40_000_000,
+    priceVnd: 99_000, scanDays: 180, dailyTokens: 2_000_000, monthlyTokens: 40_000_000,
     features: [
+      'Trợ lý quét 180 ngày thư gần nhất',
       'Gấp 20 lần hạn mức Miễn phí',
       'Kết nối đồng thời Gmail và Outlook',
       'Kỹ năng nâng cao: Digest, Triage, Brief cuộc họp',
@@ -259,7 +272,7 @@ const MOCK_PLANS: Plan[] = [
   },
   {
     id: 'max', label: 'Pro Max', tagline: 'Dùng thoải mái, cho khối lượng công việc lớn',
-    priceVnd: 299_000, dailyTokens: 10_000_000, monthlyTokens: 200_000_000,
+    priceVnd: 299_000, scanDays: 365, dailyTokens: 10_000_000, monthlyTokens: 200_000_000,
     features: [
       'Gấp 100 lần hạn mức Miễn phí',
       'Không giới hạn số hộp thư kết nối',
@@ -269,8 +282,10 @@ const MOCK_PLANS: Plan[] = [
   },
 ]
 
+const mockApproved = new Set<string>()   // id đã duyệt/từ chối — chặn bấm trùng ở mock
+
 let mockSub: SubscriptionStatus = {
-  tier: 'free', tierLabel: 'Miễn phí', isActive: true,
+  tier: 'free', tierLabel: 'Miễn phí', isActive: true, scanDays: 90,
   daily: { used: 34_500, limit: 100_000, remaining: 65_500 },
   monthly: { used: 612_000, limit: 2_000_000, remaining: 1_388_000 },
 }
@@ -346,6 +361,19 @@ export function createMockApi(): MeoArcApi {
     async subscription() {
       return mockSub
     },
+    // Mock mô phỏng ĐÚNG hành vi chống bấm trùng, nếu không thì bản mock lại che
+    // mất chính cái lỗi mà tính năng này sinh ra để vá.
+    async approveConfirmation(id: string) {
+      if (mockApproved.has(id)) return { status: 'approved', already: true, result: { success: true } }
+      mockApproved.add(id)
+      await delay(300)
+      return { status: 'approved', already: false, result: { success: true } }
+    },
+    async rejectConfirmation(id: string) {
+      const moi = !mockApproved.has(id)
+      mockApproved.add(id)
+      return { status: 'rejected', already: !moi }
+    },
     async plans() {
       return MOCK_PLANS
     },
@@ -355,6 +383,7 @@ export function createMockApi(): MeoArcApi {
         ...mockSub,
         tier: p.id,
         tierLabel: p.label,
+        scanDays: p.scanDays,
         daily: { ...mockSub.daily, limit: p.dailyTokens, remaining: Math.max(0, p.dailyTokens - mockSub.daily.used) },
         monthly: { ...mockSub.monthly, limit: p.monthlyTokens, remaining: Math.max(0, p.monthlyTokens - mockSub.monthly.used) },
       }
@@ -490,6 +519,10 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
         .items,
 
     subscription: () => req<SubscriptionStatus>('/subscription'),
+    approveConfirmation: (id: string) =>
+      req<{ status: string; already: boolean; result?: unknown }>(`/confirmations/${id}/approve`, { method: 'POST' }),
+    rejectConfirmation: (id: string) =>
+      req<{ status: string; already: boolean }>(`/confirmations/${id}/reject`, { method: 'POST' }),
     plans: async () => (await req<{ plans: Plan[] }>('/subscription/plans')).plans,
     setTier: (tier) => post<SubscriptionStatus>('/subscription/tier', { tier }),
 

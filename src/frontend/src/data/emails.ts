@@ -4,8 +4,11 @@ export type Category = 'moss' | 'sea' | 'sun' | 'cherry' | 'sky' | 'terra' | 'wi
 
 export type Attachment = { name: string; size: string }
 
-/** Độ ưu tiên do AI Triage (UC015) gán sẵn — hiển thị badge trên card. */
-export type Priority = 'action' | 'waiting' | 'fyi'
+/** Ba trục nhãn AI theo PA1 §4.2.9. Priority và Status CHỈ có với thư mang tính
+ *  công việc; thư còn lại để `null` — `null` nghĩa là KHÔNG PHẢI việc, khác hẳn
+ *  'Low'/'Done' (đã xét rồi kết luận việc nhẹ / đã xong). */
+export type Priority = 'High' | 'Medium' | 'Low'
+export type TaskStatus = 'Todo' | 'Waiting' | 'Done'
 
 export type Email = {
   id: string
@@ -26,7 +29,8 @@ export type Email = {
   html?: string | null
   attachments?: Attachment[]
   /** AI Triage (UC015): action=cần bạn xử lý · waiting=đang đợi · fyi=để biết */
-  priority?: Priority
+  priority?: Priority | null
+  status?: TaskStatus | null
   /** Tóm tắt 1 dòng do AI quét sẵn (UC008) — TL;DR cho card & smart card. */
   tldr?: string
   /** Thư mục (mặc định inbox) — cho nav trái lọc thật. */
@@ -56,7 +60,8 @@ export const emails: Email[] = [
     starred: true,
     category: 'moss',
     label: 'Học tập',
-    priority: 'action',
+    priority: 'Medium',
+    status: 'Todo',
     tldr: 'Hạn nộp SRS hoàn chỉnh: 23:59 thứ Sáu, đặt tên Nhom07_SRS_v1.pdf.',
     attachments: [
       { name: 'Mau_SRS_Intro2SE.docx', size: '248 KB' },
@@ -82,7 +87,8 @@ export const emails: Email[] = [
     starred: false,
     category: 'sea',
     label: 'Công việc',
-    priority: 'action',
+    priority: 'Medium',
+    status: 'Todo',
     tldr: 'PR #12 bị "Changes requested" — 2 bình luận cần bạn xử lý.',
   },
   {
@@ -104,7 +110,6 @@ export const emails: Email[] = [
     starred: false,
     category: 'sun',
     label: 'Cập nhật & Hệ thống',
-    priority: 'fyi',
     tldr: 'Đã dùng 64% hạn mức Gemini API tháng này — chưa cần hành động.',
   },
   {
@@ -126,7 +131,8 @@ export const emails: Email[] = [
     starred: true,
     category: 'cherry',
     label: 'Cá nhân',
-    priority: 'waiting',
+    priority: 'Medium',
+    status: 'Waiting',
     tldr: 'Khoa nhận UC005/UC006; tối nay push nhánh feat/search chờ bạn review. Có hẹn cuối tuần họp chia phần MCP.',
   },
   {
@@ -148,7 +154,6 @@ export const emails: Email[] = [
     starred: false,
     category: 'sun',
     label: 'Cập nhật & Hệ thống',
-    priority: 'fyi',
     tldr: 'Preview nhánh main build xong (38s) — sẵn sàng kiểm tra trước khi promote.',
   },
   {
@@ -170,7 +175,6 @@ export const emails: Email[] = [
     starred: false,
     category: 'sun',
     label: 'Cập nhật & Hệ thống',
-    priority: 'fyi',
     tldr: 'Bản tin UX: màu ấm, serif có trọng lượng, thẩm mỹ "old-money" lên ngôi 2026.',
   },
 
