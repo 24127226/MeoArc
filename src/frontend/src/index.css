@@ -111,12 +111,18 @@
      Rút từ khung hình đầu trang giới thiệu: nền là TÍM ĐÊM (không phải đen thuần —
      đúng như đỉnh trời trong ảnh), vệt sáng cyan #87F5F5 làm trạng thái, tím
      #977DFF làm hành động, hồng chân trời #FF6FB5 làm cảnh báo, amber làm nhấn. */
-  --background: #0A0718; /* nền trang — tím đêm */
-  --list: #120C2C; /* dải Hộp thư — tím đậm, sáng hơn nền 1 bậc */
-  --surface: #120C2C;
-  --elevated: #1D1444; /* card nổi */
-  --panel: #0D0920; /* nền panel AI */
-  --rail: #05030F; /* nav — tầng tối nhất */
+  /* NỀN HẠ SÂU cho neon (2026-08).
+     Bản trước là tím đêm #0A0718 — đủ tối để đọc, nhưng KHÔNG đủ tối để phát sáng.
+     Neon là hiện tượng tương phản: một nguồn sáng bão hoà trên nền gần như đen.
+     Nền càng ngả tím thì ánh sáng cyan/magenta càng bị hoà vào nền, và kết quả là
+     "nhiều màu" chứ không phải "phát sáng".
+     Giữ nguyên toàn bộ màu nhấn bên dưới — chúng đã đúng; chỉ hạ nền để chúng nổi. */
+  --background: #05060D; /* nền trang — gần đen, ngả lam rất nhẹ */
+  --list: #0A0B16; /* dải Hộp thư — sáng hơn nền đúng 1 bậc */
+  --surface: #0A0B16;
+  --elevated: #121423; /* card nổi */
+  --panel: #07080F; /* nền panel AI — tối hơn danh sách để chat lùi về sau */
+  --rail: #030409; /* nav — tầng tối nhất */
 
   /* Chữ ngọc trai (Holographic Pearl) trên nền tím đêm */
   --foreground: #F5F7FF;
@@ -1866,4 +1872,74 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .cat-bob, .cat-hop, .cat-stretch { animation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   BỘ NEON (2026-08)
+   Neon không phải "màu tối". Neon là bốn thứ cùng lúc: nền gần đen · nguồn
+   sáng bão hoà · ánh sáng RỈ RA ngoài viền · cấu trúc hình học.
+   Nền đã hạ ở khối .dark. Bốn tiện ích dưới đây lo ba thứ còn lại.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Lưới mảnh — không để nhìn thấy, để CẢM THẤY.
+   Mắt không đọc ra từng đường, nhưng não nhận ra "đây là môi trường kỹ thuật".
+   Chính chi tiết này phân biệt bảng điều khiển với tờ giấy. */
+.grid-faint {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 78%);
+}
+
+/* Chấm nhịp — dấu hiệu tối giản nhất để nói "hệ thống đang sống".
+   Một chấm thở còn thuyết phục hơn một dòng chữ "đang hoạt động". */
+.pulse-dot {
+  width: 5px; height: 5px; border-radius: 999px;
+  background: var(--spark);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--spark) 70%, transparent);
+  animation: pulse-dot 2.4s ease-out infinite;
+  flex: none;
+}
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--spark) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Viền phát sáng — ĐÂY là kỹ thuật cốt lõi của neon.
+   Hai lớp bóng: một đường viền 1px sắc nét, và một quầng nhoè TRÀN RA NGOÀI.
+   Thiếu lớp thứ hai thì chỉ là cái viền màu; có nó mới thành đèn.
+   Màu lấy từ --tint nên mỗi thẻ tự phát đúng màu nội dung của nó. */
+.neon-edge {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 42%, transparent);
+  box-shadow:
+    inset 0 0 18px -10px color-mix(in srgb, var(--tint) 55%, transparent),
+    0 0 22px -6px color-mix(in srgb, var(--tint) 45%, transparent);
+}
+.neon-edge-strong {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 75%, transparent);
+  box-shadow:
+    inset 0 0 22px -8px color-mix(in srgb, var(--tint) 65%, transparent),
+    0 0 34px -4px color-mix(in srgb, var(--tint) 62%, transparent);
+}
+
+/* Chip nhãn kiểu ống neon: rỗng ruột, viền sáng, chữ cùng màu.
+   Thay cho chip nền pastel đặc — nền đặc hút ánh sáng, ống neon phát ánh sáng. */
+.neon-chip {
+  --tint: var(--spark);
+  background: color-mix(in srgb, var(--tint) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tint) 38%, transparent);
+  color: color-mix(in srgb, var(--tint) 88%, var(--foreground));
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--tint) 60%, transparent);
+}
+
+/* Chỉ áp ở chế độ tối. Trên nền sáng, quầng nhoè biến thành vệt bẩn xám. */
+:root:not(.dark) .neon-edge,
+:root:not(.dark) .neon-edge-strong { box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot { animation: none; }
 }

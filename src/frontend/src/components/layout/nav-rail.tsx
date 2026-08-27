@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Inbox,
   Send,
@@ -30,108 +30,45 @@ const items: NavItem[] = [
 
 const COLLAPSE_KEY = 'meoarc:navCollapsed'
 
-/** Đồng hồ CƠ Quiet Luxury — Trả lại mặt nền dìm khối và inset shadow nguyên bản của Claude */
-function MechanicalClock({ collapsed }: { collapsed: boolean }) {
-  const [delays] = useState(() => {
-    const now = new Date()
-    const s = now.getSeconds() + now.getMilliseconds() / 1000
-    const m = now.getMinutes() * 60 + s
-    const h = (now.getHours() % 12) * 3600 + m
-    return { second: -s, minute: -m, hour: -h }
-  })
+/** Ô trạng thái hệ thống — thay cho đồng hồ cơ mạ vàng ở bản trước.
+ *
+ *  Đồng hồ đó là món chế tác đẹp, nhưng nó nói "xưởng đồng hồ Thuỵ Sĩ" trong khi sản
+ *  phẩm là một agent. Đổi nhãn không cứu được: hình dáng mặt số cơ khí và ánh vàng
+ *  tự nó đã kể sai câu chuyện.
+ *
+ *  Ô này giữ nguyên vị trí và vai trò (thông tin nền, cuối thanh điều hướng) nhưng nói
+ *  đúng thứ đang chạy: trợ lý còn sống, và giờ hiện tại — dạng monospace, thứ chữ mà
+ *  bảng điều khiển nào cũng dùng.
+ */
+function SystemStatus({ collapsed }: { collapsed: boolean }) {
+  const [gio, setGio] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setGio(new Date()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+  const hhmm = gio.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-  const face = collapsed ? 40 : 52
-  const center = face / 2
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-1.5 py-2" title={`Trợ lý sẵn sàng · ${hhmm}`}>
+        <span className="pulse-dot" aria-hidden />
+        <span className="font-mono text-[9px] tabular-nums text-muted-foreground/45">{hhmm}</span>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col items-center gap-1.5 border-t border-border/20 pt-4 mt-auto mb-2 w-full transition-all duration-300">
-      <div
-        className="relative flex items-center justify-center select-none rounded-full border border-gold/40 shadow-[inset_0_0_8px_rgba(0,0,0,0.5)] transition-all duration-300"
-        style={{ 
-          width: face, 
-          height: face,
-          // Mix màu rail với gỗ mun sẫm chuẩn bài phối màu trong index.css
-          background: 'color-mix(in srgb, var(--rail) 72%, #0a130d)' 
-        }}
-        role="img"
-        aria-label="Đồng hồ"
-        title={new Date().toLocaleTimeString('vi-VN')}
-      >
-        <svg width={face} height={face} viewBox={`0 0 ${face} ${face}`} className="overflow-visible bg-transparent">
-          
-          {/* 12 Vạch số gold mảnh truyền thống */}
-          {Array.from({ length: 12 }).map((_, i) => (
-            <line
-              key={i}
-              x1={center}
-              y1={collapsed ? 3 : 5}
-              x2={center}
-              y2={collapsed ? 5.5 : 8.5}
-              stroke="var(--gold)"
-              strokeWidth={collapsed ? 0.8 : 1.2}
-              opacity="0.75"
-              transform={`rotate(${i * 30} ${center} ${center})`}
-            />
-          ))}
-
-          {/* Kim Giờ (Baton mảnh) */}
-          <line
-            x1={center}
-            y1={center}
-            x2={center}
-            y2={collapsed ? center - 7 : center - 11}
-            stroke="var(--foreground)"
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            style={{
-              transformOrigin: `${center}px ${center}px`,
-              animation: 'clock-sweep 43200s linear infinite',
-              animationDelay: `${delays.hour}s`,
-            } as CSSProperties}
-          />
-
-          {/* Kim Phút (Baton mảnh chỉ) */}
-          <line
-            x1={center}
-            y1={center}
-            x2={center}
-            y2={collapsed ? center - 11 : center - 17}
-            stroke="var(--foreground)"
-            strokeWidth={1.2}
-            strokeLinecap="round"
-            opacity="0.9"
-            style={{
-              transformOrigin: `${center}px ${center}px`,
-              animation: 'clock-sweep 3600s linear infinite',
-              animationDelay: `${delays.minute}s`,
-            } as CSSProperties}
-          />
-
-          {/* Kim Giây (Kim quét cơ khí màu hồng cherry mảnh dẻ) */}
-          <line
-            x1={center}
-            y1={center}
-            x2={center}
-            y2={collapsed ? center - 13 : center - 20}
-            stroke="var(--spark)"
-            strokeWidth={0.8}
-            strokeLinecap="round"
-            style={{
-              transformOrigin: `${center}px ${center}px`,
-              animation: 'clock-sweep 60s linear infinite',
-              animationDelay: `${delays.second}s`,
-            } as CSSProperties}
-          />
-
-          {/* Chốt kim loại gold đồng tâm ở tâm máy */}
-          <circle cx={center} cy={center} r={collapsed ? 1.2 : 1.8} fill="var(--gold)" />
-        </svg>
-      </div>
-      {!collapsed && (
-        <span className="text-[9px] uppercase font-mono tracking-[0.25em] text-muted-foreground/40 animate-in fade-in duration-500">
-          Chronomètre
+    <div className="mx-2 rounded-lg border border-foreground/[0.06] px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/55">
+          <span className="pulse-dot" aria-hidden />
+          Trực tuyến
         </span>
-      )}
+        <span className="font-mono text-[11px] tabular-nums text-[var(--spark)]">{hhmm}</span>
+      </div>
+      <p className="mt-1.5 text-[9px] uppercase tracking-[0.16em] text-muted-foreground/35">
+        Trợ lý sẵn sàng
+      </p>
     </div>
   )
 }
@@ -232,7 +169,7 @@ export function NavRail({
       </div>
 
       {/* Gọi đồng hồ cơ thấu quang an toàn */}
-      <MechanicalClock collapsed={collapsed} />
+      <SystemStatus collapsed={collapsed} />
 
       {/* Đáy: cài đặt + tài khoản */}
       <div className="space-y-2 px-3 border-t border-border/10 pt-4 bg-secondary/5">

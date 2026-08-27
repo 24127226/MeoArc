@@ -155,8 +155,11 @@ function EmailCard({
   onDelete: () => void
 }) {
   const c = CATEGORY[email.category]
+  // Nền thẻ HẠ RẤT SÂU (từ 35 ≈ 21% xuống 14 ≈ 8%).
+  // Nền tô đậm biến thẻ thành khối kẹo pastel: nó HÚT ánh sáng. Neon cần ngược lại —
+  // ruột gần như tối, còn màu dồn hết ra viền và vạch bên trái để PHÁT ra.
   const cardStyle: CSSProperties = {
-    backgroundImage: `linear-gradient(135deg, ${c.bar}35, ${c.bar}0f)`,
+    backgroundImage: `linear-gradient(135deg, ${c.bar}14, transparent 62%)`,
   }
   ;(cardStyle as Record<string, string>)['--tint'] = c.bar
 
@@ -170,8 +173,10 @@ function EmailCard({
         selected
           ? 'shadow-[inset_0_4px_12px_rgba(0,0,0,0.35)] bg-black/20 border-t border-black/30 border-b border-white/5 scale-[0.995]'
           : kbActive
-            ? 'shadow-tint-lg ring-1 ring-active'
-            : 'shadow-[0_2px_6px_rgba(0,0,0,0.12)] border border-white/[0.03] hover:-translate-y-0.5 hover:scale-[1.005] hover:shadow-tint-lg',
+            ? 'neon-edge-strong'
+            // Nghỉ: viền gần như tàng hình. Rê chuột: viền sáng lên và quầng TRÀN RA
+            // ngoài cạnh — đó mới là đèn, chứ viền màu suông thì chỉ là cái khung.
+            : 'border border-white/[0.04] hover:-translate-y-0.5 hover:neon-edge',
       )}
     >
       <span

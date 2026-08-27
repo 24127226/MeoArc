@@ -13,10 +13,18 @@ const STORAGE_KEY = 'meoarc-theme'
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light'
+  // MẶC ĐỊNH TỐI, không theo cài đặt hệ điều hành.
+  //
+  // Không phải chuyện sở thích. Ngôn ngữ thị giác của sản phẩm này là neon, mà neon
+  // là hiện tượng TƯƠNG PHẢN: một nguồn sáng bão hoà trên nền gần như đen. Đặt nó
+  // lên nền sáng thì ánh sáng không còn chỗ để phát ra — chỉ còn lại màu mè.
+  //
+  // Người dùng vẫn đổi sang sáng được trong Cài đặt, và lựa chọn đó được nhớ.
+  // Chỉ có mặc định là đổi: lần đầu vào phải thấy đúng bộ mặt của sản phẩm.
+  if (typeof window === 'undefined') return 'dark'
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'dark'
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

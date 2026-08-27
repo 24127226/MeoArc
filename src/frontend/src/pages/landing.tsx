@@ -17,7 +17,7 @@ import {
   CursorGlow, ScrollProgress, SectionDots, Marquee, AgentDemo, PlayfulLetter, Magnetic,
   GridFloor, BeamSweep, ContourLines, ParticleField,
 } from '@/components/landing/ui'
-import { LetterTale } from '@/components/landing/letter-tale'
+import { LetterTale, JOURNEY_VIDEO } from '@/components/landing/letter-tale'
 
 const NAV_SECTIONS = [
   { id: 'hero', label: 'Mở đầu' },
@@ -708,7 +708,11 @@ export function LandingPage() {
 
       {/* ══ CTA CUỐI — video thuyền giữa biển, có parallax ══ */}
       <section id="start" className="relative flex min-h-[94vh] items-center justify-center overflow-hidden py-24">
-        <VideoBackdrop src="/landing/purple-desert.mp4" poster="/landing/purple-desert.jpg"
+        {/* Video HÀNH TRÌNH LÁ THƯ thay cho cảnh sa mạc.
+            Sa mạc là ẩn dụ đẹp nhưng nói về sự trống trải — sai thông điệp ở đúng chỗ
+            người xem sắp bấm nút. Đoạn hành trình thì cho thấy sản phẩm đang làm việc,
+            và nó khép lại vòng đã mở ở mục "Chuyện một lá thư" phía trên. */}
+        <VideoBackdrop src={JOURNEY_VIDEO} poster="/landing/flower-arc.jpg"
           tint="violet" dim="soft" parallax play="inview" />
         <div className="relative z-10 mx-auto max-w-2xl px-6 text-center">
           <Reveal>

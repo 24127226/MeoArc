@@ -42,7 +42,10 @@ export function AppShell() {
   const [pendingCommand, setPendingCommand] = useState<string | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [activeNav, setActiveNav] = useState('inbox') // thư mục đang chọn (luôn là folder thật)
-  const [aiOpen, setAiOpen] = useState(false)         // MẶC ĐỊNH TẮT: giống Gmail, chỉ hiện chat khi bấm "AI Agent"
+  // MẶC ĐỊNH BẬT. Trước đây tắt cho "giống Gmail" — nhưng giống Gmail là hỏng:
+  // danh sách thư thì Gmail cũng có, thứ Gmail KHÔNG có là trợ lý. Mở app ra mà
+  // không thấy nó thì màn hình đầu tiên không kể được sản phẩm này khác chỗ nào.
+  const [aiOpen, setAiOpen] = useState(true)
   const [chatFocus, setChatFocus] = useState(0)       // đếm số lần bấm tab AI Agent → focus chat
   const { theme, toggleTheme } = useTheme()
 

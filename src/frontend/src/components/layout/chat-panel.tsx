@@ -1281,8 +1281,10 @@ export function ChatPanel({
           }
           
           .dark .wm-title {
-            /* Dark Mode lột xác: Đẩy mạnh lên 38% để sắc trắng bạc ánh kim lộ diện rực rỡ */
-            color: color-mix(in srgb, var(--foreground) 38%, #ffffff);
+            /* HẠ từ 38% xuống 12%. Đây là HÌNH NỀN, không phải nội dung: khung trợ lý
+               giờ mở sẵn nên chữ này nằm ngay sau mọi cuộc hội thoại. Ở 38% nó tranh
+               chỗ với thứ người dùng đang đọc; ở 12% nó làm đúng việc của hình nền. */
+            color: color-mix(in srgb, var(--foreground) 12%, transparent);
             /* Quầng sáng neon bóng bẩy hắt ra từ lòng chữ, giả lập hiệu ứng kim loại bóng loáng phản quang dưới ánh đèn */
             text-shadow: 
               0 0 1px rgba(255, 255, 255, 0.6),
@@ -1305,10 +1307,12 @@ export function ChatPanel({
           }
         `}</style>
 
+        {/* Chữ ký tác giả ĐÃ GỠ khỏi mặt sản phẩm.
+            Khung trợ lý giờ mở sẵn nên đây là thứ ĐẦU TIÊN người dùng nhìn thấy — chỗ đó
+            phải nói sản phẩm làm được gì, không phải ai làm ra nó. Tên tác giả thuộc về
+            trang giới thiệu và tài liệu, không thuộc về nền màn hình làm việc.
+            Giữ lại chữ MEOARC mờ làm hình nền, hạ độ mờ để không tranh chỗ với hội thoại. */}
         <div className="wm-title">MEOARC</div>
-        <div className="wm-sign">
-          <span>Designed by Eugene</span>
-        </div>
       </div>
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
@@ -1334,33 +1338,11 @@ export function ChatPanel({
           <div className="w-full h-[1px] bg-[#000000]/40 shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
         </div>
 
-        {/* ĐỒ HỌA SVG CHUẨN MÃ OTO: Đuôi lớp đa giác nối tiếp, sửa lỗi đè sọc Trắng và chốt khối Tam giác Navy ngoài góc */}
-        <div className="absolute inset-0 pointer-events-none z-0">
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 320 90">
-            <defs>
-              <linearGradient id="french-glow-edge-left" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
-                <stop offset="100%" stopColor="transparent" />
-              </linearGradient>
-              <linearGradient id="french-glow-edge-right" x1="100%" y1="0%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
-                <stop offset="100%" stopColor="transparent" />
-              </linearGradient>
-            </defs>
-
-            {/* CÁNH TRÁI: Xuất phát từ góc trên cùng, phủ kín góc bằng Navy và tăng độ dày Trắng-Đỏ */}
-            <path d="M 0,0 L 25,0 L 75,90 L 0,90 Z" fill="#0b1d3a" opacity="0.95" />
-            <path d="M 25,0 L 60,0 L 110,90 L 75,90 Z" fill="#ffffff" opacity="1" />
-            <path d="M 60,0 L 95,0 L 145,90 L 110,90 Z" fill="#a62b2b" opacity="0.95" />
-            <path d="M 95,0 L 115,0 L 165,90 L 145,90 Z" fill="url(#french-glow-edge-left)" opacity="0.35" />
-
-            {/* CÁNH PHẢI: Đối xứng trục tuyệt đối qua tâm diện (320px) */}
-            <path d="M 320,0 L 295,0 L 245,90 L 320,90 Z" fill="#0b1d3a" opacity="0.95" />
-            <path d="M 295,0 L 260,0 L 210,90 L 245,90 Z" fill="#ffffff" opacity="1" />
-            <path d="M 260,0 L 225,0 L 175,90 L 210,90 Z" fill="#a62b2b" opacity="0.95" />
-            <path d="M 225,0 L 205,0 L 155,90 L 175,90 Z" fill="url(#french-glow-edge-right)" opacity="0.35" />
-          </svg>
-        </div>
+        {/* Lưới mảnh + vệt sáng: ngôn ngữ bảng điều khiển, thay cho dải sơn huy hiệu Pháp.
+            Dải cũ (navy/trắng/đỏ + serif + "Maison de L'intellect") nói về thư quán thế kỷ 19,
+            trong khi thứ đang chạy bên dưới là một agent. Hai câu chuyện chỏi nhau ngay trên
+            cùng một màn hình, và người xem cảm nhận được dù không gọi tên ra được. */}
+        <div className="grid-faint pointer-events-none absolute inset-0 z-0 opacity-70" />
 
         {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
         <div className="relative flex items-center justify-between w-full z-10">
@@ -1397,17 +1379,12 @@ export function ChatPanel({
             }}
           />
         </div>
-            <h2
-              className="relative font-serif text-[23px] font-black uppercase text-foreground leading-none tracking-[0.4em] transition-all duration-700 group-hover:scale-[1.02] group-hover:tracking-[0.44em]"
-              style={{
-                textShadow: '0 1px 1px rgba(255,255,255,0.22), inset 0 1px 2px rgba(0,0,0,0.28)',
-                letterSpacing: '0.4em'
-              }}
-            >
+            <h2 className="relative text-[19px] font-semibold leading-none tracking-tight text-foreground">
               Trợ lý MeoArc
             </h2>
-            <p className="relative mt-2.5 text-[8.5px] font-serif tracking-[0.28em] italic text-muted-foreground/50">
-              Maison de L'intellect
+            <p className="relative mt-2 flex items-center justify-center gap-1.5 text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/60">
+              <span className="pulse-dot" aria-hidden />
+              Sẵn sàng nhận lệnh
             </p>
           </div>
 
