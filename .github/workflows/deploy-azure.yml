@@ -1,0 +1,101 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ deploy-azure.yml — day len Azure App Service moi khi push         ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Gop CA HAI vao MOT dich vu: backend phuc vu luon frontend da build.║
+# ║                                                                    ║
+# ║ Vi sao gop thay vi tach FE sang Vercel:                            ║
+# ║  Tach thi FE va BE nam o hai ten mien, keo theo CORS phai khai      ║
+# ║  dung origin va cookie phien phai mang SameSite=None; Secure. Sai   ║
+# ║  bat ky cai nao cung cho ra cung mot trieu chung — dang nhap xong   ║
+# ║  moi lenh goi tra 401 — va nhin tu ngoai giong het loi xac thuc.    ║
+# ║  Cung mot origin thi ca hai lop do bien mat.                        ║
+# ║                                                                    ║
+# ║ Chay khi: day code len nhanh integration, hoac bam tay tu giao dien.║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: Trien khai Azure
+
+on:
+  push:
+    branches: [integration]
+  workflow_dispatch:          # cho phep bam chay tay tu tab Actions
+
+env:
+  TEN_APP: meoarc             # doi neu ban dat ten khac luc tao Web App
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  trien-khai:
+    name: Dung va day len Azure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Lay ma nguon
+        uses: actions/checkout@v4
+
+      # ── 1. Dung frontend o che do GOP ────────────────────────────────────
+      # `build:gop` dat VITE_API_BASE_URL=/ nen FE goi API bang duong dan tuong
+      # doi. De TRONG bien do thi api.ts chuyen sang du lieu gia — giao dien chay
+      # dep bang mock ma khong ai biet. Day la cai bay de mac nhat.
+      - name: Cai Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Cai thu vien frontend
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Dung frontend (che do gop)
+        working-directory: src/frontend
+        run: npm run build:gop
+
+      # app/api/spa.py tu do thu muc `app/static` — chep vao dung cho la backend
+      # tu phuc vu, khong phai cau hinh them gi.
+      - name: Chep frontend vao backend
+        run: |
+          rm -rf src/backend/app/static
+          cp -r src/frontend/dist src/backend/app/static
+          echo "So tep frontend da chep: $(find src/backend/app/static -type f | wc -l)"
+
+      # ── 2. Kiem tra truoc khi day ────────────────────────────────────────
+      # Day ban hong len may chu that thi phat hien muon va sua cham. Chan o day.
+      - name: Cai Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cai uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Cai thu vien backend
+        working-directory: src/backend
+        run: uv sync --frozen
+
+      # Sinh khoa dung-mot-lan cho lan chay nay. Thieu khoa thi EncryptedStr tu tat
+      # ma hoa va nhom phep thu SEC-TC05 se xanh tren mot he dang luu token tran.
+      # Sinh tai cho thay vi go cung: repo khong chua chuoi nao trong giong khoa that.
+      - name: Sinh khoa ma hoa cho lan chay nay
+        working-directory: src/backend
+        run: |
+          echo "TOKEN_ENCRYPTION_KEY=$(uv run python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+
+      - name: Chay bo kiem thu
+        working-directory: src/backend
+        run: uv run pytest -q
+        env:
+          APP_ENV: ci
+
+      # ── 3. Day len Azure ─────────────────────────────────────────────────
+      # Chi day THU MUC BACKEND: requirements.txt phai nam o goc goi tin thi
+      # Oryx (bo dung cua Azure) moi thay va cai duoc thu vien.
+      - name: Day len Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.TEN_APP }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: src/backend
