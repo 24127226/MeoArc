@@ -138,3 +138,6 @@ out/
 **/logs/
 **/.pytest_cache/
 **/meoarc.db
+
+# Frontend build — sinh ra bằng `npm run build` / `npm run build:gop`, không commit
+src/frontend/dist/

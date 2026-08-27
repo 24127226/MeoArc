@@ -1685,3 +1685,15 @@ async def upload_file(
                             detail=f"Tệp vượt quá {settings.upload_max_mb}MB cho phép.")
     # Cất vào kho tạm; trả {id, name, size} để FE GIỮ `id` rồi gửi kèm khi soạn xong.
     return upload_store.save(file.filename or "tep", content, file.content_type)
+
+
+# ── Gộp frontend (tuỳ chọn) — PHẢI đặt CUỐI FILE ────────────────────────────
+# Starlette duyệt route theo đúng thứ tự đăng ký, nên bộ bắt-tất-cả của SPA phải
+# nằm sau mọi route API. Đặt nhầm lên trên là API bị nuốt sạch.
+#
+# Không có thư mục build thì hàm này lặng lẽ bỏ qua — backend chạy y như trước.
+# Nhờ vậy Vercel vẫn là đường chính (đúng sơ đồ PA2 §1.1), còn đây là đường dự
+# phòng khi cần một URL duy nhất.
+from app.api.spa import gan_frontend  # noqa: E402
+
+gan_frontend(app, settings.frontend_dist or None)

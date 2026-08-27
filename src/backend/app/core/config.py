@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     #   SameSite=None bắt buộc đi kèm Secure, tức phải chạy HTTPS.
     cookie_cross_site: bool = False
 
+    # frontend_dist ← FRONTEND_DIST : đường dẫn tới thư mục frontend đã build.
+    #   Để trống thì tự dò `src/frontend/dist` theo layout của repo.
+    #   Có thư mục → backend phục vụ luôn giao diện, cả hệ chạy trên MỘT origin nên
+    #   CORS và cookie SameSite không còn là vấn đề. Không có → chỉ chạy API như cũ,
+    #   frontend nằm ở Vercel như sơ đồ PA2 §1.1 mô tả.
+    frontend_dist: str = ""
+
     @property
     def db_url(self) -> str:
         """Chuỗi kết nối đã chuẩn hoá driver.
