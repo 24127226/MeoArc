@@ -31,7 +31,8 @@ from app.models.subscription import Subscription  # noqa: F401 — tạo bảng 
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
 from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
-                      subscription_repo, email_store_repo, confirmation_repo)
+                      subscription_repo, email_store_repo, confirmation_repo,
+                      user_preference_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
 from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
@@ -1338,6 +1339,9 @@ async def agent_chat(
             "messages": [*history, HumanMessage(content=message)],
             "request_ctx": ctx,
             "skill_context": load_skills(message),  # nạp kỹ năng khớp ngữ cảnh
+            # Sở thích cá nhân: tên xưng hô, giọng văn, chữ ký, dặn dò riêng.
+            # Trả rỗng khi chưa đặt gì — repo tự nuốt lỗi nên không làm hỏng lượt chat.
+            "user_context": user_preference_repo.prompt_context(db, session.user_id),
             "pending_confirmation": None,
             "iteration_count": 0,
             "final_output": None,
@@ -1604,6 +1608,65 @@ def me(current_user: User = Depends(get_current_user)):
     """Trả thông tin user của phiên hiện tại.
     `Depends(get_current_user)` = "cửa có bảo vệ": chưa đăng nhập → tự động 401."""
     return current_user
+
+
+# ── Sở thích cá nhân (PA2 §1.5.2) — thứ làm trợ lý viết ra GIỌNG CỦA NGƯỜI NÀY ──
+from pydantic import BaseModel, Field                    # noqa: E402
+from app.models.user_preference import TONES             # noqa: E402
+
+
+class PreferenceBody(BaseModel):
+    """Thân yêu cầu cập nhật. Mọi trường đều tuỳ chọn — client gửi cái nào sửa cái đó,
+    không phải gửi lại toàn bộ. Trần độ dài đặt ở đây vì nội dung này đi thẳng vào
+    system prompt: không giới hạn thì một chữ ký dài vài nghìn từ sẽ đẩy prompt phình
+    ra mỗi lượt chat, vừa tốn hạn ngạch vừa làm loãng phần chỉ dẫn quan trọng."""
+    language: str | None = Field(None, max_length=8)
+    display_name: str | None = Field(None, max_length=80)
+    theme: str | None = Field(None, max_length=16)
+    tone_preference: str | None = None
+    signature_note: str | None = Field(None, max_length=500)
+    custom_instruction: str | None = Field(None, max_length=1000)
+
+
+def _pref_out(pref) -> dict:
+    return {
+        "language": pref.language,
+        "displayName": pref.display_name,
+        "theme": pref.theme,
+        "tonePreference": pref.tone_preference,
+        "signatureNote": pref.signature_note,
+        "customInstruction": pref.custom_instruction,
+        # Trả kèm bản kết tinh để giao diện cho người dùng XEM TRƯỚC đúng thứ mà trợ lý
+        # sẽ đọc. Không có nó thì người dùng gõ vào một ô rồi đoán xem có tác dụng gì.
+        "promptPreview": pref.to_prompt_context(),
+        "availableTones": TONES,
+    }
+
+
+@app.get("/me/preferences")
+def get_preferences(session: AuthSession = Depends(get_current_session),
+                    db: Session = Depends(get_db)):
+    return _pref_out(user_preference_repo.get_or_create(db, session.user_id))
+
+
+@app.patch("/me/preferences")
+def update_preferences(body: PreferenceBody,
+                       session: AuthSession = Depends(get_current_session),
+                       db: Session = Depends(get_db)):
+    if body.tone_preference is not None and body.tone_preference not in TONES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Giọng văn không hợp lệ. Chọn một trong: {', '.join(TONES)}")
+
+    # exclude_unset: chỉ lấy trường client THẬT SỰ gửi. Thiếu nó thì mọi trường không
+    # gửi sẽ về None và xoá sạch thiết lập cũ của người dùng — mất dữ liệu âm thầm.
+    pref, da_doi = user_preference_repo.update(
+        db, session.user_id, body.model_dump(exclude_unset=True))
+
+    if da_doi:
+        audit_repo.log(db, user_id=session.user_id, action="update_preferences",
+                       actor_type="user", details={"fields": da_doi})
+    return _pref_out(pref)
 
 
 # ── Gửi tệp đính kèm: nhận FILE upload từ frontend (multipart/form-data) ──

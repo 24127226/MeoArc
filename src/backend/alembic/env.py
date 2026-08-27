@@ -39,6 +39,7 @@ import app.models.session  # noqa: E402,F401
 import app.models.session_provider  # noqa: E402,F401
 import app.models.subscription  # noqa: E402,F401
 import app.models.user  # noqa: E402,F401
+import app.models.user_preference  # noqa: E402,F401
 
 config = context.config
 
@@ -52,7 +53,11 @@ config = context.config
 _url = config.get_main_option("sqlalchemy.url", "") or ""
 if not _url or _url.startswith("driver://"):
     # Escape '%' vì ConfigParser hiểu '%' là ký tự đặc biệt (mật khẩu hay có).
-    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+    # db_url (không phải database_url thô): đã chuẩn hoá tên driver, nên chuỗi mà các
+    # nền tảng lưu trữ phát ra (`postgresql://…`, thiếu driver) cũng chạy được ở đây.
+    # Dùng chuỗi thô thì SQLAlchemy đi tìm psycopg2 — thứ dự án không cài — và di trú
+    # chết ngay, dù ứng dụng chính vẫn chạy bình thường.
+    config.set_main_option("sqlalchemy.url", settings.db_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

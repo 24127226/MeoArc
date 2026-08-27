@@ -85,6 +85,12 @@ async def agent_node(state: State) -> dict:
     system = _SYSTEM_BASE
     if state.get("skill_context"):
         system += "\n\n# Kiến thức bổ sung cho yêu cầu này:\n" + state["skill_context"]
+    # Sở thích cá nhân đặt SAU kiến thức skill và là khối cuối cùng: khi hai bên gợi ý
+    # khác nhau (skill dạy cách viết thư chung, người dùng dặn "đừng dùng từ trân trọng")
+    # thì lời của người dùng phải thắng — và lời đứng gần cuối prompt có trọng lượng hơn.
+    if state.get("user_context"):
+        system += ("\n\n# Người dùng này — tuân thủ khi soạn thư thay họ:\n"
+                   + state["user_context"])
     # Đầu vào cho LLM = [lời dặn] + [toàn bộ tin nhắn từ trước tới giờ].
     messages = [SystemMessage(content=system), *state["messages"]]
     ai = await llm.ainvoke(messages)   # gọi Gemini (bất đồng bộ) → ra 1 AIMessage
