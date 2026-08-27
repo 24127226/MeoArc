@@ -79,6 +79,21 @@ jobs:
         working-directory: src/backend
         run: uv sync --frozen
 
+      # Sinh LAI requirements.txt tu uv.lock ngay truoc khi day.
+      #
+      # Azure cai thu vien bang requirements.txt, con du an quan ly bang uv.lock.
+      # Neu de tep nay sinh bang tay thi chi can mot lan quen `uv export` sau khi
+      # them thu vien la: may minh chay ngon, workflow van xanh, nhung app tren
+      # Azure chet luc khoi dong vi thieu goi. Loi hien o log khoi dong chu khong
+      # phai o buoc deploy, nen rat lau moi lan ra.
+      #
+      # Sinh tu dong thi hai tep khong bao gio lech nhau duoc.
+      - name: Sinh lai requirements.txt tu uv.lock
+        working-directory: src/backend
+        run: |
+          uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt
+          echo "So goi se cai tren Azure: $(grep -c '==' requirements.txt)"
+
       # Sinh khoa dung-mot-lan cho lan chay nay. Thieu khoa thi EncryptedStr tu tat
       # ma hoa va nhom phep thu SEC-TC05 se xanh tren mot he dang luu token tran.
       # Sinh tai cho thay vi go cung: repo khong chua chuoi nao trong giong khoa that.
