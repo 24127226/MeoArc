@@ -20,6 +20,7 @@ import {
   Inbox,
   Send,
   SquarePen,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -335,6 +336,7 @@ export function EmailList({
   refreshing,
   elegant = false,
   fill = false,
+  loi,
 }: {
   emails: Email[]
   folder?: string
@@ -350,6 +352,8 @@ export function EmailList({
   elegant?: boolean
   /** Chiếm trọn bề ngang (flex-1) thay vì cột cố định — khi AI tắt và chưa mở thư. */
   fill?: boolean
+  /** Lỗi nạp thư. Có giá trị = hiện thẳng ra thay vì để danh sách trống không lời giải thích. */
+  loi?: string | null
 }) {
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -451,6 +455,9 @@ export function EmailList({
       }),
     [emails, folder],
   )
+
+  /** Số thư chưa đọc trong thư mục hiện tại — thay cho dòng "MEOARC MAIL" cũ. */
+  const soChuaDoc = useMemo(() => emails.filter((e) => e.unread).length, [emails])
 
   const results = useMemo(() => {
     const text = nl ? nl.text : query
@@ -629,19 +636,35 @@ export function EmailList({
         data-cat-perch="bottom"
         className={cn('relative flex flex-col gap-3.5 px-6 pb-4', elegant ? 'pt-4' : 'pt-5')}
       >
-        {/* LOCKUP poster "Desert Rose" — CHỈ khi AI đang bật (Hộp thư ở cột giữa). */}
+        {/* Thanh đầu cột Hộp thư — CHỈ khi AI đang bật (Hộp thư ở cột giữa).
+            Bản cũ là "lockup poster": ô vuông đặc đổ bóng nặng + tiêu đề serif 26px
+            + dòng "MEOARC MAIL" bên dưới — ngôn ngữ của bìa tạp chí. Đẹp, nhưng nó
+            là thứ đầu tiên trong cột và nó nói sai về sản phẩm.
+
+            Bản này nói đúng thứ đang chạy: nhãn kỹ thuật + SỐ THƯ CHƯA ĐỌC dạng
+            monospace (số là thông tin, "MEOARC MAIL" thì không — người dùng biết
+            thừa họ đang ở đâu) + chấm nhịp báo hệ thống còn sống. */}
         {!elegant && (
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sc-ink)] text-[var(--sc-base)] shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
-                <FolderIcon className="size-[18px]" strokeWidth={2.2} />
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="neon-edge flex size-9 shrink-0 items-center justify-center rounded-xl text-[var(--spark)]"
+                style={{ ['--tint' as string]: 'var(--spark)' }}>
+                <FolderIcon className="size-[17px]" strokeWidth={2} />
               </span>
-              <div className="leading-none">
-                <p className="font-display text-[26px] font-bold leading-none text-[var(--sc-ink)]">
-                  {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
-                </p>
-                <p className="mt-1 text-[8px] font-mono font-medium uppercase tracking-[0.34em] text-[var(--sc-ink)]/45">
-                  Meoarc mail
+              <div className="min-w-0 leading-none">
+                <div className="flex items-baseline gap-2">
+                  <p className="truncate text-[19px] font-semibold leading-none tracking-tight text-foreground">
+                    {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
+                  </p>
+                  {soChuaDoc > 0 && (
+                    <span className="font-mono text-[12px] tabular-nums text-[var(--spark)]">
+                      {String(soChuaDoc).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1.5 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground/60">
+                  <span className="pulse-dot" aria-hidden />
+                  {soChuaDoc > 0 ? `${soChuaDoc} thư chưa đọc` : 'Đã đọc hết'}
                 </p>
               </div>
             </div>
@@ -821,6 +844,22 @@ export function EmailList({
                 </div>
               </div>
             ))
+          ) : loi ? (
+            /* Bao loi THAY CHO danh sach. Truoc day loi bi nuot va man hinh giu
+               nguyen nam la thu mau — trong y het that, nen khong ai biet la hong. */
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+              <span className="neon-edge flex size-12 items-center justify-center rounded-2xl text-[var(--warn,#FF6FB5)]"
+                style={{ ['--tint' as string]: '#FF6FB5' }}>
+                <AlertTriangle className="size-5" />
+              </span>
+              <p className="max-w-[260px] text-[13px] leading-relaxed text-muted-foreground">{loi}</p>
+              {onRefresh && (
+                <button onClick={onRefresh}
+                  className="neon-chip mt-1 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em]">
+                  Thử lại
+                </button>
+              )}
+            </div>
           ) : results.length > 0 ? (
             <>
               {results.map((email, i) => (

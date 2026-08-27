@@ -24,18 +24,25 @@
 :root {
   --radius: 1rem;
 
-  /* === LIGHT — "Twilight Sky" ===
-     KHÔNG dùng trắng. Nền lấy đúng dải trời hoàng hôn ở khung hình đầu trang giới
-     thiệu: xanh lam pha tím, sáng dần lên phía chân trời. Sáng hơn hẳn theme tối
-     nhưng vẫn giữ nguyên sắc tím–lam, nên hai theme là một gia đình màu. */
-  --background: #C6CBF4; /* khung trang — trời lam tím */
-  --list: #DCE0FB; /* dải Hộp thư — trời sáng hơn về chân trời */
-  --surface: #D5DAF9;
-  --elevated: #E9ECFE; /* chip/card nổi — tầng mây sáng nhất */
-  --panel: #CFD4F7; /* panel AI */
-  --rail: #B2B8EF; /* nav — dải trời sẫm nhất */
+  /* === LIGHT — dải chuyển "Gradient 3" ===
+     Ba chặng: lam #87F5F5 → hồng phấn #FFE5F1 → đỏ tím #F042FF.
+     Đây KHÔNG phải một bảng màu mượn từ ngoài vào: #87F5F5 đã đúng là token
+     --spark sẵn có của dự án (màu trạng thái/chưa đọc), nên bản sáng và bản tối
+     vẫn là một gia đình màu, chỉ khác nguồn sáng.
 
-  /* Chữ = mực tím đêm (đỉnh trời trong ảnh) */
+     Cách rải: mặt phẳng lớn (khung trang, nav) lấy đầu lam, mặt cần đọc chữ
+     (hộp thư, panel AI, thẻ) lấy giữa hồng phấn. KHÔNG đưa #F042FF lên nền —
+     nó là màu bão hoà, dùng làm NHẤN (--active, viền, glow); trải rộng ra nền
+     thì chữ đen đặt lên không còn đọc được. Bản dải chuyển đầy đủ nằm ở
+     `body` phía dưới, chỗ duy nhất đủ rộng để thấy được cả ba chặng. */
+  --background: #E3FAFB; /* khung trang — chặng lam, đã hạ độ bão hoà cho êm mắt */
+  --list: #FBEDF5; /* dải Hộp thư — chặng hồng phấn */
+  --surface: #F6EFF9;
+  --elevated: #FFF4FA; /* chip/card nổi — sáng nhất, gần #FFE5F1 */
+  --panel: #F2EDFB; /* panel AI — ngả về chặng cuối */
+  --rail: #C9F2F6; /* nav — chặng lam đậm hơn */
+
+  /* Chữ = mực tím đêm, giữ nguyên để tương phản trên nền sáng vẫn đạt */
   --foreground: #171142;
   --card: var(--elevated);
   --card-foreground: #171142;
@@ -416,12 +423,27 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
+    /* Dải chuyển Gradient 3 trải trên toàn khung — chỗ duy nhất đủ rộng để thấy
+       được cả ba chặng lam → hồng phấn → đỏ tím. Đặt `fixed` để khi cuộn thì dải
+       màu đứng yên, nội dung trôi trên nó; cuộn mà nền cũng chạy theo thì mắt
+       đọc ra là "ảnh nền", không đọc ra là "ánh sáng của căn phòng".
+       Chặng #F042FF chỉ để ở đáy và đã pha loãng: nguyên bản nó bão hoà tới mức
+       chữ đen đặt lên là mất chữ. */
+    background-image:
+      linear-gradient(170deg,
+        color-mix(in srgb, #87F5F5 42%, transparent) 0%,
+        color-mix(in srgb, #FFE5F1 65%, transparent) 46%,
+        color-mix(in srgb, #F042FF 26%, transparent) 100%);
+    background-attachment: fixed;
     font-family: var(--font-sans);
     font-weight: 400;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Theme tối giữ nền gần như đen: neon chỉ nổi trên nền tối, phủ dải chuyển
+     sáng lên đó là mất sạch tương phản. */
+  .dark body { background-image: none; }
   h1, h2, h3, h4, .font-serif {
     font-family: var(--font-serif);
     letter-spacing: -0.022em;
@@ -2001,4 +2023,49 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lt-fade, .lt-floor, .lt-beam { animation: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CHỮ BÊN TRONG HỘP THƯ — bỏ hẳn serif
+
+   Trang giới thiệu giữ serif, ở đó nó đúng: một trang bán hàng được phép mang
+   giọng biên tập. Nhưng BÊN TRONG hộp thư thì serif đọc ra là thiệp mời, là văn
+   phòng phẩm, là trang trọng — tức là chậm. Sai hoàn toàn với thứ đang chạy:
+   một cỗ máy đọc hộ vài trăm lá thư mỗi sáng.
+
+   Cách sửa không phải đi sửa từng chỗ `font-serif` (có hơn hai chục chỗ, và chỗ
+   nào bỏ sót thì lộ ra ngay). Quy tắc `h1..h4, .font-serif` đọc từ BIẾN
+   `--font-serif`, nên chỉ cần định nghĩa lại biến đó trong phạm vi app là toàn
+   bộ đổi cùng lúc — mà trang giới thiệu nằm ngoài phạm vi này nên không suy
+   suyển gì. Cần trả serif về sau này thì xoá đúng khối này.
+   ══════════════════════════════════════════════════════════════════════════════ */
+/* Đổi biến --font-serif KHÔNG đủ. Tailwind v4 sinh ra HAI định nghĩa `.font-serif`:
+   một cái qua biến, và một cái GHI CỨNG nguyên dãy phông (Fraunces, ui-serif…) —
+   cái ghi cứng đứng sau nên nó thắng, và biến trở thành vô nghĩa. Phải thắng lại
+   bằng ĐỘ ƯU TIÊN của selector: `.giao-dien-app .font-serif` (hai lớp) mạnh hơn
+   `.font-serif` (một lớp). Vẫn giữ việc đổi biến cho các chỗ đọc biến trực tiếp. */
+.giao-dien-app {
+  --font-serif: var(--font-sans);
+  --font-display: var(--font-sans);
+}
+.giao-dien-app .font-serif,
+.giao-dien-app .font-display,
+.giao-dien-app h1,
+.giao-dien-app h2,
+.giao-dien-app h3,
+.giao-dien-app h4 {
+  font-family: var(--font-sans);
+}
+/* Sans thay serif ở cỡ lớn dễ bị rời rạc — siết chân chữ lại cho thành một khối */
+.giao-dien-app h1,
+.giao-dien-app h2,
+.giao-dien-app h3,
+.giao-dien-app .font-serif {
+  letter-spacing: -0.022em;
+}
+/* Chữ cái đại diện trong vòng tròn: dùng monospace. Đây là chi tiết nhỏ nhưng
+   đọc rất rõ — monospace là chữ của bảng điều khiển, serif là chữ của danh thiếp. */
+.giao-dien-app .rounded-full.font-serif {
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0;
 }

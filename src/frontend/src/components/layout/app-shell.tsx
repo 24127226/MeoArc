@@ -10,7 +10,7 @@ import { WanderingCat } from '@/components/wandering-cat'
 import { useTheme } from '@/components/theme-provider'
 import { emails as seedEmails } from '@/data/emails'
 import type { EmailActions } from '@/lib/email-actions'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 
 /** Đổi state có morph mượt qua View Transitions.
  *  Dùng flushSync để DOM cập nhật ĐỒNG BỘ trong callback (chuẩn React 19 + VT),
@@ -31,7 +31,20 @@ function withTransition(fn: () => void) {
 
 /** Layout 3 phần: nav rail trái · email list giữa · (chi tiết email | AI chat) phải */
 export function AppShell() {
-  const [emails, setEmails] = useState(seedEmails)
+  // KHONG khoi tao bang du lieu mau khi da cau hinh backend that.
+  //
+  // Truoc day luon la `useState(seedEmails)`. O che do that, giua luc trang vua
+  // mo va luc Gmail tra ve, nguoi dung nhin thay NAM LA THU BIA DAT (Giao vu
+  // HCMUS, GitHub, Vercel...) trong y het that. Neu lenh goi hong — chua dang
+  // nhap, phien het han, mang loi — thi `.catch(() => {})` nuot loi va man hinh
+  // dung yen o do MAI MAI: khong bao loi, khong o trong, chi la mot hop thu gia
+  // trong nhu that. Dem san pham di trinh bay ma gap canh do thi khong con
+  // duong nao chua.
+  //
+  // Che do mock (chua co backend) van dung seedEmails — do la muc dich cua no.
+  const [emails, setEmails] = useState(apiBaseUrlDaCauHinh ? [] : seedEmails)
+  /** Loi nap thu, hien thang ra danh sach thay vi nuot im. */
+  const [loiNapThu, setLoiNapThu] = useState<string | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null) // token trang kế (null = hết)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false) // đang "Làm mới" (bỏ qua cache BE)
@@ -60,7 +73,7 @@ export function AppShell() {
   // Chế độ backend thật: nạp thư theo THƯ MỤC đang chọn từ Gmail; đổi nav → fetch lại
   // (inbox/sent/drafts/trash/starred/archive). Mock mode bỏ qua → vẫn dùng dữ liệu mẫu.
   useEffect(() => {
-    if (!apiBaseUrl) return
+    if (!apiBaseUrlDaCauHinh) return
     setPageQuery({ folder })
     const cached = folderCache.current.get(folder)
     if (cached) {
@@ -73,8 +86,18 @@ export function AppShell() {
         folderCache.current.set(folder, { items: r.items, cursor: r.nextCursor ?? null })
         setEmails(r.items)
         setNextCursor(r.nextCursor ?? null) // có cursor = còn thư để "Tải thêm"
+        setLoiNapThu(null)
       })
-      .catch(() => {})
+      .catch((e) => {
+        // Bao that. Mot hop thu rong kem dong bao loi thi con sua duoc; mot hop
+        // thu day thu gia thi khong ai biet duong ma sua.
+        setEmails([])
+        setLoiNapThu(
+          e?.status === 401
+            ? 'Phiên đăng nhập đã hết hạn. Đăng nhập lại để xem thư.'
+            : 'Không nạp được thư từ máy chủ. Kiểm tra kết nối rồi thử lại.',
+        )
+      })
   }, [folder])
   const selectNav = (id: string) => {
     // "AI Agent" = CÔNG TẮC hiện/ẩn panel chat (không phải một thư mục). Mở → focus ô chat.
@@ -94,7 +117,7 @@ export function AppShell() {
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, unread: false } : e)))
     // Chế độ backend thật: tải nội dung ĐẦY ĐỦ của thư (thân thư + đính kèm) từ Gmail,
     // rồi trộn vào thư trong danh sách → màn chi tiết hiện đủ thay vì chỉ snippet.
-    if (apiBaseUrl) {
+    if (apiBaseUrlDaCauHinh) {
       api
         .getEmail(id)
         .then((full) => {
@@ -130,7 +153,7 @@ export function AppShell() {
 
   // Nút "Làm mới": nạp lại truy vấn hiện tại nhưng BỎ QUA cache backend (fresh) → thấy thư mới ngay.
   const refreshEmails = () => {
-    if (!apiBaseUrl) return
+    if (!apiBaseUrlDaCauHinh) return
     setRefreshing(true)
     api
       .listEmails({ ...pageQuery, fresh: true })
@@ -147,7 +170,7 @@ export function AppShell() {
 
   // UC003 — "Tải thêm": lấy TRANG KẾ (theo cursor) rồi NỐI vào danh sách hiện có.
   const loadMore = () => {
-    if (!apiBaseUrl || !nextCursor || loadingMore) return
+    if (!apiBaseUrlDaCauHinh || !nextCursor || loadingMore) return
     setLoadingMore(true)
     api
       .listEmails({ ...pageQuery, cursor: nextCursor })
@@ -180,31 +203,31 @@ export function AppShell() {
   // Nếu lệnh ghi xuống Gmail THẤT BẠI (vd token thiếu quyền → 403), nạp lại thư mục
   // hiện tại để màn hình quay về ĐÚNG sự thật trên Gmail (huỷ cập nhật lạc quan vừa rồi).
   const resync = () => {
-    if (!apiBaseUrl) return
+    if (!apiBaseUrlDaCauHinh) return
     api.listEmails({ folder }).then((r) => setEmails(r.items)).catch(() => {})
   }
 
   // Hành động quản lý email (UC006) — nhận mảng id để dùng được cho cả bulk.
   // CHIẾN LƯỢC "lạc quan": đổi giao diện NGAY cho mượt, rồi mới gọi backend ngầm;
-  // lỗi thì resync() kéo trạng thái thật về. Mock mode (không có apiBaseUrl) chỉ đổi cục bộ.
+  // lỗi thì resync() kéo trạng thái thật về. Mock mode (không có apiBaseUrlDaCauHinh) chỉ đổi cục bộ.
   const actions: EmailActions = {
     markRead: (ids, read) => {
       setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, unread: !read } : e)))
-      if (apiBaseUrl) api.markRead(ids, read).catch(resync)
+      if (apiBaseUrlDaCauHinh) api.markRead(ids, read).catch(resync)
     },
     setImportant: (ids, value) => {
       setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, starred: value } : e)))
-      if (apiBaseUrl) api.setImportant(ids, value).catch(resync)
+      if (apiBaseUrlDaCauHinh) api.setImportant(ids, value).catch(resync)
     },
     applyLabel: (ids, category, label) => {
       setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, category, label } : e)))
-      if (apiBaseUrl) api.applyLabel(ids, category, label).catch(resync) // tạo/gắn nhãn Gmail thật
+      if (apiBaseUrlDaCauHinh) api.applyLabel(ids, category, label).catch(resync) // tạo/gắn nhãn Gmail thật
     },
     removeEmails: (ids, mode = 'delete') => {
       setEmails((prev) => prev.filter((e) => !ids.includes(e.id)))
       if (openedId && ids.includes(openedId)) setOpenedId(null)
       // archive → bỏ nhãn INBOX; delete → vào thùng rác. Gọi đúng endpoint theo mode.
-      if (apiBaseUrl) {
+      if (apiBaseUrlDaCauHinh) {
         const done = mode === 'archive' ? api.archiveEmails(ids) : api.deleteEmails(ids)
         done.catch(resync)
       }
@@ -214,7 +237,7 @@ export function AppShell() {
   const openedEmail = emails.find((e) => e.id === openedId) ?? null
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="giao-dien-app relative flex h-screen w-full overflow-hidden bg-background text-foreground">
       {/* Cực quang nền — dải sáng uốn lượn như khung hình đầu trang giới thiệu.
           Nằm SAU mọi panel (các panel là khối kính nên ánh sáng vẫn thấp thoáng qua). */}
       <div aria-hidden className="aurora-stage">
@@ -240,10 +263,11 @@ export function AppShell() {
         openedId={openedId}
         onOpen={openEmail}
         actions={actions}
-        onSearch={apiBaseUrl ? searchEmails : undefined}
-        onLoadMore={apiBaseUrl && nextCursor ? loadMore : undefined}
+        onSearch={apiBaseUrlDaCauHinh ? searchEmails : undefined}
+        onLoadMore={apiBaseUrlDaCauHinh && nextCursor ? loadMore : undefined}
         loadingMore={loadingMore}
-        onRefresh={apiBaseUrl ? refreshEmails : undefined}
+        onRefresh={apiBaseUrlDaCauHinh ? refreshEmails : undefined}
+        loi={loiNapThu}
         refreshing={refreshing}
         elegant={!aiOpen}
         fill={!aiOpen && !openedEmail}

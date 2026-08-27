@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { api, apiBaseUrl, apiBaseUrlDaCauHinh } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, duongDanApi } from '@/lib/api'
 
 export type User = {
   name: string
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogle = async () => {
     if (USE_BACKEND) {
       // Đăng nhập THẬT: điều hướng cả trang sang backend → backend đẩy sang Google.
-      window.location.href = `${apiBaseUrl}/auth/google/start`
+      window.location.href = duongDanApi('/auth/google/start')
       return new Promise<void>(() => {}) // trang sẽ rời đi, không cần resolve
     }
     // Mock: giả lập độ trễ redirect OAuth rồi gán tài khoản demo.
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithOutlook = async () => {
     if (USE_BACKEND) {
-      window.location.href = `${apiBaseUrl}/auth/outlook/start`  // backend đẩy sang Microsoft
+      window.location.href = duongDanApi('/auth/outlook/start')  // backend đẩy sang Microsoft
       return new Promise<void>(() => {})
     }
     setIsLoading(true)

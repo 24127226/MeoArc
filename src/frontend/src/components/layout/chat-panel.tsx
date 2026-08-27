@@ -38,7 +38,7 @@ import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
-import { api, apiBaseUrl, type StoredMessage } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, type StoredMessage } from '@/lib/api'
 import { useSubscription, isOutOfTokens } from '@/lib/subscription'
 import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
 import { PricingScreen } from '@/components/layout/pricing-screen'
@@ -1864,7 +1864,7 @@ function DraftCard({
     setRwOpen(false)
     // Backend thật: nhờ AGENT viết lại đúng bản nháp này (giữ chủ đề + người nhận).
     // Mock/demo (chưa nối backend): biến thể cục bộ GIỮ nội dung gốc, không lạc đề.
-    if (apiBaseUrl && onRewrite) {
+    if (apiBaseUrlDaCauHinh && onRewrite) {
       onRewrite({ to, subject, body, replyToId: reply.replyToId }, instr)
       setRwText('')
       return
@@ -1939,7 +1939,19 @@ function DraftCard({
                 <div className="skeleton h-3 w-2/3 rounded" />
               </div>
             ) : (
-              <div className="mt-2 whitespace-pre-line rounded-xl bg-[#f7ebd9] px-4 py-3.5 font-serif text-[14px] leading-relaxed text-[#3e1717] shadow-[inset_0_1px_3px_rgba(0,0,0,0.1),_0_4px_12px_rgba(0,0,0,0.08)] border border-[#e5d4bc]">
+              /* Bản nháp thư. Trước đây khối này là NỀN KEM #f7ebd9 + MỰC NÂU
+                 #3e1717 + viền ngà — tức là giả một tờ giấy da. Đây là thứ "cổ
+                 điển" lộ liễu nhất trong toàn ứng dụng, lại nằm đúng chỗ người
+                 dùng nhìn lâu nhất: lúc đọc lại thư trước khi bấm gửi.
+
+                 Hai màu đó còn được ghi cứng nên ở theme tối chúng đứng im —
+                 một mảng kem chói giữa nền gần đen.
+
+                 Giờ là một khối kính có viền phát sáng, chữ dùng token nên theo
+                 theme. Vẫn tách khỏi nền để biết "đây là nội dung thư", nhưng
+                 tách bằng ÁNH SÁNG chứ không bằng cách giả vật liệu giấy. */
+              <div className="neon-edge mt-2 whitespace-pre-line rounded-xl bg-elevated/70 px-4 py-3.5 text-[14px] leading-relaxed text-foreground backdrop-blur-sm"
+                style={{ ['--tint' as string]: 'var(--spark)' }}>
                 {body}
               </div>
             )}

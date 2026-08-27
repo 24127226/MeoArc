@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, duongDanApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -78,7 +78,7 @@ export function EmailDetail({
   const [llmSummary, setLlmSummary] = useState<string[] | null>(() => summaryCache.get(id) ?? null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   useEffect(() => {
-    if (!apiBaseUrl || !showSummary) return
+    if (!apiBaseUrlDaCauHinh || !showSummary) return
     const cached = summaryCache.get(email.id)
     if (cached) {
       setLlmSummary(cached)
@@ -305,9 +305,9 @@ export function EmailDetail({
                     onClick={() => {
                       // Chế độ backend thật: mở URL tải đính kèm (cookie phiên tự đính kèm
                       // → backend xác thực). Mock mode: chưa có tệp thật → bỏ qua.
-                      if (apiBaseUrl)
+                      if (apiBaseUrlDaCauHinh)
                         window.open(
-                          `${apiBaseUrl}/emails/${id}/attachments/${encodeURIComponent(a.name)}`,
+                          duongDanApi(`/emails/${id}/attachments/${encodeURIComponent(a.name)}`),
                           '_blank',
                         )
                     }}

@@ -647,7 +647,21 @@ const BASE = import.meta.env.VITE_API_BASE_URL
  *  Lưu ý `""` vẫn là giá trị FALSY — nhưng `USE_BACKEND` phải phân biệt được
  *  "gộp cùng origin" với "chưa cấu hình backend", nên xem `apiBaseUrlDaCauHinh`.
  */
-export const apiBaseUrl = (BASE ?? '').replace(/\/$/, '')
+const goc = (BASE ?? '').replace(/\/$/, '')
+
+/** Ghép một đường dẫn API. DÙNG HÀM NÀY thay vì tự nối chuỗi.
+ *
+ *  Vì sao không còn xuất thẳng `apiBaseUrl` nữa: ở chế độ gộp giá trị đúng của
+ *  nó là chuỗi RỖNG — mà chuỗi rỗng là FALSY. Ai vô tình viết `if (apiBaseUrl)`
+ *  thì ở bản triển khai gộp điều kiện đó luôn SAI, nên khối lệnh bên trong không
+ *  bao giờ chạy. Đã dính đúng lỗi này: `if (!apiBaseUrl) return` chặn mất lệnh
+ *  nạp thư, khiến bản deploy hiển thị vĩnh viễn dữ liệu mẫu — mà không báo gì.
+ *
+ *  Nay chỉ còn một hàm (luôn truthy) và một cờ boolean rõ nghĩa, nên viết nhầm
+ *  kiểu đó không còn khả năng xảy ra. */
+export function duongDanApi(duong_dan: string): string {
+  return goc + (duong_dan.startsWith('/') ? duong_dan : '/' + duong_dan)
+}
 
 /** Có khai VITE_API_BASE_URL hay không — dùng để chọn chế độ mock ↔ thật.
  *  Tách khỏi `apiBaseUrl` vì ở chế độ gộp, đường dẫn đúng là chuỗi RỖNG mà vẫn
@@ -657,5 +671,5 @@ export const apiBaseUrlDaCauHinh = BASE != null && BASE !== ''
 
 /** Dùng ở mọi nơi: `import { api } from '@/lib/api'`. Tự chọn mock ↔ http. */
 export const api: MeoArcApi = apiBaseUrlDaCauHinh
-  ? createHttpApi(apiBaseUrl)
+  ? createHttpApi(goc)
   : createMockApi()
