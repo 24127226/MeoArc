@@ -90,11 +90,38 @@ def gan_frontend(app: FastAPI, duong_dan: str | None = None) -> bool:
                     "Chạy `npm run build` trong src/frontend nếu muốn gộp.")
         return False
 
-    # Tệp tài nguyên (JS/CSS/ảnh) do Vite đặt trong dist/assets, tên có kèm mã băm nên
-    # cache được vĩnh viễn. Gắn riêng để StaticFiles phục vụ trực tiếp, khỏi qua Python.
+    # ── CACHE: hai loại tệp, hai chính sách ngược nhau ────────────────────────
+    #
+    # Trước đây không đặt Cache-Control cho tệp nào cả. Nghe thì tưởng "không đặt =
+    # không cache", nhưng đặc tả HTTP quy định ngược lại: thiếu chỉ thị thì trình
+    # duyệt được phép TỰ SUY ĐOÁN thời hạn (heuristic caching), thường lấy khoảng
+    # 10% quãng thời gian từ Last-Modified. Hệ quả là sau khi triển khai bản mới,
+    # người dùng cũ mở trang vẫn thấy y nguyên bản cũ và không cách nào biết —
+    # trình duyệt không thèm hỏi lại server.
+    #
+    # Vite đặt mã băm nội dung vào TÊN tệp trong dist/assets, nên mỗi lần sửa code
+    # là ra tên khác. Nhờ vậy có thể chia dứt khoát:
+    #   • /assets/*  — tên đã đổi theo nội dung → cache vĩnh viễn, immutable.
+    #   • index.html — tên KHÔNG đổi, lại là nơi ghi tên các tệp assets kia →
+    #     bắt buộc hỏi lại server mỗi lần. Có ETag nên lần hỏi lại thường chỉ tốn
+    #     một phản hồi 304 rỗng, gần như không tốn băng thông.
+    #
+    # Tóm lại: index.html là bản đồ, assets là địa điểm. Cache bản đồ cũ thì mọi
+    # địa điểm mới đều vô hình.
+    CACHE_BAT_BIEN = "public, max-age=31536000, immutable"
+    CACHE_LUON_HOI_LAI = "no-cache, must-revalidate"
+
+    class TaiNguyenBam(StaticFiles):
+        """StaticFiles nhưng gắn thêm Cache-Control vĩnh viễn cho tệp có mã băm."""
+
+        def file_response(self, *args, **kwargs):  # type: ignore[override]
+            resp = super().file_response(*args, **kwargs)
+            resp.headers["Cache-Control"] = CACHE_BAT_BIEN
+            return resp
+
     thu_muc_assets = dist / "assets"
     if thu_muc_assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=str(thu_muc_assets)), name="assets")
+        app.mount("/assets", TaiNguyenBam(directory=str(thu_muc_assets)), name="assets")
 
     index = dist / "index.html"
 
@@ -123,11 +150,14 @@ def gan_frontend(app: FastAPI, duong_dan: str | None = None) -> bool:
         if duong_dan_day_du:
             ung_vien = (dist / duong_dan_day_du).resolve()
             if ung_vien.is_file() and ung_vien.is_relative_to(dist.resolve()):
-                return FileResponse(ung_vien)
+                # Tệp ở gốc dist (favicon, video, ảnh landing…) KHÔNG có mã băm trong
+                # tên, nên chỉ cache một giờ rồi hỏi lại — đủ để đỡ tải lặp, mà thay
+                # ảnh xong không phải chờ hết một năm mới thấy.
+                return FileResponse(ung_vien, headers={"Cache-Control": "public, max-age=3600"})
 
         # Còn lại là đường dẫn của React Router (/app, /settings…) → trả index.html
         # để trình duyệt nạp ứng dụng rồi tự định tuyến bên trong.
-        return FileResponse(index)
+        return FileResponse(index, headers={"Cache-Control": CACHE_LUON_HOI_LAI})
 
     logger.info("Đang phục vụ frontend từ %s", dist)
     return True

@@ -142,3 +142,37 @@ def test_chua_build_thi_dia_chi_goc_van_la_cua_api(dist):
 
     assert r.status_code == 200
     assert r.json()["message"] == "backend dang chay"
+
+
+# ── CACHE ─────────────────────────────────────────────────────────────────────
+# Ba test dưới khoá lại một lỗi ĐÃ XẢY RA THẬT trên bản triển khai: đẩy bản mới
+# lên xong, mở trang vẫn thấy y nguyên giao diện cũ. Nguyên nhân là không đặt
+# Cache-Control cho tệp nào cả — thiếu chỉ thị thì đặc tả HTTP cho phép trình
+# duyệt tự suy đoán thời hạn và giữ index.html cũ, nên nó không bao giờ biết có
+# bản mới. Lỗi này im lặng: server hoàn toàn đúng, chỉ người dùng là thấy sai.
+
+def test_index_html_luon_phai_hoi_lai_server(dist):
+    """index.html KHÔNG được cache: tên nó không đổi, mà nó lại ghi tên các tệp
+    assets. Cache nó thì mọi bản triển khai sau đều vô hình với người dùng cũ."""
+    for duong_dan in ("/", "/app", "/settings"):
+        r = TestClient(_app(dist)).get(duong_dan)
+        cc = r.headers.get("cache-control", "")
+        assert "no-cache" in cc, f"{duong_dan} phải hỏi lại server, đang là {cc!r}"
+
+
+def test_tep_assets_co_ma_bam_thi_cache_vinh_vien(dist):
+    """Ngược lại, /assets/* có mã băm nội dung trong tên nên cache thoải mái —
+    sửa code là ra tên khác, không bao giờ phục vụ nhầm nội dung cũ."""
+    r = TestClient(_app(dist)).get("/assets/index-abc123.js")
+    assert r.status_code == 200
+    cc = r.headers.get("cache-control", "")
+    assert "immutable" in cc and "max-age=31536000" in cc, cc
+
+
+def test_tep_goc_khong_co_ma_bam_thi_cache_ngan(dist):
+    """favicon/ảnh/video ở gốc dist không có mã băm — cache ngắn thôi, để thay
+    ảnh xong không phải chờ hết một năm mới thấy."""
+    r = TestClient(_app(dist)).get("/favicon.ico")
+    assert r.status_code == 200
+    cc = r.headers.get("cache-control", "")
+    assert "max-age=3600" in cc and "immutable" not in cc, cc
