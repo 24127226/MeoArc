@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
 import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
+import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
 import { api, apiBaseUrlDaCauHinh, type StoredMessage } from '@/lib/api'
@@ -614,6 +615,19 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
    gợn sóng) cùng dữ liệu đi kèm. Xem giải thích ở chỗ chúng từng được gắn.
    Lịch sử vẫn còn trong git nếu cần dựng lại. */
 
+/** Đoạn phim bong bóng xà phòng — nguồn để khối kính khúc xạ.
+ *
+ *  TỰ HOST, không trỏ thẳng vào CDN ngoài. Bản gốc trên CloudFront tải được
+ *  (HTTP 200, 2 MB) nhưng phát tới giữa chừng thì đứt: `PIPELINE_ERROR_DISCONNECTED`.
+ *  Đây là thứ không kiểm soát được từ phía mình — CDN, chính sách nội dung của
+ *  trình duyệt, hay mạng của người dùng đều có thể cắt. Mà khối kính thì KHÔNG
+ *  CÓ GÌ ĐỂ KHÚC XẠ nếu đoạn phim chết, nên phụ thuộc bên ngoài ở đây là phụ
+ *  thuộc vào đúng thứ dễ hỏng nhất.
+ *
+ *  Đặt cùng chỗ với 4 đoạn phim sẵn có của trang giới thiệu. Cùng origin nên
+ *  canvas cũng không bị "nhiễm bẩn" — tiện thể bỏ luôn một lo lắng. */
+const PHIM_BONG_BONG = '/landing/soap-bubble.mp4'
+
 export function ChatPanel({
   emails,
   actions,
@@ -648,6 +662,9 @@ export function ChatPanel({
   // Gói + hạn mức token: hiện cạnh ô nhập, chặn gửi khi cạn, mở trang nâng cấp.
   const { status: sub, refresh: refreshSub, setStatus: setSub } = useSubscription()
   const [pricingOpen, setPricingOpen] = useState(false)
+  /** Đoạn phim nền + cờ báo hỏng để rơi về bong bóng dựng bằng CSS. */
+  const videoNenRef = useRef<HTMLVideoElement>(null)
+  const [phimHong, setPhimHong] = useState(false)
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
   const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
@@ -1090,8 +1107,37 @@ export function ChatPanel({
 
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
-      {/* Nền sinh động: aurora ấm trôi + quầng nến + tàn lửa (đặt sau nội dung) */}
-      <ChatAmbience />
+      {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ.
+          KHÔNG đặt thuộc tính crossorigin: máy chủ này không trả header CORS,
+          thêm vào là phim không tải được. Thiếu nó thì canvas bị "nhiễm bẩn"
+          (tainted) — vô hại ở đây, vì ta chỉ VẼ VÀO canvas chứ không bao giờ
+          đọc điểm ảnh ra. */}
+      {/* CHỖ NÀY LỆCH KHỎI BẢN GỐC MỘT CÁCH CÓ CHỦ Ý.
+          Bản gốc dặn "không phủ lớp làm tối nào lên phim". Đúng cho một trang
+          giới thiệu có ba mươi chữ, nơi đoạn phim CHÍNH LÀ nội dung. Đây thì
+          khác: phía trên nó là hội thoại đang chạy, chip gợi ý và ô nhập — chữ
+          phải đọc được, và chữ trắng trên bong bóng trắng loá thì không.
+          Nên phim giữ nguyên độ rực ở khoảng trống giữa khung, và mờ dần về đáy
+          nơi có chữ. Vẫn không có lớp phủ màu nào — chỉ là chính đoạn phim nhạt
+          dần đi. */}
+      <video
+        ref={videoNenRef}
+        className="phim-nen"
+        style={{
+          opacity: 0.62,
+          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 26%, #000 58%, rgba(0,0,0,0.25) 84%, transparent 96%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 26%, #000 58%, rgba(0,0,0,0.25) 84%, transparent 96%)',
+        }}
+        aria-hidden
+        autoPlay muted loop playsInline preload="auto"
+        src={PHIM_BONG_BONG}
+        onError={() => setPhimHong(true)}
+      />
+      {/* Định nghĩa bộ lọc khúc xạ — gắn một lần, các khối kính trỏ tới bằng id */}
+      <KinhKhucXaDefs />
+      {/* Bong bóng dựng bằng CSS: nền dự phòng khi đoạn phim không tải được
+          (mạng chặn, CDN hỏng). Không có nó thì panel thành một mảng đen trơn. */}
+      {phimHong && <ChatAmbience />}
       {/* Watermark maison — Phiên bản SÁNG BÓNG ÁNH KIM cho Dark Mode, chốt hạ bài toán tàng hình */}
       <div aria-hidden className="maison-watermark relative z-[2]">
         <style>{`
@@ -1159,7 +1205,12 @@ export function ChatPanel({
           gì đó ở sau nhưng không đọc được là gì. Đúng vai của một thanh tiêu đề:
           phải tách khỏi nội dung bên dưới, nhưng không được là một mảng đặc chặn
           hết mọi thứ. Bong bóng phía sau vẫn thấp thoáng qua các gân. */}
-      <header data-cat-perch="bottom" className="kinh-soc relative px-6 pt-6 pb-6 z-20 shrink-0 overflow-hidden group">
+      {/* Thanh tiêu đề dùng KÍNH SỌC (fluted glass): tấm kính đúc thành nhiều gân
+          bán trụ dọc, mỗi gân là một thấu kính trụ nên ảnh sau bị nén ngang và vỡ
+          thành dải — thấy có gì đó ở sau nhưng không đọc được là gì. Đúng vai một
+          thanh tiêu đề, và quan trọng là nó KHÔNG phụ thuộc kích thước nên chạy
+          đúng ở mọi bề rộng. Đoạn phim bong bóng vẫn thấp thoáng qua các gân. */}
+      <header data-cat-perch="bottom" className="kinh-soc relative z-20 shrink-0 overflow-hidden px-6 pb-5 pt-5">
         
         {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
@@ -1182,7 +1233,19 @@ export function ChatPanel({
               giữ khối đệm trống cho tiêu đề căn giữa cân với nút bên phải */}
           <div className="size-9 shrink-0 ml-12" />
 
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none">
+          {/* VIÊN KÍNH KHÚC XẠ — hẹp so với đoạn phim, và đó là điều kiện bắt buộc.
+              Bản gốc ghi rõ một hiện tượng cố hữu của bộ lọc: khi khối kính rộng
+              gần bằng nguồn, mép của nó rơi vào vùng mặt nạ 45px và lộ ra dải
+              tách kênh màu gắt chạy dọc cạnh. Thanh tiêu đề tràn viền rơi đúng
+              vào bẫy đó — đã thử và đúng là bị. Thu lại thành viên nổi hẹp thì
+              mép ra khỏi vùng ấy, chỉ còn lại phần khúc xạ sạch.
+              Tiện thể nó cũng đúng hơn về mặt hình: một tấm kính có bốn cạnh
+              nhìn thấy được thì mới đọc ra là VẬT đặt lên trên đoạn phim; tràn
+              viền thì chỉ đọc là một mảng nền. */}
+          <KinhKhucXa
+            videoRef={videoNenRef}
+            co="nho"
+            className="kkx pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none overflow-hidden rounded-full border border-white/[0.14] px-7 py-2.5 text-center">
             {/* KHUNG 2 MÈO PNG xoá nền — bạn chỉ cần thả ảnh vào
                 src/frontend/public/cats/ (tên: cat-1.png & cat-2.png) là tự hiện;
                 CHƯA có ảnh thì tự ẩn (onError). overflow-hidden + object-contain
@@ -1196,11 +1259,11 @@ export function ChatPanel({
             <h2 className="relative text-[19px] font-semibold leading-none tracking-tight text-foreground">
               Trợ lý MeoArc
             </h2>
-            <p className="relative mt-2 flex items-center justify-center gap-1.5 text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            <p className="relative mt-1.5 flex items-center justify-center gap-1.5 text-[9.5px] uppercase tracking-[0.18em] text-foreground/60">
               <span className="pulse-dot" aria-hidden />
               Sẵn sàng nhận lệnh
             </p>
-          </div>
+          </KinhKhucXa>
 
           <div className="flex items-center gap-1 shrink-0 mr-12">
             <button
