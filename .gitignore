@@ -141,3 +141,5 @@ out/
 
 # Frontend build — sinh ra bằng `npm run build` / `npm run build:gop`, không commit
 src/frontend/dist/
+# Frontend duoc chep vao day luc trien khai — sinh ra tu build, khong commit
+src/backend/static/

@@ -52,13 +52,16 @@ jobs:
         working-directory: src/frontend
         run: npm run build:gop
 
-      # app/api/spa.py tu do thu muc `app/static` — chep vao dung cho la backend
-      # tu phuc vu, khong phai cau hinh them gi.
+      # app/api/spa.py tu do thu muc `static` nam CANH thu muc `app`, tuc la
+      # src/backend/static (xem ham _tim_thu_muc_build: parents[2] / "static").
+      # Chep sai mot cap thi khong bao loi gi ca — backend van chay, chi la khong
+      # phuc vu giao dien, va nhin tu ngoai giong het "deploy hong".
       - name: Chep frontend vao backend
         run: |
-          rm -rf src/backend/app/static
-          cp -r src/frontend/dist src/backend/app/static
-          echo "So tep frontend da chep: $(find src/backend/app/static -type f | wc -l)"
+          rm -rf src/backend/static
+          cp -r src/frontend/dist src/backend/static
+          test -f src/backend/static/index.html || { echo "KHONG THAY index.html — chep hong"; exit 1; }
+          echo "So tep frontend da chep: $(find src/backend/static -type f | wc -l)"
 
       # ── 2. Kiem tra truoc khi day ────────────────────────────────────────
       # Day ban hong len may chu that thi phat hien muon va sua cham. Chan o day.
