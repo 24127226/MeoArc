@@ -1,0 +1,92 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ .github/workflows/test.yml — chạy bộ kiểm thử trên máy chủ GitHub  ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Giá trị kép:                                                       ║
+# ║  1. Đẩy code lên mà làm hỏng test thì biết ngay, không đợi tới lúc  ║
+# ║     ai đó chạy tay.                                                ║
+# ║  2. Kết quả nằm trên máy chủ GitHub, có dấu thời gian, ai cũng xem  ║
+# ║     được — đây là bằng chứng kiểm thử mạnh hơn ảnh chụp màn hình,   ║
+# ║     vì không nhóm nào tự dựng ra được.                              ║
+# ║                                                                    ║
+# ║ Chạy trên Ubuntu chứ không phải Windows: bộ kiểm thử dùng SQLite    ║
+# ║ trong bộ nhớ nên không cần Postgres, và không phụ thuộc hệ điều hành.║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: Kiểm thử
+
+on:
+  push:
+    branches: [main, integration]
+  pull_request:
+    branches: [main, integration]
+  workflow_dispatch:          # cho phép bấm chạy tay từ giao diện GitHub
+
+jobs:
+  pytest:
+    name: Bộ kiểm thử backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # --frozen: cài ĐÚNG phiên bản trong uv.lock. Nếu lock file lệch với
+      # pyproject.toml thì bước này đỏ — đó là điều mong muốn, vì bản dựng
+      # không lặp lại được thì kết quả kiểm thử cũng không đáng tin.
+      - name: Cài thư viện theo đúng khoá phiên bản
+        run: uv sync --frozen
+
+      # Sinh khoá mã hoá dùng-một-lần cho lần chạy này. Phép thử mã hoá thông tin
+      # đăng nhập (SEC-TC05) cần có khoá, vì thiếu khoá thì EncryptedStr tự tắt mã
+      # hoá và cả nhóm phép thử sẽ xanh trên một hệ thống đang lưu token trần.
+      # Sinh tại chỗ thay vì gõ cứng: repo không chứa chuỗi nào trông giống khoá
+      # thật, khỏi ai chép nhầm sang môi trường thật.
+      - name: Sinh khoá mã hoá cho lần chạy này
+        run: |
+          echo "TOKEN_ENCRYPTION_KEY=$(uv run python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+
+      - name: Chạy bộ kiểm thử
+        run: uv run pytest -v --html=report.html --self-contained-html
+        env:
+          APP_ENV: ci
+
+      # Giữ lại báo cáo kể cả khi test đỏ — lúc đỏ mới là lúc cần đọc nhất
+      - name: Lưu báo cáo kiểm thử
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bao-cao-kiem-thu
+          path: src/backend/report.html
+          retention-days: 30
+
+  build-frontend:
+    name: Dựng frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Cài thư viện
+        run: npm ci
+
+      # `npm run build` chạy `tsc -b` trước vite build, nên bước này bắt được cả
+      # lỗi kiểu dữ liệu — thứ mà chạy `npm run dev` ở máy không phải lúc nào cũng lộ.
+      - name: Dựng bản production
+        run: npm run build

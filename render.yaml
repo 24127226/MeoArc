@@ -1,0 +1,91 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ render.yaml — Blueprint triển khai backend + PostgreSQL            ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Cách dùng: Render → New → Blueprint → chọn repo này. Render đọc    ║
+# ║ file này và dựng sẵn dịch vụ, khỏi bấm tay từng ô.                 ║
+# ║                                                                    ║
+# ║ Những biến ghi `sync: false` là BÍ MẬT: Render sẽ hỏi lúc tạo,     ║
+# ║ giá trị nằm trong dashboard chứ KHÔNG bao giờ vào repo.            ║
+# ║                                                                    ║
+# ║ Frontend KHÔNG nằm ở đây — nó lên Vercel, đúng như sơ đồ kiến      ║
+# ║ trúc PA2 §1.1 đã ghi ("React · Vercel").                           ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+databases:
+  - name: meoarc-db
+    databaseName: meoarc
+    user: meoarc
+    plan: free
+
+services:
+  - type: web
+    name: meoarc-backend
+    runtime: docker
+    rootDir: src/backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore              # gần Việt Nam nhất trong các vùng miễn phí
+    healthCheckPath: /health       # Render dùng /health để biết dịch vụ sống chưa
+
+    envVars:
+      # ── Nối database: Render tự điền, không phải chép tay ────────────────
+      # Chuỗi Render phát ra có dạng `postgresql://…` (thiếu tên driver).
+      # app/core/config.py tự chuẩn hoá thành `postgresql+psycopg://` nên dán
+      # thẳng vào là chạy — xem thuộc tính `db_url`.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: meoarc-db
+          property: connectionString
+
+      # ── Cấu hình môi trường thật ─────────────────────────────────────────
+      - key: APP_ENV
+        value: production
+
+      # BẮT BUỘC khi FE (Vercel) và BE (Render) khác tên miền. Thiếu biến này thì
+      # đăng nhập xong mọi lệnh gọi đều 401 vì trình duyệt không gửi cookie phiên.
+      - key: COOKIE_CROSS_SITE
+        value: "true"
+
+      # Lưới an toàn: tự tạo bảng còn thiếu lúc khởi động. Đúng chuẩn thì đặt
+      # "false" và chạy `alembic upgrade head`, nhưng với bản demo thì rủi ro
+      # "không có bảng nào" đáng sợ hơn rủi ro schema lệch migration.
+      - key: AUTO_CREATE_TABLES
+        value: "true"
+
+      # Trần gọi ra ngoài nằm TRONG từng tiến trình, nên số này phải khớp số worker
+      # thật. Muốn tăng thì bắt buộc có Redis, nếu không mỗi worker đếm rate-limit riêng.
+      - key: WEB_CONCURRENCY
+        value: "1"
+
+      # ── Điền sau khi có URL Vercel ───────────────────────────────────────
+      # Cả hai để trống lúc tạo, quay lại điền ở Bước 4 của docs/test/TRIEN-KHAI.md.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+      # ── Bí mật: Render hỏi lúc tạo, không nằm trong repo ─────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Phải TRÙNG với địa chỉ khai trong Google Cloud Console:
+      #   https://<ten-dich-vu>.onrender.com/auth/google/callback
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+
+      - key: AI_API_KEY
+        sync: false
+
+      # ⚠️ CHÉP ĐÚNG khoá đang có trong .env máy dev. Đổi khoá là mọi token Google
+      # đã lưu thành rác giải mã không ra, người dùng phải đăng nhập lại toàn bộ.
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+
+      # Tuỳ chọn — bỏ trống cũng chạy
+      - key: MS_CLIENT_ID
+        sync: false
+      - key: MS_CLIENT_SECRET
+        sync: false
+      - key: MS_REDIRECT_URI
+        sync: false
