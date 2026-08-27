@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
+import { LogoMark } from '@/components/logo'
 import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
@@ -1107,27 +1108,30 @@ export function ChatPanel({
 
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
-      {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ.
-          KHÔNG đặt thuộc tính crossorigin: máy chủ này không trả header CORS,
-          thêm vào là phim không tải được. Thiếu nó thì canvas bị "nhiễm bẩn"
-          (tainted) — vô hại ở đây, vì ta chỉ VẼ VÀO canvas chứ không bao giờ
-          đọc điểm ảnh ra. */}
-      {/* CHỖ NÀY LỆCH KHỎI BẢN GỐC MỘT CÁCH CÓ CHỦ Ý.
-          Bản gốc dặn "không phủ lớp làm tối nào lên phim". Đúng cho một trang
-          giới thiệu có ba mươi chữ, nơi đoạn phim CHÍNH LÀ nội dung. Đây thì
-          khác: phía trên nó là hội thoại đang chạy, chip gợi ý và ô nhập — chữ
-          phải đọc được, và chữ trắng trên bong bóng trắng loá thì không.
-          Nên phim giữ nguyên độ rực ở khoảng trống giữa khung, và mờ dần về đáy
-          nơi có chữ. Vẫn không có lớp phủ màu nào — chỉ là chính đoạn phim nhạt
-          dần đi. */}
+      {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ, và nó PHẢI ĂN NHẬP VỚI NỀN, KHÔNG PHẢI DÁN LÊN NỀN.
+          Bản thô là một bong bóng TRẮNG LOÁ trên nền studio sáng. Đặt nguyên nó
+          lên nền #05060D thì nó không thuộc về căn phòng ấy — nó là một tấm ảnh
+          dán lên tường tối, và mắt đọc ra ngay.
+
+          Thử `mix-blend-mode: screen` trước và nó KHÔNG ăn thua, vì một lý do đáng
+          ghi lại: screen lấy giá trị sáng hơn của hai lớp, mà nền ở đây là #05060D
+          — gần như đen tuyệt đối. Screen với đen chính là phép đồng nhất, nên nó
+          không đổi được gì cả. Vẫn giữ screen vì ở những chỗ nền không thuần đen
+          nó có tác dụng, nhưng nó không phải đòn bẩy.
+
+          Đòn bẩy là `filter`. Ghì brightness xuống 0.38 để nền studio trắng của
+          đoạn phim tụt xuống ngang tầm nền tối của mình, rồi đẩy contrast và
+          saturate lên bù lại — làm thế thì chỉ những vân ngũ sắc rực nhất mới
+          sống sót, đúng những thứ đáng giữ. hue-rotate kéo phổ về phía tím/hồng
+          của thương hiệu để đoạn phim không mang một hệ màu riêng.
+
+          Bản gốc dặn "không phủ lớp làm tối nào lên phim" — vẫn giữ đúng: đây
+          không phải lớp phủ, đây là cách chính đoạn phim hoà vào nền. Riêng
+          phần mờ dần về đáy thì cần, vì dưới đó là chip gợi ý và ô nhập, chữ
+          phải đọc được. */}
       <video
         ref={videoNenRef}
         className="phim-nen"
-        style={{
-          opacity: 0.62,
-          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 26%, #000 58%, rgba(0,0,0,0.25) 84%, transparent 96%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 26%, #000 58%, rgba(0,0,0,0.25) 84%, transparent 96%)',
-        }}
         aria-hidden
         autoPlay muted loop playsInline preload="auto"
         src={PHIM_BONG_BONG}
@@ -1205,12 +1209,18 @@ export function ChatPanel({
           gì đó ở sau nhưng không đọc được là gì. Đúng vai của một thanh tiêu đề:
           phải tách khỏi nội dung bên dưới, nhưng không được là một mảng đặc chặn
           hết mọi thứ. Bong bóng phía sau vẫn thấp thoáng qua các gân. */}
-      {/* Thanh tiêu đề dùng KÍNH SỌC (fluted glass): tấm kính đúc thành nhiều gân
-          bán trụ dọc, mỗi gân là một thấu kính trụ nên ảnh sau bị nén ngang và vỡ
-          thành dải — thấy có gì đó ở sau nhưng không đọc được là gì. Đúng vai một
-          thanh tiêu đề, và quan trọng là nó KHÔNG phụ thuộc kích thước nên chạy
-          đúng ở mọi bề rộng. Đoạn phim bong bóng vẫn thấp thoáng qua các gân. */}
-      <header data-cat-perch="bottom" className="kinh-soc relative z-20 shrink-0 overflow-hidden px-6 pb-5 pt-5">
+      {/* Thanh tiêu đề: ĐÈN NEON CHIẾU VÀO, không phải một bề mặt được trang trí.
+          Ống đèn nằm ở mép trên, chùm sáng đổ xuống, và thứ nhìn thấy là chùm ấy
+          chạm vào không khí trong khối. Khác hẳn kính sọc trước đó — sọc là hoa
+          văn nên mắt luôn thấy nó và nó tranh chỗ với nội dung; ánh sáng thì
+          không có hoa văn nào để nhìn, nó chỉ làm khối này sáng lên.
+
+          CHỮ ĐÃ BỎ, thay bằng dấu hiệu thương hiệu. Dòng "Trợ lý MeoArc" không
+          nói thêm được gì: người dùng vừa tự tay mở khung này, họ biết thừa nó
+          là gì. Một chữ ở chỗ trang trọng nhất mà không mang thông tin thì chỉ
+          là chỗ trống được lấp. Dấu hiệu thì nhận ra tức thì, không phải đọc, và
+          nó chừa lại khoảng thở cho chùm sáng. */}
+      <header data-cat-perch="bottom" className="den-neon relative z-20 shrink-0 overflow-hidden px-6 pb-5 pt-5">
         
         {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
@@ -1245,24 +1255,12 @@ export function ChatPanel({
           <KinhKhucXa
             videoRef={videoNenRef}
             co="nho"
-            className="kkx pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none overflow-hidden rounded-full border border-white/[0.14] px-7 py-2.5 text-center">
-            {/* KHUNG 2 MÈO PNG xoá nền — bạn chỉ cần thả ảnh vào
-                src/frontend/public/cats/ (tên: cat-1.png & cat-2.png) là tự hiện;
-                CHƯA có ảnh thì tự ẩn (onError). overflow-hidden + object-contain
-                đảm bảo ảnh GÓI GỌN trong khung; nằm SAU chữ (h2/p có relative). */}
-            {/* ĐÃ GỠ hai ảnh mèo PNG từng đặt ở ĐÂY, ngay phía sau tiêu đề, ở 90%
-                độ mờ. Đó không phải chuyện thẩm mỹ mà là lỗi đọc được: hình mèo
-                đen nằm chồng đúng lên chữ "Trợ lý MeoArc", làm tiêu đề — thứ
-                phải rõ nhất khung — trở thành thứ khó đọc nhất. Trang trí không
-                bao giờ được đặt phía sau chữ ở độ mờ đó.
-                Linh hồn mèo vẫn còn: WanderingCat chạy rong khắp app. */}
-            <h2 className="relative text-[19px] font-semibold leading-none tracking-tight text-foreground">
-              Trợ lý MeoArc
-            </h2>
-            <p className="relative mt-1.5 flex items-center justify-center gap-1.5 text-[9.5px] uppercase tracking-[0.18em] text-foreground/60">
-              <span className="pulse-dot" aria-hidden />
-              Sẵn sàng nhận lệnh
-            </p>
+            className="kkx pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 select-none items-center justify-center overflow-hidden rounded-full border border-white/[0.16] p-3.5">
+            {/* Dấu hiệu, không phải chữ. Phát sáng bằng drop-shadow theo đúng màu
+                đèn đang rọi — cùng một nguồn sáng thì mọi vật trong khối phải
+                nhận cùng một màu, nếu không khối mất tính nhất quán. */}
+            <LogoMark className="relative size-6 text-foreground drop-shadow-[0_0_10px_var(--den)]" />
+            <span className="sr-only">Trợ lý MeoArc</span>
           </KinhKhucXa>
 
           <div className="flex items-center gap-1 shrink-0 mr-12">

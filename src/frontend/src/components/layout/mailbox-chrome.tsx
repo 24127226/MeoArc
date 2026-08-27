@@ -27,7 +27,10 @@ export function MailboxChrome({
   return (
     <div className="relative shrink-0 overflow-hidden px-5 pb-4 pt-5">
       {/* Lưới mảnh phía sau — mắt không nhìn ra, nhưng não đọc được là "môi trường kỹ thuật" */}
-      <div className="grid-faint pointer-events-none absolute inset-0 z-0 opacity-60" />
+      {/* Lưới kẻ ĐÃ BỎ, thay bằng kính mờ. Sọc/lưới là hoa văn: nó lặp lại nên
+          mắt luôn thấy nó, và đặt sau chữ thì nó tranh chỗ với chữ. Kính mờ
+          không có hoa văn nào để nhìn — mắt lướt qua, đúng việc của một cái nền. */}
+      <div className="kinh-mo pointer-events-none absolute inset-0 z-0" />
 
       {/* Đường quét sáng ở đáy: một sợi neon mảnh thay cho rãnh cơ khí cũ */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10">
