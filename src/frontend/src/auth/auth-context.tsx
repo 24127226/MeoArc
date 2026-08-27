@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrl, apiBaseUrlDaCauHinh } from '@/lib/api'
 
 export type User = {
   name: string
@@ -24,7 +24,10 @@ type AuthContextValue = {
 const STORAGE_KEY = 'meoarc-auth'
 
 // Có VITE_API_BASE_URL → dùng backend THẬT; không có → chạy mock như cũ.
-const USE_BACKEND = !!apiBaseUrl
+// KHÔNG dùng `!!apiBaseUrl`: ở chế độ gộp, đường dẫn đúng là chuỗi RỖNG (cùng
+// origin) mà vẫn phải gọi backend thật. Dựa vào chuỗi rỗng thì ứng dụng lặng lẽ
+// chuyển sang dữ liệu giả — chạy đẹp, không báo lỗi, và không ai nhận ra.
+const USE_BACKEND = apiBaseUrlDaCauHinh
 
 /** Tài khoản demo dùng cho ảnh SRS / demo. */
 const DEMO_USER: User = {

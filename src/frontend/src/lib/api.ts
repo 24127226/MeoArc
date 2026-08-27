@@ -633,7 +633,29 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
 /* --------------------------------- Singleton -------------------------------- */
 
 const BASE = import.meta.env.VITE_API_BASE_URL
-/** Có cấu hình backend thật không? (auth-context dùng để biết chế độ mock/thật.) */
-export const apiBaseUrl = BASE
+
+/** Có cấu hình backend thật không? (auth-context dùng để biết chế độ mock/thật.)
+ *
+ *  ĐÃ CẮT gạch chéo cuối. Chỗ này từng gây một lỗi rất khó lần: ở chế độ gộp,
+ *  `VITE_API_BASE_URL` là `"/"`, nên nơi nào ghép `` `${apiBaseUrl}/auth/...` ``
+ *  sẽ ra `"//auth/..."`. Hai gạch chéo đầu là cú pháp URL-không-kèm-giao-thức —
+ *  trình duyệt hiểu `auth` là TÊN MÁY CHỦ và điều hướng sang `https://auth/...`,
+ *  một địa chỉ không tồn tại. Kết quả: bấm nút xong ra trang trắng/đen, không
+ *  báo lỗi gì, và mọi thứ khác vẫn chạy bình thường.
+ *
+ *  Cắt xong thì `"/"` thành `""`, và `"" + "/auth/..."` ra đúng đường dẫn tương đối.
+ *  Lưu ý `""` vẫn là giá trị FALSY — nhưng `USE_BACKEND` phải phân biệt được
+ *  "gộp cùng origin" với "chưa cấu hình backend", nên xem `apiBaseUrlDaCauHinh`.
+ */
+export const apiBaseUrl = (BASE ?? '').replace(/\/$/, '')
+
+/** Có khai VITE_API_BASE_URL hay không — dùng để chọn chế độ mock ↔ thật.
+ *  Tách khỏi `apiBaseUrl` vì ở chế độ gộp, đường dẫn đúng là chuỗi RỖNG mà vẫn
+ *  phải gọi backend thật. Dựa vào `!!apiBaseUrl` thì chế độ gộp bị hiểu nhầm
+ *  thành "chưa có backend" và ứng dụng lặng lẽ chạy bằng dữ liệu giả. */
+export const apiBaseUrlDaCauHinh = BASE != null && BASE !== ''
+
 /** Dùng ở mọi nơi: `import { api } from '@/lib/api'`. Tự chọn mock ↔ http. */
-export const api: MeoArcApi = BASE ? createHttpApi(BASE) : createMockApi()
+export const api: MeoArcApi = apiBaseUrlDaCauHinh
+  ? createHttpApi(apiBaseUrl)
+  : createMockApi()
