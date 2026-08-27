@@ -108,13 +108,22 @@ Nếu app còn ở **Testing**, chỉ những tài khoản nằm trong danh sác
 nhập được. **Thầy dùng Gmail của thầy để thử là bị chặn ngay**, hiện màn hình "Access
 blocked" — và nhìn y hệt như sản phẩm hỏng.
 
-Hai cách xử lý:
-- **Thêm email của thầy vào Test users** — nhanh, nhưng phải biết trước email.
-- **Publish app** — ai cũng đăng nhập được, nhưng Google hiện màn hình cảnh báo
-  "chưa xác minh", người dùng phải bấm *Advanced → Go to MeoArc*.
+🔴 **ĐỪNG bấm "Publish app".** MeoArc xin quyền `gmail.modify` và `gmail.send` — Google
+xếp vào nhóm **restricted scopes**. Publish với nhóm quyền này sẽ đẩy app vào **quy trình
+thẩm định bảo mật kéo dài nhiều tuần**, và trong lúc chờ thì tình hình còn khó hơn bây giờ.
 
-Cách an toàn nhất cho buổi chấm: **làm cả hai** — publish, và vẫn thêm email thầy vào
-test users. Rồi **tự đăng nhập thử bằng một tài khoản Google khác** để chắc chắn.
+**Cách đúng: giữ nguyên chế độ Testing, thêm email vào danh sách _Test users_.** Được tối
+đa 100 email, thêm là dùng được ngay, không phải chờ ai duyệt.
+
+Cần thêm những email này:
+- Email của **thầy** — hỏi thầy, hoặc xem trong thông tin môn học
+- **Cả bốn thành viên nhóm**
+- Tài khoản demo dùng chung của nhóm
+
+⚠️ **Một hệ quả của chế độ Testing cần biết:** với nhóm quyền nhạy cảm, Google cho
+**refresh token sống 7 ngày** rồi hết hạn. Nghĩa là đăng nhập hôm nay, một tuần sau phiên
+đó chết và phải đăng nhập lại. Với một buổi demo thì không sao — chỉ cần **đăng nhập mới
+ngay trước buổi chấm**. Nhưng đừng đăng nhập từ hai tuần trước rồi tưởng nó còn sống.
 
 ### Bước 4 · Deploy frontend lên Vercel
 

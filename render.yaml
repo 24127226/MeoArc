@@ -77,6 +77,15 @@ services:
       - key: AI_API_KEY
         sync: false
 
+      # ⚠️ BẮT BUỘC khai, đừng để rơi về mặc định trong code.
+      # Mặc định `gemini-2.0-flash` có hạn ngạch miễn phí bằng 0 — gọi phát nào lỗi
+      # phát đó. Máy dev chạy được là nhờ .env đè lên, mà .env không lên Render.
+      # Thiếu hai dòng này thì mọi thứ trông bình thường cho tới lệnh chat đầu tiên.
+      - key: MODEL_NAME
+        value: gemini-2.5-flash-lite
+      - key: MODEL_PROVIDER
+        value: google_genai
+
       # ⚠️ CHÉP ĐÚNG khoá đang có trong .env máy dev. Đổi khoá là mọi token Google
       # đã lưu thành rác giải mã không ra, người dùng phải đăng nhập lại toàn bộ.
       - key: TOKEN_ENCRYPTION_KEY
