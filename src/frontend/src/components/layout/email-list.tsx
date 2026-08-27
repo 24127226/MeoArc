@@ -821,25 +821,13 @@ export function EmailList({
       <div className="px-3 pb-3 flex-1 min-h-0">
         <div 
           ref={listRef} 
-          style={{ 
-            backgroundColor: 'var(--list)',
-            /* Sử dụng color-mix nương theo foreground hệ thống để Light Mode dệt chỉ tối, Dark Mode tráng chỉ bạc phát quang */
-            backgroundImage: `
-              linear-gradient(90deg, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 0, 0, 0.15) 1px, transparent 1px),
-              repeating-linear-gradient(90deg, 
-                transparent, 
-                transparent 26px, 
-                color-mix(in srgb, var(--foreground) 8%, transparent) 26px, 
-                color-mix(in srgb, var(--foreground) 8%, transparent) 27px, 
-                color-mix(in srgb, var(--background) 15%, transparent) 27px, 
-                color-mix(in srgb, var(--background) 15%, transparent) 28px
-              )
-            `,
-            backgroundPosition: '0 0, 1px 0, 0 0',
-            backgroundSize: '100% 100%'
-          }}
-          className="w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin shadow-[inset_0_5px_16px_rgba(0,0,0,0.28)] border border-foreground/[0.08]"
+          /* BA LỚP KẺ SỌC ĐÃ BỎ (hai đường kẻ dọc + một dải lặp 28px giả vân
+             giấy dệt). Chúng là hoa văn: lặp lại, có nhịp, nên mắt luôn thấy —
+             mà đây là nền NẰM NGAY SAU danh sách thư, thứ người dùng phải đọc.
+             Thay bằng kính mờ, lớp duy nhất trong dự án không có hoa văn nào để
+             nhìn. Giữ lại bóng lún phía trong để cột vẫn có chiều sâu. */
+          style={{ backgroundColor: 'var(--list)' }}
+          className="kinh-mo w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin shadow-[inset_0_5px_16px_rgba(0,0,0,0.28)] border border-foreground/[0.08]"
         >
           {loading ? (
             [0, 1, 2, 3].map((i) => (

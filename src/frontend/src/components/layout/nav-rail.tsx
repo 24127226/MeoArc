@@ -95,12 +95,13 @@ export function NavRail({
   return (
     <nav
       className={cn(
-        'relative z-20 flex h-full shrink-0 flex-col bg-rail py-5 border-r border-border/40 transition-[width] duration-300 ease-soft',
+        // KẺ SỌC DỌC ĐÃ BỎ (repeating-linear-gradient 20px, màu ghi cứng
+        // rgba(239,217,210) — một màu kem còn sót từ bảng màu cũ, nên ở bản sáng
+        // mới nó chỏi hẳn). Thay bằng kính mờ: sọc là hoa văn nên mắt luôn thấy
+        // nó và nó tranh chỗ với nhãn điều hướng; kính mờ không có gì để nhìn.
+        'kinh-mo relative z-20 flex h-full shrink-0 flex-col bg-rail py-5 border-r border-border/40 transition-[width] duration-300 ease-soft',
         collapsed ? 'w-[76px]' : 'w-[212px]',
       )}
-      style={{
-        backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(239, 217, 210, 0.12) 19px, rgba(239, 217, 210, 0.12) 20px)`
-      }}
     >
       {/* Logo + nút thu/mở */}
       <div

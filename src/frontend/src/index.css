@@ -2603,13 +2603,15 @@
 
    Đây lại đúng nguyên tắc phát xạ/tán sắc, lần này áp cho một đoạn phim thật.
 
-   NỀN TỐI. Bản thô là bong bóng TRẮNG LOÁ trên nền studio sáng; đặt nguyên lên
-   #05060D thì nó là một tấm ảnh dán lên tường tối, mắt đọc ra ngay. Đã thử
-   `screen` trước và nó KHÔNG ăn thua, vì lý do đáng ghi lại: screen lấy giá trị
-   sáng hơn của hai lớp, mà nền gần như đen tuyệt đối — screen với đen chính là
-   phép đồng nhất. Đòn bẩy thật là brightness: ghì xuống 0.38 để nền studio
-   trắng tụt ngang tầm nền tối, rồi đẩy contrast/saturate bù lại, nên chỉ những
-   vân ngũ sắc rực nhất sống sót — đúng những thứ đáng giữ.
+   NỀN TỐI dùng bông hoa thuỷ tinh, và mấu chốt là ĐOẠN PHIM ĐÓ CÓ NỀN ĐEN.
+   `screen` lấy giá trị sáng hơn của hai lớp, nên mọi vùng đen của đoạn phim
+   triệt tiêu hoàn toàn trên nền #05060D — không còn hình chữ nhật, chỉ còn lại
+   đúng bông hoa lơ lửng trong bóng tối.
+
+   Trước đó dùng đoạn bong bóng nền studio TRẮNG và phải ghì brightness xuống
+   0.38 để nền trắng đó tụt ngang tầm nền tối. Cách ấy chạy được nhưng là chữa
+   cháy: nó dập tắt cả những vùng đáng giữ. Chọn đúng đoạn phim thì không cần
+   chữa gì — chỉ cần nhấc nhẹ độ bão hoà.
 
    NỀN SÁNG. Ngược hẳn: screen ở đây làm mọi thứ hoá trắng, đoạn phim tàng hình.
    Phải `multiply` — đoạn phim ĂN BỚT nền hồng thay vì cộng thêm vào, và giữ
@@ -2620,8 +2622,8 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 .phim-nen {
   mix-blend-mode: screen;
-  filter: brightness(0.38) contrast(1.45) saturate(1.75) hue-rotate(-14deg);
-  opacity: 0.95;
+  filter: contrast(1.12) saturate(1.35) hue-rotate(-10deg);
+  opacity: 0.92;
   mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, #000 24%, #000 58%, rgba(0,0,0,0.22) 84%, transparent 96%);
   -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, #000 24%, #000 58%, rgba(0,0,0,0.22) 84%, transparent 96%);
 }

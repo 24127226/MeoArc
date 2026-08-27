@@ -35,6 +35,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
 import { LogoMark } from '@/components/logo'
+import { useTheme } from '@/components/theme-provider'
 import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
@@ -616,18 +617,29 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
    gợn sóng) cùng dữ liệu đi kèm. Xem giải thích ở chỗ chúng từng được gắn.
    Lịch sử vẫn còn trong git nếu cần dựng lại. */
 
-/** Đoạn phim bong bóng xà phòng — nguồn để khối kính khúc xạ.
+/** Đoạn phim nền — MỖI THEME MỘT ĐOẠN, và đây không phải chuyện thẩm mỹ.
  *
- *  TỰ HOST, không trỏ thẳng vào CDN ngoài. Bản gốc trên CloudFront tải được
- *  (HTTP 200, 2 MB) nhưng phát tới giữa chừng thì đứt: `PIPELINE_ERROR_DISCONNECTED`.
- *  Đây là thứ không kiểm soát được từ phía mình — CDN, chính sách nội dung của
- *  trình duyệt, hay mạng của người dùng đều có thể cắt. Mà khối kính thì KHÔNG
- *  CÓ GÌ ĐỂ KHÚC XẠ nếu đoạn phim chết, nên phụ thuộc bên ngoài ở đây là phụ
- *  thuộc vào đúng thứ dễ hỏng nhất.
+ *  Phép hoà trộn quyết định đoạn phim nào dùng được ở đâu:
  *
- *  Đặt cùng chỗ với 4 đoạn phim sẵn có của trang giới thiệu. Cùng origin nên
- *  canvas cũng không bị "nhiễm bẩn" — tiện thể bỏ luôn một lo lắng. */
-const PHIM_BONG_BONG = '/landing/soap-bubble.mp4'
+ *  TỐI  → `screen` (lấy giá trị sáng hơn). Đoạn phim phải có NỀN ĐEN thì vùng
+ *         nền mới triệt tiêu hoàn toàn và chỉ còn lại vật thể phát sáng. Bông
+ *         hoa thuỷ tinh đúng như vậy: nền đen tuyền, hoa rực ngũ sắc. Nhờ nó
+ *         mà bản tối không còn phải ghì brightness xuống 0.38 như đoạn bong
+ *         bóng trước — cái đó là chữa cháy cho một đoạn phim sai nền.
+ *
+ *  SÁNG → `multiply` (lấy giá trị tối hơn). Ở đây cần ngược lại: nền phải SÁNG
+ *         thì mới triệt tiêu, còn vật thể sẫm hơn mới hiện ra. Bong bóng xà
+ *         phòng trên nền studio trắng đúng vai này. Bê bông hoa nền đen sang
+ *         đây thì cả khung hoá đen kịt.
+ *
+ *  Cùng một nguyên tắc phát xạ/tán sắc đã dùng cho toàn bộ giao diện, lần này
+ *  quyết định luôn cả việc CHỌN TỆP.
+ *
+ *  Cả hai đều đã chuyển mã cho web: H.264, không tiếng, +faststart. Bản gốc của
+ *  bông hoa là 30.9 MB (2888x2160, 19.9 Mbit/s) — bản dùng thật 1.28 MB.
+ */
+const PHIM_TOI = '/landing/glass-flower.mp4'   // nền đen  → dùng với screen
+const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với multiply
 
 export function ChatPanel({
   emails,
@@ -666,6 +678,8 @@ export function ChatPanel({
   /** Đoạn phim nền + cờ báo hỏng để rơi về bong bóng dựng bằng CSS. */
   const videoNenRef = useRef<HTMLVideoElement>(null)
   const [phimHong, setPhimHong] = useState(false)
+  const { theme } = useTheme()
+  const phimNen = theme === 'dark' ? PHIM_TOI : PHIM_SANG
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
   const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
@@ -1134,7 +1148,8 @@ export function ChatPanel({
         className="phim-nen"
         aria-hidden
         autoPlay muted loop playsInline preload="auto"
-        src={PHIM_BONG_BONG}
+        key={phimNen}
+        src={phimNen}
         onError={() => setPhimHong(true)}
       />
       {/* Định nghĩa bộ lọc khúc xạ — gắn một lần, các khối kính trỏ tới bằng id */}
