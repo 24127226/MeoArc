@@ -40,7 +40,8 @@ def _set_session_cookie(token: str):
     """Đăng nhập xong (Google/Microsoft) → vào /app + gắn cookie httponly (dùng chung)."""
     resp = RedirectResponse(_app_url(), status_code=302)
     resp.set_cookie(COOKIE_NAME, token, httponly=True,
-                    max_age=settings.session_ttl_hours * 3600, samesite="lax")
+                    max_age=settings.session_ttl_hours * 3600,
+                    **settings.cookie_kw)
     return resp
 
 
@@ -90,7 +91,9 @@ def google_callback(code: str, db: Session = Depends(get_db)):
         COOKIE_NAME, token,
         httponly=True,
         max_age=settings.session_ttl_hours * 3600,
-        samesite="lax",
+        # FE và BE khác tên miền thì phải là SameSite=None; Secure, nếu không trình
+        # duyệt lặng lẽ không gửi cookie và mọi lệnh gọi sau đăng nhập đều 401.
+        **settings.cookie_kw,
     )
     return resp
 

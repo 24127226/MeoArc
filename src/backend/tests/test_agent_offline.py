@@ -27,6 +27,14 @@ from app.agent.graph import build_graph
 from app.agent.nodes.agent_node import PresentReply
 from app.tools.registry import RequestContext
 
+# Nạp các tool vào registry. Import này trông như thừa nhưng KHÔNG được bỏ: các tool
+# chỉ tồn tại nhờ decorator @tool_registry.register chạy lúc import module này.
+# Thiếu nó, chạy RIÊNG một test trong file sẽ gặp registry rỗng → tool_node không tìm
+# thấy send_email và trả về lỗi thay vì phiếu chờ duyệt. Nguy hiểm ở chỗ phép thử
+# "chưa gửi thật" vẫn xanh — nhưng xanh vì không có tool để gọi, chứ không phải vì
+# cổng xác nhận giữ được.
+import app.tools.email_tools  # noqa: E402,F401
+
 
 class _ScriptedLLM:
     """LLM giả có KỊCH BẢN: mỗi lần ainvoke trả AIMessage kế tiếp trong script.
@@ -210,3 +218,65 @@ def test_react_tra_loi_thang_khong_goi_tool(monkeypatch):
     assert out["final_output"] is None
     last = out["messages"][-1]
     assert getattr(last, "type", None) == "ai" and "MeoArc" in last.content
+
+
+def test_ba_buoc_chay_dung_thu_tu_nghiep_vu(monkeypatch):
+    """UC007-TC02 (§3.2.7): yêu cầu nhiều bước phải chạy ĐÚNG THỨ TỰ nghiệp vụ.
+
+    Vì sao thứ tự là thứ đáng kiểm chứ không phải "có gọi đủ ba tool":
+    gắn nhãn TRƯỚC khi tìm thì gắn vào tập rỗng — không tool nào báo lỗi, không có
+    ngoại lệ nào được ném, và nhìn nhật ký thì vẫn thấy đủ ba lời gọi thành công.
+    Người dùng chỉ phát hiện khi mở hộp thư ra và thấy chẳng thư nào được gắn nhãn.
+
+    Ở đây dùng LLM có kịch bản (stub) thay vì mô hình thật: mô hình thật có quyền
+    diễn đạt khác đi hoặc chèn thêm một bước ở lần chạy sau, nên phép thử sẽ đỏ mà
+    không hề có lỗi nào — đúng cái bẫy đã nêu ở §3.2.6.
+    """
+    import app.tools.email_tools as et
+
+    emails = [_fake_email(0, "Giáo vụ HCMUS", "giaovu@fit.hcmus.edu.vn", "Hạn nộp SRS")]
+    monkeypatch.setattr(
+        et.gmail_service, "list_messages",
+        lambda tok, q=None, max_results=20, **kw: (emails, None),
+    )
+
+    # Sổ ghi: mỗi lần một nhãn được gắn thì ghi lại tên, theo đúng thứ tự xảy ra.
+    da_gan: list[str] = []
+    monkeypatch.setattr(
+        et.mail, "apply_label",
+        lambda provider, token, ids, name: (da_gan.append(name), len(ids))[1],
+    )
+
+    # Não giả: ba lượt, mỗi lượt xin một tool; lượt bốn chốt bằng văn bản.
+    agent_node._llm_with_tools = _ScriptedLLM([
+        AIMessage(content="", tool_calls=[
+            {"name": "search_emails", "args": {"query": "hạn nộp tuần này", "limit": 5}, "id": "t1"},
+        ]),
+        AIMessage(content="", tool_calls=[
+            {"name": "apply_labels",
+             "args": {"email_ids": ["m0"], "labels_to_add": ["Công việc"]}, "id": "t2"},
+        ]),
+        AIMessage(content="", tool_calls=[
+            {"name": "apply_labels",
+             "args": {"email_ids": ["m0"], "labels_to_add": ["Ưu tiên cao"]}, "id": "t3"},
+        ]),
+        AIMessage(content="Đã tìm, gắn nhãn Công việc và đánh dấu ưu tiên."),
+    ])
+    agent_node._present_llm = _FakePresentLLM(PresentReply(
+        kind="text", intro="", text="Đã tìm, gắn nhãn Công việc và đánh dấu ưu tiên."))
+
+    graph = build_graph()
+    out = asyncio.run(graph.ainvoke(_base_state(
+        "tìm thư hạn nộp tuần này, gắn nhãn Công việc rồi đánh dấu ưu tiên")))
+
+    # 1) Đủ ba lời gọi, KHÔNG bước nào bị bỏ.
+    ten_tool = [m.name for m in out["messages"] if getattr(m, "type", None) == "tool"]
+    assert ten_tool == ["search_emails", "apply_labels", "apply_labels"], (
+        f"Thứ tự tool sai hoặc thiếu bước: {ten_tool}"
+    )
+
+    # 2) Tìm phải xảy ra TRƯỚC lần gắn nhãn đầu tiên.
+    assert ten_tool.index("search_emails") == 0, "Gắn nhãn trước khi tìm → gắn vào tập rỗng"
+
+    # 3) Hai nhãn được gắn đúng thứ tự nghiệp vụ: phân loại trước, ưu tiên sau.
+    assert da_gan == ["Công việc", "Ưu tiên cao"], f"Thứ tự gắn nhãn sai: {da_gan}"

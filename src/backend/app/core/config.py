@@ -111,6 +111,56 @@ class Settings(BaseSettings):
     #   gắn vào báo cáo lỗi để phân biệt lỗi máy dev với lỗi người dùng thật gặp.
     app_env: str = "development"
 
+    # cors_origins ← CORS_ORIGINS : danh sách origin của FE, cách nhau bằng dấu phẩy.
+    #   Vd: "https://meoarc.vercel.app,https://meoarc-git-main.vercel.app"
+    #   Khi triển khai thật, FE nằm ở TÊN MIỀN KHÁC backend. Trình duyệt chặn mọi lệnh
+    #   gọi sang origin lạ trừ khi server khai báo — thiếu biến này thì FE deploy xong
+    #   sẽ không gọi được API nào, dù backend hoàn toàn khoẻ.
+    cors_origins: str = ""
+
+    # cookie_cross_site ← COOKIE_CROSS_SITE : bật khi FE và BE nằm ở hai tên miền khác
+    #   nhau (vd FE trên Vercel, BE trên Render). Lúc đó cookie phiên phải mang
+    #   SameSite=None; Secure thì trình duyệt mới chịu gửi kèm.
+    #   Đây là lỗi triển khai khó lần nhất: đăng nhập thành công, chuyển hướng đúng,
+    #   nhưng mọi lệnh gọi sau đó đều 401 — vì cookie mặc định SameSite=Lax KHÔNG được
+    #   gửi trong request khác site. Nhìn từ ngoài giống hệt lỗi xác thực.
+    #   SameSite=None bắt buộc đi kèm Secure, tức phải chạy HTTPS.
+    cookie_cross_site: bool = False
+
+    @property
+    def db_url(self) -> str:
+        """Chuỗi kết nối đã chuẩn hoá driver.
+
+        Các nền tảng lưu trữ (Render, Railway, Heroku…) phát chuỗi dạng
+        `postgresql://…` hoặc `postgres://…` — không kèm tên driver. SQLAlchemy gặp
+        chuỗi đó sẽ đi tìm psycopg2, thứ dự án này không cài, và chết ngay lúc khởi
+        động với một thông báo chẳng liên quan gì tới cấu hình. Chuẩn hoá ở đây thì
+        dán thẳng chuỗi nền tảng đưa vào là chạy.
+        """
+        url = self.database_url.strip()
+        for tien_to in ("postgresql+", "postgres+"):
+            if url.startswith(tien_to):
+                return url                      # đã khai driver rồi, giữ nguyên
+        if url.startswith("postgresql://"):
+            return "postgresql+psycopg://" + url[len("postgresql://"):]
+        if url.startswith("postgres://"):       # dạng cũ của Heroku
+            return "postgresql+psycopg://" + url[len("postgres://"):]
+        return url
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """Origin được phép gọi API: mặc định của máy dev + những gì khai trong .env."""
+        mac_dinh = ["http://localhost:5173", "http://localhost:5180", "http://localhost:3000"]
+        them = [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
+        return list(dict.fromkeys(mac_dinh + them))
+
+    @property
+    def cookie_kw(self) -> dict:
+        """Tham số cookie phiên, khác nhau giữa máy dev và môi trường thật."""
+        if self.cookie_cross_site:
+            return {"samesite": "none", "secure": True}
+        return {"samesite": "lax"}
+
     # ── Dọn dữ liệu cũ (data retention) — cùng tinh thần "trần + TTL" ở NFR.md ──
     # Ba bảng chỉ thêm không bớt: sessions, audit_logs, notifications.
     # maintenance_interval_min ← MAINTENANCE_INTERVAL_MIN : chu kỳ chạy dọn (phút).

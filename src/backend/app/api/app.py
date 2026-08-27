@@ -162,10 +162,10 @@ async def observability_and_security(request: Request, call_next):
 # phép thì trình duyệt mới cho. Thiếu đoạn này → FE gọi sẽ lỗi CORS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite khi chạy `npm run dev`
-        "http://localhost:5180",  # cổng preview (nếu dùng)
-    ],
+    # Máy dev lấy mặc định localhost; khi triển khai thật thì khai thêm tên miền FE
+    # vào biến CORS_ORIGINS (xem app/core/config.py). Ghi cứng danh sách ở đây đồng
+    # nghĩa bản deploy không gọi được API nào.
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
