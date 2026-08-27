@@ -3,30 +3,29 @@ import { useEffect, useRef } from 'react'
 /**
  * ChatAmbience — nền cho panel trợ lý.
  *
- * ── Bản trước sai ở đâu ──
- * Nền cũ gồm ba quầng tròn nhoè + một quầng "nến" + hạt nhiễu. Mọi lớp đều
- * khuếch tán: không lớp nào có cạnh, không lớp nào có lõi sáng. Chồng bao nhiêu
- * lớp mờ lên nhau cũng chỉ ra một mảng xám — mắt không bắt được gì để nhìn, nên
- * đọc ra là một mặt phẳng trơn. Đúng như nhận xét nhận được.
+ * ── Lịch sử hai lần sai, để không lặp lại ──
+ * Bản 1: ba quầng tròn nhoè + hạt nhiễu. Mọi lớp đều khuếch tán, không lớp nào
+ *        có cạnh → chồng lên nhau chỉ ra một mảng xám, đọc là "mặt phẳng trơn".
+ * Bản 2: chùm vạch sáng chéo. Sửa được chuyện thiếu cấu trúc, nhưng sai kiểu
+ *        khác: vạch phủ kín khung, cắt ngang mọi thứ người dùng đang đọc, và vì
+ *        trải đều nên không bao giờ thành một VẬT — vẫn chỉ là hoa văn, chỉ là
+ *        hoa văn chói hơn.
  *
  * ── Bản này ──
- * Ánh sáng chỉ đọc ra là ánh sáng khi nó có HÌNH. Nên nền giờ là một TRƯỜNG SÁNG
- * có cấu trúc, xếp từ xa tới gần:
+ * Một BONG BÓNG. Đúng một vật thể: có tâm, có mép, có chỗ để nhìn vào, và chừa
+ * sạch phần còn lại của khung cho chữ.
  *
- *   1. Sàn lưới tụ xa      — chiều sâu, cho biết đây là một không gian
- *   2. Chùm sợi sáng       — lõi 1px gần trắng, đây là thứ mắt bám vào
- *   3. Quầng của chính nó  — cùng dải sợi, nhoè dày, đặt sau → thành "sợi phát sáng"
- *   4. Hai kênh tán sắc    — bản sao lệch vài pixel theo trục đỏ/lam
- *   5. Vầng sáng theo con trỏ — giữ lại từ bản cũ, thứ duy nhất còn dùng được
+ * Chọn bong bóng không phải vì nó đẹp. Màu ngũ sắc trên bong bóng xà phòng không
+ * phải màu của xà phòng — nước xà phòng trong suốt. Màu sinh ra do giao thoa
+ * màng mỏng: tia phản xạ ở mặt ngoài và mặt trong của màng lệch pha nhau, một số
+ * bước sóng triệt tiêu, số còn lại nổi lên. Tức là LẠI LÀ tán sắc — đúng hiện
+ * tượng đã chọn làm chữ ký cho bản sáng, lần này bọc quanh một khối cầu. Nhờ vậy
+ * một khối duy nhất chạy được cả hai theme mà không phải làm hai bản.
  *
- * Lớp 4 là chỗ hai theme rẽ đôi, và nó nằm trong CSS chứ không nằm ở đây:
- * nền tối thì tán sắc CỘNG sáng (screen) và rất nhẹ, vì phần việc chính đã do
- * quầng neon lo; nền sáng thì tán sắc NHÂN tối (multiply) và đậm hơn, vì trên
- * nền sáng không có gì để phát ra — thứ đọc được là phổ màu tách ra, không phải
- * ánh sáng loé lên.
- *
- * Kỹ thuật: chỉ transform/opacity/filter; `-z-10` nằm sau chữ; `pointer-events-none`
- * để không chắn click (nghe chuột ở panel cha qua ref); reduced-motion tắt phần động.
+ * Bốn lớp, xếp từ trong ra ngoài — thiếu lớp nào cũng tụt xuống thành hình tròn
+ * tô màu: thân (trong ở tâm, đậm ra rìa) · vân giao thoa (băng ngang vì màng
+ * mỏng dần từ đỉnh xuống do trọng lực) · mép (màng nhìn nghiêng nên dày nhất) ·
+ * hai điểm loé (nguồn sáng + ánh phản xạ từ môi trường).
  */
 export function ChatAmbience() {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -62,23 +61,37 @@ export function ChatAmbience() {
   }, [])
 
   return (
-    <div ref={rootRef} aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* 1 — sàn lưới tụ về xa: nói "đây là một không gian", không phải một mảng màu */}
-      <div className="san-tu" />
-
-      {/* 2+3+4 — chùm sợi sáng. Bốn bản của CÙNG một dải:
-          quầng nhoè phía sau, hai kênh tán sắc lệch, rồi lõi nét trên cùng.
-          Thứ tự này quan trọng: lõi nét phải nằm trên, nếu không sợi mất cạnh. */}
+    <div ref={rootRef} aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      /* Tắt dần về đáy: bong bóng không được lấn vào vùng chip gợi ý và ô nhập —
+         đó là chỗ người dùng đọc và bấm, nền ở đó phải sạch. */
+      style={{
+        maskImage: 'linear-gradient(to bottom, #000 0%, #000 62%, rgba(0,0,0,0.4) 82%, transparent 94%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 62%, rgba(0,0,0,0.4) 82%, transparent 94%)',
+      }}>
+      {/* Bong bóng lớn — đặt lệch phải và hơi thấp, để phần trên trái (nơi bong
+          bóng chat của trợ lý rơi vào) còn thoáng. Nằm trong lớp parallax nên
+          dịch nhẹ ngược con trỏ, đủ để cảm được nó ở phía sau chứ không dán lên
+          mặt kính. */}
       <div className="chat-parallax absolute inset-0">
-        <div className="tia-sang quang-xa" />
-        <div className="tia-sang quang" />
-        <div className="tia-sang tan-sac kenh-do" />
-        <div className="tia-sang tan-sac kenh-lam" />
-        <div className="tia-sang" style={{ opacity: 0.7 }} />
+        <div className="bb-khoi left-[30%] top-[16%] size-[clamp(230px,32vw,430px)]">
+          <div className="bb-than" />
+          <div className="bb-van" />
+          <div className="bb-mep" />
+          <div className="bb-loe" />
+        </div>
+
+        {/* Bong bóng phụ, nhỏ và mờ — một mình một khối thì khung hình chết cứng;
+            có bạn đồng hành thì thành một khoảng không có chiều sâu. */}
+        <div className="bb-khoi right-[8%] top-[8%] size-[clamp(90px,13vw,168px)] opacity-55"
+          style={{ animationDelay: '-9s', animationDuration: '28s' }}>
+          <div className="bb-than" />
+          <div className="bb-van" />
+          <div className="bb-mep" />
+          <div className="bb-loe" />
+        </div>
       </div>
 
-      {/* 5 — vầng sáng đi theo con trỏ: lớp duy nhất của bản cũ còn giữ lại,
-          vì nó là thứ tương tác, không phải thứ trang trí */}
+      {/* Vầng sáng đi theo con trỏ — thứ tương tác, không phải thứ trang trí */}
       <div className="chat-cursor-glow" />
     </div>
   )

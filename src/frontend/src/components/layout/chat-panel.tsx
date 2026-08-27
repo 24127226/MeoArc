@@ -1153,7 +1153,13 @@ export function ChatPanel({
       />
       
       {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
-      <header data-cat-perch="bottom" className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
+      {/* Khung tiêu đề: nền KÍNH SỌC (fluted glass).
+          Kính sọc là tấm kính đúc thành nhiều gân bán trụ dọc; mỗi gân là một
+          thấu kính trụ nên ảnh phía sau bị nén ngang và vỡ thành dải — thấy có
+          gì đó ở sau nhưng không đọc được là gì. Đúng vai của một thanh tiêu đề:
+          phải tách khỏi nội dung bên dưới, nhưng không được là một mảng đặc chặn
+          hết mọi thứ. Bong bóng phía sau vẫn thấp thoáng qua các gân. */}
+      <header data-cat-perch="bottom" className="kinh-soc relative px-6 pt-6 pb-6 z-20 shrink-0 overflow-hidden group">
         
         {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
@@ -1167,7 +1173,8 @@ export function ChatPanel({
             Dải cũ (navy/trắng/đỏ + serif + "Maison de L'intellect") nói về thư quán thế kỷ 19,
             trong khi thứ đang chạy bên dưới là một agent. Hai câu chuyện chỏi nhau ngay trên
             cùng một màn hình, và người xem cảm nhận được dù không gọi tên ra được. */}
-        <div className="grid-faint pointer-events-none absolute inset-0 z-0 opacity-70" />
+        {/* Lưới mảnh ĐÃ BỎ: gân kính đã lo phần "cấu trúc nền", chồng thêm một
+            lưới nữa thì hai hoa văn đánh nhau. */}
 
         {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
         <div className="relative flex items-center justify-between w-full z-10">

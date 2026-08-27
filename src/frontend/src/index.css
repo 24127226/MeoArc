@@ -2285,3 +2285,163 @@
    hình, nên thứ người dùng nhìn thấy không đổi. Các thẻ dưới vẫn có viền phổ,
    chỉ là phổ đứng yên — vẽ một lần, không tốn gì thêm. */
 .vien-ngu-sac:nth-child(n + 9)::before { animation: none }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BONG BÓNG NGŨ SẮC — thay cho chùm vạch sáng
+
+   Vạch sáng bị chê "kinh" và đúng là vậy: chúng phủ kín khung, cắt ngang mọi thứ
+   người dùng đang đọc, và vì trải đều nên không bao giờ trở thành một VẬT — chỉ
+   là hoa văn. Một bong bóng thì ngược lại: nó là một vật thể duy nhất, có tâm,
+   có mép, có chỗ để nhìn vào, và nó chừa sạch phần còn lại của khung.
+
+   ── Vì sao bong bóng lại đúng cho MeoArc ──
+   Màu ngũ sắc trên bong bóng xà phòng KHÔNG phải màu của xà phòng — nước xà
+   phòng trong suốt. Màu sinh ra do giao thoa màng mỏng: ánh sáng phản xạ ở mặt
+   ngoài và mặt trong của màng lệch pha nhau, một số bước sóng triệt tiêu, số còn
+   lại nổi lên. Nói cách khác đây LẠI LÀ tán sắc — cùng một hiện tượng đã dùng
+   cho light mode, nhưng lần này bọc quanh một khối cầu.
+
+   Nhờ vậy nó ăn nhập với cả hai theme mà không phải làm hai bản.
+
+   ── Vật lý được mô phỏng ──
+   • Màng mỏng dần từ trên xuống (nước chảy xuống do trọng lực) → vân màu xếp
+     thành BĂNG NGANG, không phải loang ngẫu nhiên.
+   • Nhìn nghiêng ở rìa thì tia sáng đi qua nhiều màng hơn → rìa đậm màu và sáng
+     hơn hẳn tâm. Tâm bong bóng gần như trong suốt.
+   • Một điểm loé chính (nguồn sáng) và một điểm loé phụ mờ ở phía đối diện
+     (ánh sáng phản xạ từ môi trường).
+   ══════════════════════════════════════════════════════════════════════════════ */
+.bb-khoi {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: bb-troi 22s ease-in-out infinite;
+}
+@keyframes bb-troi {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) }
+  50%      { transform: translate3d(-14px, -26px, 0) scale(1.035) }
+}
+
+/* Thân: gần như trong suốt ở tâm, đậm dần ra rìa — đúng cách nhìn xuyên một
+   khối cầu rỗng có màng mỏng bọc ngoài. */
+.bb-than {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      transparent 0%, transparent 42%,
+      color-mix(in srgb, #87F5F5 22%, transparent) 62%,
+      color-mix(in srgb, #B79BFF 34%, transparent) 78%,
+      color-mix(in srgb, #F042FF 30%, transparent) 90%,
+      transparent 100%);
+}
+
+/* Vân giao thoa: băng NGANG vì màng mỏng dần từ đỉnh xuống đáy.
+   Che bằng một mặt nạ hình vành khuyên để vân chỉ hiện ở rìa, tâm để trống. */
+.bb-van {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-linear-gradient(178deg,
+    color-mix(in srgb, #87F5F5 46%, transparent) 0%,
+    color-mix(in srgb, #B79BFF 42%, transparent) 7%,
+    color-mix(in srgb, #F042FF 38%, transparent) 13%,
+    color-mix(in srgb, #FFB03A 30%, transparent) 19%,
+    color-mix(in srgb, #87F5F5 46%, transparent) 27%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 74%, transparent 99%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 74%, transparent 99%);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  animation: bb-chay-van 17s ease-in-out infinite;
+}
+@keyframes bb-chay-van {
+  0%, 100% { background-position: 0 0 }
+  50%      { background-position: 0 -46px }
+}
+
+/* Sợi sáng ở mép — màng nhìn nghiêng nên dày nhất, sáng nhất */
+.bb-mep {
+  position: absolute; inset: 0; border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 55%, transparent),
+    inset 0 0 26px -6px color-mix(in srgb, #87F5F5 75%, transparent),
+    0 0 90px -10px color-mix(in srgb, #B79BFF 50%, transparent);
+}
+
+/* Điểm loé chính + loé phụ đối diện. Thiếu hai điểm này thì khối cầu mất chất
+   "bề mặt bóng" và tụt xuống thành một vòng tròn tô màu. */
+.bb-loe {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle at 31% 23%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.25) 5%, transparent 15%),
+    radial-gradient(circle at 68% 79%, rgba(255,255,255,0.3) 0%, transparent 12%);
+}
+
+/* Light mode: bong bóng thật trên nền sáng thì màu ĂN BỚT nền chứ không cộng
+   thêm, và mép không loé trắng mà thẫm lại. Cùng khối, đảo cơ chế — y như
+   nguyên tắc phát xạ/tán sắc ở trên. */
+:root:not(.dark) .bb-van  { mix-blend-mode: multiply; opacity: 0.5 }
+:root:not(.dark) .bb-than { mix-blend-mode: multiply; opacity: 0.62 }
+:root:not(.dark) .bb-mep {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #7A5BE0 30%, transparent),
+    inset 0 0 30px -8px color-mix(in srgb, #F042FF 40%, transparent),
+    0 0 70px -14px color-mix(in srgb, #B79BFF 45%, transparent);
+}
+:root:not(.dark) .bb-loe { opacity: 0.75 }
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-khoi, .bb-van { animation: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KÍNH SỌC (FLUTED GLASS) — nền cho khung tiêu đề trợ lý
+
+   Kính sọc là tấm kính đúc thành nhiều gân bán trụ dọc. Mỗi gân là một thấu kính
+   trụ: nhìn qua nó thì ảnh phía sau bị NÉN theo chiều ngang, nên cảnh phía sau
+   vỡ thành từng dải dọc — thấy có gì đó ở sau, nhưng không đọc được là gì.
+
+   Mô phỏng bằng ba thứ cộng lại:
+     1. backdrop-filter blur — phần "không đọc được là gì"
+     2. dải sáng/tối lặp lại — mỗi gân bắt sáng ở giữa (chỗ mặt cong hướng thẳng
+        về phía mắt) và tối dần về hai mép gân, nơi mặt cong nghiêng đi
+     3. một sợi sáng mảnh ở đỉnh mỗi gân — phản xạ gương của nguồn sáng
+
+   Chu kỳ 14px: hẹp hơn thì thành vân nhiễu, rộng hơn thì thành sọc trang trí.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.kinh-soc {
+  position: relative;
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  background-image:
+    /* sợi phản xạ gương ở đỉnh gân */
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.16) 0px, rgba(255,255,255,0.16) 1px,
+      transparent 1px, transparent 14px),
+    /* độ cong của gân: sáng giữa, tối về hai mép */
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,0.16) 0px,
+      rgba(255,255,255,0.07) 5px,
+      rgba(255,255,255,0.11) 7px,
+      rgba(255,255,255,0.07) 9px,
+      rgba(0,0,0,0.16) 14px);
+}
+/* Mép trên/dưới của tấm kính — cạnh vát bắt sáng */
+.kinh-soc::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(255,255,255,0.10);
+}
+/* Nền sáng: gân phải NHÂN TỐI mới thấy, cộng sáng lên nền sáng thì tàng hình */
+:root:not(.dark) .kinh-soc {
+  background-image:
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 1px,
+      transparent 1px, transparent 14px),
+    repeating-linear-gradient(90deg,
+      rgba(90,70,150,0.13) 0px,
+      rgba(255,255,255,0.34) 5px,
+      rgba(255,255,255,0.5) 7px,
+      rgba(255,255,255,0.34) 9px,
+      rgba(90,70,150,0.13) 14px);
+}
