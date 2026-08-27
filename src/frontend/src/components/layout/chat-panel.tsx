@@ -610,184 +610,9 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 
 /* ---------- Panel ---------- */
 
-/** GIỌT SƠN HÌNH CẦU rơi như giọt nước: phồng ra từ band header → rơi → ĐẬP lên
- *  mép trên khu nhập liệu (--roof-y đo runtime) → cột jet bật giữa + GIỌT CON văng
- *  vòng cung ra hai bên, đáp mái lăn tăn dần ra xa + ripple loang ngang → tan.
- *  Đặt trong đúng lane từng màu (khớp dải header). Nằm SAU bong bóng chat (z-0)
- *  nên KHÔNG che chữ. --pc = màu sơn; d = đường kính giọt (đỏ trĩu nặng nhất). */
-const S_NAVY = '#0b1d3a'
-const S_WHITE = '#e9e3d6'
-const S_RED = '#b0302e'
-const PAINT_DROPS: { x: string; c: string; d: number; dur: number; delay: number }[] = [
-  { x: '5%', c: S_NAVY, d: 7, dur: 5.5, delay: 0.0 },
-  { x: '13%', c: S_NAVY, d: 5, dur: 7.2, delay: 2.4 },
-  { x: '20%', c: S_NAVY, d: 7, dur: 6.0, delay: 3.6 },
-  { x: '27%', c: S_WHITE, d: 5, dur: 6.6, delay: 1.1 },
-  { x: '31%', c: S_WHITE, d: 6, dur: 5.8, delay: 3.0 },
-  { x: '38%', c: S_RED, d: 8, dur: 5.0, delay: 0.5 },
-  { x: '43%', c: S_RED, d: 6, dur: 6.3, delay: 2.7 },
-  { x: '58%', c: S_RED, d: 8, dur: 5.3, delay: 1.5 },
-  { x: '63%', c: S_RED, d: 6, dur: 6.9, delay: 3.3 },
-  { x: '69%', c: S_WHITE, d: 6, dur: 6.0, delay: 0.8 },
-  { x: '73%', c: S_WHITE, d: 5, dur: 7.4, delay: 2.5 },
-  { x: '80%', c: S_NAVY, d: 6, dur: 5.6, delay: 1.0 },
-  { x: '88%', c: S_NAVY, d: 5, dur: 6.7, delay: 3.5 },
-  { x: '95%', c: S_NAVY, d: 6, dur: 6.1, delay: 2.0 },
-]
-
-/** Quỹ đạo giọt con văng ra sau cú đập (--dx px, âm = sang trái) — 3 bộ xoay vòng
- *  theo index để các điểm rơi không giọt nào giống giọt nào. */
-const SPLAT_PATTERNS: number[][] = [
-  [-18, -9, 10, 19],
-  [-22, -11, 13, 24],
-  [-15, -7, 8, 16],
-]
-
-/** MeltingWave — sơn tan chảy theo ĐÚNG LANE từng dải màu header (dùng lại viewBox 320 →
- *  khớp x 1-1). Mép dưới lượn KHÔNG ĐỀU (bất đối xứng, nhiều bướu) cho tự nhiên. Kèm giọt
- *  sơn rơi ĐÁP lên mép khu nhập liệu như mưa trên mái (roofRef = canvas chat: chiều cao
- *  canvas CHÍNH LÀ quãng rơi tới mái). ĐẶT SAU bong bóng chat (z-0) để không che tin nhắn. */
-function MeltingWave({ roofRef }: { roofRef: React.RefObject<HTMLDivElement | null> }) {
-  const rootRef = useRef<HTMLDivElement>(null)
-  // epoch tăng mỗi lần panel HIỆN LẠI (từ display:none khi mở chi tiết thư) →
-  // đổi key giọt để animation vô hạn khởi động sạch. Fix bug: điều hướng qua
-  // lại làm trình duyệt hủy animation đang chạy, hiện lại thì giọt "chết" dù
-  // splash vẫn chạy.
-  const [epoch, setEpoch] = useState(0)
-  // --roof-y = chiều cao canvas (khoảng cách band → mép trên khu nhập liệu). Đo bằng
-  // ResizeObserver để giọt luôn đáp ĐÚNG mái kể cả khi panel đổi cỡ / textarea cao lên.
-  useEffect(() => {
-    const roof = roofRef.current
-    const root = rootRef.current
-    if (!roof || !root) return
-    const update = () => {
-      const h = roof.offsetHeight
-      // Panel đang ẩn (display:none) → h = 0: GIỮ giá trị tốt cuối, đừng ghi rác
-      if (h > 0) root.style.setProperty('--roof-y', `${h - 2}px`)
-    }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(roof)
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        update()
-        setEpoch((n) => n + 1) // panel vừa hiện lại → remount giọt, animation chạy lại từ đầu
-      }
-    })
-    io.observe(roof)
-    return () => {
-      ro.disconnect()
-      io.disconnect()
-    }
-  }, [roofRef])
-
-  return (
-    <div ref={rootRef} aria-hidden className="pointer-events-none relative z-0 h-0 select-none">
-      {/* Giọt cầu rơi + splash đáp mái (jet ::after + ripple ::before + giọt con
-          .paint-splat) — tất cả cùng duration/delay nên ĐỒNG PHA từng cụm */}
-      {PAINT_DROPS.map((s, i) => (
-        <Fragment key={`${epoch}-${i}`}>
-          <span
-            className="paint-drop"
-            style={
-              {
-                left: s.x,
-                width: s.d,
-                height: s.d,
-                ['--pc' as string]: s.c,
-                animationDuration: `${s.dur}s`,
-                animationDelay: `${s.delay}s`,
-              } as React.CSSProperties
-            }
-          />
-          <span
-            className="paint-splash"
-            style={
-              {
-                left: s.x,
-                ['--pc' as string]: s.c,
-                animationDuration: `${s.dur}s`,
-                animationDelay: `${s.delay}s`,
-              } as React.CSSProperties
-            }
-          >
-            {SPLAT_PATTERNS[i % SPLAT_PATTERNS.length].map((dx, j) => (
-              <span key={j} className="paint-splat" style={{ ['--dx' as string]: `${dx}px` } as CSSProperties} />
-            ))}
-          </span>
-        </Fragment>
-      ))}
-
-      {/* Band sơn ở mép header — drop-shadow đổ bóng xuống mặt chat */}
-      <div className="absolute inset-x-0 top-[-2px] h-[62px] filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.32)]">
-        <svg
-          className="h-full w-full"
-          viewBox="0 0 320 80"
-          preserveAspectRatio="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="mw-navy" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#1b3a63" />
-              <stop offset="0.5" stopColor="#0b1d3a" />
-              <stop offset="1" stopColor="#050f22" />
-            </linearGradient>
-            <linearGradient id="mw-white" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#F5F7FF" />
-              <stop offset="0.5" stopColor="#E2E6FB" />
-              <stop offset="1" stopColor="#C6CBF4" />
-            </linearGradient>
-            {/* dải thứ ba: tím điện thay cho đỏ cũ, khớp palette Iridescent */}
-            <linearGradient id="mw-red" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#977DFF" />
-              <stop offset="0.5" stopColor="#6B3FE8" />
-              <stop offset="1" stopColor="#3E1FA8" />
-            </linearGradient>
-          </defs>
-
-          {/* ── LANE NAVY (0–75 & 245–320) ── mép lượn KHÔNG ĐỀU (bướu lệch, sâu nông khác nhau) */}
-          <path fill="url(#mw-navy)" d="M0,0 L75,0 C75,18 71,44 63,52 C56,58 52,40 43,50 C33,60 24,70 13,57 C7,49 2,20 0,0 Z" />
-          <path fill="url(#mw-navy)" d="M245,0 L320,0 C320,20 316,52 306,58 C299,62 296,45 286,52 C276,60 264,49 255,58 C250,50 246,18 245,0 Z" />
-
-          {/* ── LANE TRẮNG NGÀ (75–110 & 210–245) ── opacity 0.9 để khúc xạ nền chat */}
-          <path fill="url(#mw-white)" opacity="0.9" d="M75,0 L110,0 C110,5 107,55 99,48 C93,53 89,37 82,46 C79,50 76,18 75,0 Z" />
-          <path fill="url(#mw-white)" opacity="0.9" d="M210,0 L245,0 C245,14 242,46 235,50 C229,55 225,39 218,48 C214,52 211,16 210,0 Z" />
-
-          {/* ── LANE ĐỎ MẬN (110–145 & 175–210) ── TRĨU NẶNG nhất, bướu lệch, sườn dốc sắc */}
-          <path fill="url(#mw-red)" d="M110,0 L145,0 C145,66 142,75 133,66 C127,72 123,50 117,61 C114,66 111,24 110,0 Z" />
-          <path fill="url(#mw-red)" d="M175,0 L210,0 C210,24 205,60 198,66 C193,70 189,50 183,62 C179,66 176,22 175,0 Z" />
-        </svg>
-      </div>
-    </div>
-  )
-}
-
-/** WaterDivider — MẶT HỒ lượn sóng ở dải phân cách chat ↔ composer. 2 lớp sóng SVG
- *  (period 100, 4 chu kỳ trên viewBox 400 → dịch -50% khớp 2 chu kỳ = cuộn liền mạch)
- *  trôi ngược chiều. Giọt sơn của MeltingWave rơi đáp đúng lên mặt này (cùng --roof-y)
- *  → ripple loang = mưa rơi mặt hồ. Màu champagne (--gold) cho hợp tông, không chọi. */
-const WAVE_FRONT =
-  'M0,12 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 L400,20 L0,20 Z'
-const WAVE_BACK =
-  'M0,11 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 L400,20 L0,20 Z'
-function WaterDivider() {
-  return (
-    <div aria-hidden className="water-surface">
-      <svg className="water-wave water-wave--b" viewBox="0 0 400 20" preserveAspectRatio="none">
-        <path d={WAVE_BACK} fill="color-mix(in srgb, var(--gold) 16%, transparent)" />
-      </svg>
-      <svg className="water-wave water-wave--a" viewBox="0 0 400 20" preserveAspectRatio="none">
-        <path
-          d={WAVE_FRONT}
-          fill="color-mix(in srgb, var(--gold) 24%, transparent)"
-          stroke="color-mix(in srgb, var(--gold) 72%, #fff)"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    </div>
-  )
-}
+/* ĐÃ XOÁ hai thành phần MeltingWave (sơn tan chảy) và WaterDivider (mặt hồ
+   gợn sóng) cùng dữ liệu đi kèm. Xem giải thích ở chỗ chúng từng được gắn.
+   Lịch sử vẫn còn trong git nếu cần dựng lại. */
 
 export function ChatPanel({
   emails,
@@ -1355,30 +1180,12 @@ export function ChatPanel({
                 src/frontend/public/cats/ (tên: cat-1.png & cat-2.png) là tự hiện;
                 CHƯA có ảnh thì tự ẩn (onError). overflow-hidden + object-contain
                 đảm bảo ảnh GÓI GỌN trong khung; nằm SAU chữ (h2/p có relative). */}
-            {/* CONTAINER ẢNH MÈO PNG - Xếp chồng chính giữa, ẩn hiện chuẩn theo Mode */}
-        <div
-          aria-hidden
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[40%] flex items-end justify-center h-24 w-60 overflow-hidden opacity-90 z-0"
-        >
-          {/* MODE SÁNG (Light Mode): Hiện cat-01, ẩn khi qua Dark Mode */}
-          <img
-            src="/cats/cat-1.png"
-            alt=""
-            className="max-h-full w-auto object-contain block dark:hidden mx-auto" 
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-          {/* MODE TỐI (Dark Mode): Mặc định ẩn, chỉ hiện block khi ở Dark Mode */}
-          <img
-            src="/cats/cat-2.png"
-            alt=""
-            className="max-h-full w-auto object-contain hidden dark:block mx-auto"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-        </div>
+            {/* ĐÃ GỠ hai ảnh mèo PNG từng đặt ở ĐÂY, ngay phía sau tiêu đề, ở 90%
+                độ mờ. Đó không phải chuyện thẩm mỹ mà là lỗi đọc được: hình mèo
+                đen nằm chồng đúng lên chữ "Trợ lý MeoArc", làm tiêu đề — thứ
+                phải rõ nhất khung — trở thành thứ khó đọc nhất. Trang trí không
+                bao giờ được đặt phía sau chữ ở độ mờ đó.
+                Linh hồn mèo vẫn còn: WanderingCat chạy rong khắp app. */}
             <h2 className="relative text-[19px] font-semibold leading-none tracking-tight text-foreground">
               Trợ lý MeoArc
             </h2>
@@ -1455,10 +1262,17 @@ export function ChatPanel({
         </div>
       </header>
 
-      {/* Làn sóng sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header, trĩu xuống đè
-          lên khung chat. Lớp h-0 ngay sau header nên bám đúng mép dưới, không bị
-          overflow-hidden của header cắt. */}
-      <MeltingWave roofRef={scrollRef} />
+      {/* ĐÃ GỠ dải sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header.
+          Nó là một mảng công phu và đẹp, nhưng nó kể sai chuyện: sơn chảy là ẩn dụ
+          của chất lỏng, của thủ công, của thứ diễn ra chậm. Bên dưới nó là một
+          agent đọc vài trăm lá thư trong vài giây. Hai câu chuyện chỏi nhau ngay
+          trên cùng một màn hình.
+          Thay bằng một VẠCH SÁNG mảnh có tán sắc — cùng vai trò phân cách, nhưng
+          nói bằng ngôn ngữ ánh sáng. */}
+      <div aria-hidden className="relative z-10 h-px shrink-0">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-80" />
+        <div className="absolute inset-x-0 top-0 h-px translate-y-[0.5px] bg-gradient-to-r from-transparent via-[#F042FF] to-transparent opacity-40 blur-[1.5px]" />
+      </div>
 
       {/* Canvas hội thoại */}
       <div
@@ -1505,7 +1319,16 @@ export function ChatPanel({
         data-cat-perch="top"
         className="roof-ledge relative px-6 py-4"
       >
-        <WaterDivider />
+        {/* ĐÃ GỠ mặt hồ gợn sóng champagne. Sóng nước là đường cong hữu cơ, mềm —
+            đúng thứ khiến cả panel đọc ra là "mặt phẳng mượt". Thay bằng một
+            đường chân trời phát sáng: cùng nhiệm vụ ngăn khung chat với ô nhập,
+            nhưng là một CẠNH sắc, thứ mà ánh sáng bám được vào. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-[var(--active)] to-transparent" />
+          <div className="h-px w-full -translate-y-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-70 blur-[2px]" />
+          {/* Quầng hắt lên từ đường kẻ — cho biết nó phát sáng chứ không phải một nét vẽ */}
+          <div className="h-10 w-full bg-[radial-gradient(60%_100%_at_50%_0%,color-mix(in_srgb,var(--active)_22%,transparent),transparent_72%)]" />
+        </div>
 
         {/* Cạn hạn mức → nói rõ lý do trợ lý ngừng trả lời + lối nâng cấp */}
         <QuotaBanner status={sub} onUpgrade={() => setPricingOpen(true)} />

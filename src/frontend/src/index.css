@@ -2069,3 +2069,219 @@
   font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
   letter-spacing: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TRƯỜNG SÁNG (LIGHT FIELD) — nền cho panel trợ lý, và chữ ký thị giác của app
+
+   ── Vì sao panel cũ bị chê "mặt trơn" ──
+   Nền cũ là ba quầng tròn nhoè + một quầng nến + hạt nhiễu. Tất cả đều KHUẾCH
+   TÁN: không lớp nào có cạnh, không lớp nào có lõi sáng, độ tương phản trong
+   từng lớp gần bằng không. Chồng bao nhiêu lớp mờ lên nhau cũng chỉ ra một mảng
+   xám — mắt không bắt được gì để nhìn, nên đọc ra là "phẳng".
+
+   Ảnh tham chiếu thì ngược hẳn. Thứ khiến chúng nổi bật không phải màu, mà là
+   CẤU TRÚC SẮC: sợi sáng có lõi trắng nét, ống neon có cạnh rõ, đường tụ phối
+   cảnh, viền tán sắc cầu vồng. Ánh sáng chỉ đọc ra là ánh sáng khi nó có HÌNH.
+
+   ── Vì sao light mode phải khác cách, không phải khác màu ──
+   Neon là hiện tượng PHÁT XẠ: một nguồn bão hoà trên nền tối. Bê nguyên nó lên
+   nền sáng thì hỏng, vì không còn tối để mà phát ra — đó là lý do light mode cũ
+   nhạt thếch dù dùng đúng bảng màu.
+
+   Nhưng ánh sáng còn một hiện tượng thứ hai, và nó chỉ hiện rõ trên nền SÁNG:
+   TÁN SẮC — chùm trắng đi qua lăng kính tách thành phổ. Đó chính là thứ trong
+   mấy tấm ảnh có viền cầu vồng, có màng dichroic, có bóng ngũ sắc.
+
+   Nên hai theme không phải một thiết kế đổi màu, mà là hai hiện tượng vật lý
+   của cùng một thứ ánh sáng:
+       TỐI  → phát xạ  → sợi sáng, lõi trắng, quầng neon
+       SÁNG → tán sắc  → viền phổ, ánh ngũ sắc, sai sắc màu
+   Cùng một bộ lớp, đảo cơ chế. Đó là chữ ký, không phải lớp trang trí.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. SỢI SÁNG ──────────────────────────────────────────────────────────────
+   Ba dải sợi chồng nhau, chu kỳ lệch nhau (37/53/71px) và đều là số nguyên tố —
+   cố ý, để ba dải không bao giờ trùng pha, nếu không sẽ hiện vân moiré như lưới
+   in hỏng. Mỗi sợi mảnh 1px, lõi gần trắng, hai bên là quầng màu. */
+.tia-sang {
+  position: absolute;
+  inset: -25%;
+  background-image:
+    /* Sợi CHỦ — dày 2.5px, lõi TRẮNG. Đây là thứ mắt bám vào; thiếu lõi trắng thì
+       chỉ còn mấy vạch màu, không ra vật phát sáng. Thưa (chu kỳ 149px) để mỗi
+       sợi còn là một sự kiện, không thành hoa văn. */
+    repeating-linear-gradient(102deg, transparent 0 146px,
+      #ffffff 146px 148.5px, transparent 148.5px 149px),
+    /* Ba dải sợi phụ, chu kỳ số nguyên tố 37/53/71 — cố ý lệch pha nhau vĩnh viễn,
+       nếu trùng pha sẽ hiện vân moiré như lưới in hỏng. */
+    repeating-linear-gradient(102deg, transparent 0 35px,
+      color-mix(in srgb, var(--spark) 55%, #fff) 35px 37px, transparent 37px 74px),
+    repeating-linear-gradient(99deg, transparent 0 51px,
+      color-mix(in srgb, var(--active) 45%, #fff) 51px 53px, transparent 53px 106px),
+    repeating-linear-gradient(105deg, transparent 0 69px,
+      color-mix(in srgb, var(--accent) 40%, #fff) 69px 71px, transparent 71px 142px);
+  /* Bó sợi lại thành một CHÙM chạy chéo, thay vì rải đều kín khung: ánh sáng có
+     nguồn thì mới ra ánh sáng, rải đều thì ra hoa văn giấy dán tường. */
+  /* HAI mask nhân nhau:
+       1. radial — bó sợi thành một CHÙM có nguồn ở góc trên trái. Ánh sáng phải
+          có nguồn; rải đều kín khung thì ra giấy dán tường, không ra chùm sáng.
+       2. linear — tắt dần về đáy, chừa sạch vùng ô nhập và các chip gợi ý.
+          Không có lớp này thì sợi sáng chạy xuyên qua chữ người dùng cần đọc. */
+  mask-image:
+    radial-gradient(66% 96% at 24% 2%, #000 0%, rgba(0,0,0,0.8) 40%, transparent 82%),
+    linear-gradient(to bottom, #000 0%, #000 46%, rgba(0,0,0,0.35) 72%, transparent 88%);
+  -webkit-mask-image:
+    radial-gradient(66% 96% at 24% 2%, #000 0%, rgba(0,0,0,0.8) 40%, transparent 82%),
+    linear-gradient(to bottom, #000 0%, #000 46%, rgba(0,0,0,0.35) 72%, transparent 88%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+  animation: troi-tia 26s linear infinite;
+}
+@keyframes troi-tia { from { transform: translate3d(0,0,0) } to { transform: translate3d(-74px, 22px, 0) } }
+
+/* Lớp quầng: CHÍNH dải sợi đó, nhoè mạnh và dày hơn, đặt phía sau. Đây là thứ
+   biến "mấy cái gạch" thành "sợi sáng" — vật phát sáng luôn kéo theo quầng. */
+/* Quầng: cùng dải sợi, nhoè mạnh. Nhân đôi thành hai tầng — một quầng gần (nhoè
+   vừa, sáng) và một quầng xa (nhoè rất mạnh, rộng) — vì bloom thật không phải một
+   lớp mờ đều mà là nhiều tầng chồng nhau, gần thì gắt, xa thì loang. */
+.tia-sang.quang     { filter: blur(9px);  opacity: 0.9; animation-duration: 34s }
+.tia-sang.quang-xa  { filter: blur(34px); opacity: 0.7; animation-duration: 44s }
+
+/* ── 2. TÁN SẮC (chỉ có nghĩa ở nền sáng) ────────────────────────────────────
+   Sai sắc màu: cùng một dải sợi, nhân ba, lệch nhau vài pixel theo trục màu
+   đỏ / lục / lam — đúng cách ống kính rẻ tiền tách phổ ở rìa khung. Trên nền
+   sáng thì đây là thứ thay thế cho quầng neon. */
+.tan-sac { mix-blend-mode: multiply; opacity: 0.5 }
+.tan-sac.kenh-do   { transform: translate3d(3px, -2px, 0);  filter: blur(2px) hue-rotate(-38deg) saturate(1.7) }
+.tan-sac.kenh-lam  { transform: translate3d(-3px, 2px, 0);  filter: blur(2px) hue-rotate(42deg) saturate(1.7) }
+/* Ở nền tối thì tán sắc phải CỘNG sáng chứ không nhân tối, và nhẹ hơn nhiều */
+.dark .tan-sac { mix-blend-mode: screen; opacity: 0.32 }
+
+/* ── 3. LƯỚI SÀN TỤ XA — chiều sâu, mượn từ khung hình đường hầm ────────────── */
+.san-tu {
+  position: absolute; left: -30%; right: -30%; bottom: -12%; height: 46%;
+  background-image:
+    repeating-linear-gradient(to right,
+      color-mix(in srgb, var(--active) 55%, transparent) 0 1px, transparent 1px 78px),
+    repeating-linear-gradient(to bottom,
+      color-mix(in srgb, var(--spark) 45%, transparent) 0 1px, transparent 1px 46px);
+  transform: perspective(460px) rotateX(72deg);
+  transform-origin: bottom center;
+  mask-image: linear-gradient(to top, #000 0%, transparent 82%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 82%);
+  opacity: 0.5;
+  animation: san-chay 3.4s linear infinite;
+}
+@keyframes san-chay { from { background-position: 0 0, 0 0 } to { background-position: 0 0, 0 46px } }
+
+/* ── 4. VIỀN NGŨ SẮC — chữ ký của LIGHT MODE ─────────────────────────────────
+   Viền không phải một màu mà là cả dải phổ chạy vòng, đúng như màng dichroic
+   trên áo trong ảnh. Dựng bằng hai lớp nền + mask hình vành khuyên: đây là cách
+   duy nhất vẽ được gradient CHỈ ở phần viền mà vẫn bo góc theo khối. */
+.vien-ngu-sac {
+  position: relative;
+  isolation: isolate;
+}
+.vien-ngu-sac::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  background: conic-gradient(from var(--goc, 0deg),
+    #87F5F5, #B79BFF, #F042FF, #FFB03A, #87F5F5);
+  /* mask vành khuyên: tô đặc trừ đi phần lõi → chỉ còn lại đúng dải viền */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.85;
+  pointer-events: none;
+  animation: xoay-pho 9s linear infinite;
+}
+@property --goc { syntax: '<angle>'; initial-value: 0deg; inherits: false }
+@keyframes xoay-pho { to { --goc: 360deg } }
+/* Nền tối: hạ xuống, để quầng neon làm việc chính chứ không tranh nhau */
+.dark .vien-ngu-sac::before { opacity: 0.42 }
+
+/* ── 5. ÁNH NGŨ SẮC LƯỚT TRÊN MẶT — dichroic sheen ─────────────────────────── */
+.anh-ngu-sac { position: relative; overflow: hidden }
+.anh-ngu-sac::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 32%,
+    color-mix(in srgb, #87F5F5 40%, transparent) 43%,
+    color-mix(in srgb, #FFE5F1 55%, transparent) 50%,
+    color-mix(in srgb, #F042FF 35%, transparent) 57%, transparent 68%);
+  transform: translateX(-120%);
+  transition: transform 1.1s var(--ease-soft);
+  pointer-events: none;
+}
+.anh-ngu-sac:hover::after { transform: translateX(120%) }
+
+/* ── 6. CHỮ SAI SẮC — dùng RẤT tiết chế, chỉ cho tiêu đề chính ──────────────
+   Bản sao đỏ và lam lệch nhau 1px hai bên. Đây là hiệu ứng dễ lạm dụng: rải ra
+   nhiều chỗ thì thành trang lỗi font, dùng đúng một chỗ thì thành chữ ký. */
+.chu-sai-sac {
+  text-shadow:
+    -1px 0 0 color-mix(in srgb, #F042FF 55%, transparent),
+     1px 0 0 color-mix(in srgb, #87F5F5 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tia-sang, .san-tu, .vien-ngu-sac::before { animation: none }
+  .anh-ngu-sac::after { transition: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — ĐỔI CƠ CHẾ, KHÔNG PHẢI ĐỔI MÀU
+
+   Ảnh chụp bản sáng đã chứng minh đúng điều dự đoán: cùng bộ sợi sáng đó, trên
+   nền tối là chùm neon rực, bê lên nền sáng thì bạc thành mấy vệt xám. Không
+   phải chỉnh sai độ mờ — mà vì trên nền sáng KHÔNG CÒN GÌ ĐỂ PHÁT RA. Sáng cộng
+   sáng vẫn là sáng.
+
+   Nên bản sáng không dùng phát xạ nữa, mà dùng TÁN SẮC: một chùm trắng đi qua
+   lăng kính, đập vào tường trắng, để lại một dải PHỔ. Trên nền sáng thứ đọc
+   được không phải tia sáng loé lên, mà là màu bị tách ra.
+
+   Cụ thể: cùng cấu trúc dải, nhưng lõi trắng đổi thành các băng phổ rộng
+   lam → tím → hồng → hổ phách, và hoà trộn kiểu NHÂN (multiply) để chúng ăn bớt
+   nền chứ không cộng thêm vào. Đây là chữ ký riêng của bản sáng — thứ mà Gmail
+   không có và không thể có, vì Gmail không coi ánh sáng là một vật liệu.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root:not(.dark) .tia-sang {
+  background-image:
+    /* Băng phổ — MỖI MÀU CHỈ MỘT ĐIỂM DỪNG, không phải một đoạn.
+       Ghi kiểu đoạn (`104px 118px`) thì mỗi màu tô đặc rồi cắt phựt sang màu kế,
+       ra sọc cứng như bảng thử màu. Ghi kiểu điểm thì trình duyệt nội suy giữa
+       các điểm — đúng cách phổ thật chuyển màu: không có ranh giới nào cả.
+       Chu kỳ rộng (330px) để cả khung chỉ có vài dải, mỗi dải còn là một sự kiện. */
+    repeating-linear-gradient(102deg,
+      transparent 0,
+      color-mix(in srgb, #87F5F5 40%, transparent) 96px,
+      color-mix(in srgb, #B79BFF 36%, transparent) 132px,
+      color-mix(in srgb, #F042FF 30%, transparent) 168px,
+      color-mix(in srgb, #FFB03A 24%, transparent) 198px,
+      transparent 264px,
+      transparent 330px);
+  mix-blend-mode: multiply;
+  opacity: 0.42;
+  /* Nhoè nhẹ: chùm sáng qua lăng kính không bao giờ có mép nét */
+  filter: blur(6px);
+}
+/* Quầng ở bản sáng phải rất nhẹ: nhoè một màu nhân tối chỉ làm bẩn nền */
+:root:not(.dark) .tia-sang.quang    { opacity: 0.3; filter: blur(16px) }
+:root:not(.dark) .tia-sang.quang-xa { opacity: 0.22; filter: blur(46px) }
+/* Sàn lưới ở bản sáng cũng phải nhân tối, nếu không nó tàng hình */
+:root:not(.dark) .san-tu { mix-blend-mode: multiply; opacity: 0.34 }
+
+/* ── Chặn chi phí của viền ngũ sắc ───────────────────────────────────────────
+   `@property --goc` chạy hoạt ảnh nghĩa là trình duyệt phải VẼ LẠI conic-gradient
+   mỗi khung hình, cho TỪNG thẻ mang lớp này. Hộp thư mẫu chỉ có 2 thư chưa đọc
+   nên không thấy gì, nhưng hộp thư thật có thể có hàng chục — lúc đó là hàng chục
+   gradient vẽ lại 60 lần/giây, và máy yếu sẽ khựng ngay.
+
+   Chỉ 8 thẻ ĐẦU danh sách được xoay phổ. Đó cũng gần đúng số thẻ lọt trong màn
+   hình, nên thứ người dùng nhìn thấy không đổi. Các thẻ dưới vẫn có viền phổ,
+   chỉ là phổ đứng yên — vẽ một lần, không tốn gì thêm. */
+.vien-ngu-sac:nth-child(n + 9)::before { animation: none }

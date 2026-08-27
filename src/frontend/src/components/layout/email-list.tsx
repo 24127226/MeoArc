@@ -170,7 +170,17 @@ function EmailCard({
       data-idx={index}
       style={cardStyle}
       className={cn(
-        'group relative w-full overflow-hidden rounded-xl p-4 pl-5 text-left transition-all duration-300 ease-soft ripe bloom-hover glass active:scale-[0.99]',
+        // ĐÃ BỎ `ripe` và `bloom-hover`. `ripe` là lớp "bề mặt mọng" thời cũ
+        // (specular gắt + ánh đỏ thấu từ trong) — chính nó khiến thẻ thư trông
+        // như kẹo mềm ở bản sáng. `bloom-hover` thì thừa: `neon-edge` khi rê
+        // chuột đã lo phần quầng sáng, mà nó lại chiếm `::before` — chỗ mà viền
+        // ngũ sắc bên dưới cần dùng.
+        'group relative w-full overflow-hidden rounded-xl p-4 pl-5 text-left transition-all duration-300 ease-soft glass active:scale-[0.99]',
+        // VIỀN NGŨ SẮC CHO THƯ CHƯA ĐỌC. Vừa là chữ ký thị giác, vừa mang thông
+        // tin: dải phổ chạy vòng quanh thẻ = thư còn "sống", chưa ai đụng tới.
+        // Chỉ gắn cho thư chưa đọc nên số thẻ chạy animation luôn nhỏ — nếu rải
+        // cho mọi thẻ thì vừa mất nghĩa vừa nặng máy.
+        email.unread && 'vien-ngu-sac',
         selected
           ? 'shadow-[inset_0_4px_12px_rgba(0,0,0,0.35)] bg-black/20 border-t border-black/30 border-b border-white/5 scale-[0.995]'
           : kbActive
