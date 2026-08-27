@@ -5,7 +5,8 @@ import Lenis from 'lenis'
 import 'lenis/dist/lenis.css' // BẮT BUỘC: thiếu file này Lenis khoá cứng scroll
 import {
   Sparkles, ShieldCheck, Mails, Tags, Mic, ArrowRight, ArrowDown, Check, MessageSquare,
-  Plus, Minus, Lock, Zap, ArrowDownToLine,
+  Plus, Minus, Lock, Zap, ArrowDownToLine, KeyRound, Plug,
+  type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/auth/auth-context'
 import { cn } from '@/lib/utils'
@@ -63,15 +64,15 @@ const SKILLS = [
 ]
 
 const FAQS = [
-  { q: 'MeoArc xin những quyền gì trên hộp thư của tôi?',
+  { q: 'MeoArc xin những quyền gì trên hộp thư của tôi?', icon: KeyRound, c: '#F0A848',
     a: 'Quyền đọc và quản lý thư (gắn nhãn, lưu trữ, soạn và gửi) trên tài khoản bạn kết nối. Bạn có thể thu hồi bất cứ lúc nào trong phần Cài đặt hoặc ngay trong trang bảo mật của Google / Microsoft.' },
-  { q: 'AI có tự ý gửi thư thay tôi không?',
+  { q: 'AI có tự ý gửi thư thay tôi không?', icon: ShieldCheck, c: '#4FD1C5',
     a: 'Không. Mọi hành động không hoàn tác được đều phải qua bước xác nhận: MeoArc hiện bản nháp hoặc danh sách việc sắp làm, bạn bấm Duyệt thì nó mới chạy.' },
-  { q: 'Thư của tôi có bị dùng để huấn luyện mô hình không?',
+  { q: 'Thư của tôi có bị dùng để huấn luyện mô hình không?', icon: Lock, c: '#8B7BF0',
     a: 'Không. Nội dung thư chỉ được gửi tới mô hình để xử lý đúng yêu cầu bạn đưa ra tại thời điểm đó, và lưu trong cơ sở dữ liệu của chính bạn để hiển thị nhanh hơn.' },
-  { q: 'Tôi dùng Outlook thay vì Gmail được không?',
+  { q: 'Tôi dùng Outlook thay vì Gmail được không?', icon: Mails, c: '#4FD1C5',
     a: 'Được. MeoArc nói chuyện với Gmail qua Gmail API và với Outlook qua Microsoft Graph, cùng một giao diện và cùng bộ lệnh.' },
-  { q: 'Ứng dụng ngoài có gọi được MeoArc không?',
+  { q: 'Ứng dụng ngoài có gọi được MeoArc không?', icon: Plug, c: '#F06AA8',
     a: 'Có. MeoArc mở sẵn một máy chủ MCP, nên các trợ lý khác (Claude Desktop, Codex…) có thể gọi trực tiếp các công cụ tìm thư, tóm tắt, soạn, gửi trong đúng phạm vi quyền bạn cấp.' },
 ]
 
@@ -239,20 +240,27 @@ function AppMock({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
+/** Một dòng câu hỏi. Mỗi câu có một icon riêng ở đầu dòng — người xem nhận ra câu
+ *  mình cần bằng HÌNH trước, không phải đọc hết năm dòng chữ mới thấy. Icon cũng
+ *  phát sáng theo màu riêng nên danh sách này không còn là năm dòng chữ xám. */
+function FaqItem({ q, a, icon: Icon, c }: { q: string; a: string; icon: LucideIcon; c: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-white/[0.08]">
       <button onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between gap-4 py-5 text-left transition-colors hover:text-white">
-        <span className="text-[15px] font-medium sm:text-base">{q}</span>
+        className="group flex w-full items-center gap-4 py-5 text-left transition-colors hover:text-white">
+        <span className="lit-edge flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105"
+          style={{ ['--lit' as string]: c, color: c }}>
+          <Icon className="size-[18px]" />
+        </span>
+        <span className="flex-1 text-[15px] font-medium sm:text-base">{q}</span>
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.05]">
           {open ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
         </span>
       </button>
       <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
-        <p className="pb-5 pr-10 text-[14px] leading-relaxed text-white/60">{a}</p>
+        <p className="pb-5 pl-14 pr-10 text-[14px] leading-relaxed text-white/60">{a}</p>
       </motion.div>
     </div>
   )
@@ -702,7 +710,7 @@ export function LandingPage() {
             <p className="ld-chip mx-auto">Giải đáp</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.4rem]">Câu hỏi thường gặp</h2>
           </Reveal>
-          <div className="mt-10">{FAQS.map((f) => <FaqItem key={f.q} q={f.q} a={f.a} />)}</div>
+          <div className="mt-10">{FAQS.map((f) => <FaqItem key={f.q} {...f} />)}</div>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { motion, useScroll, useSpring, useTransform, useReducedMotion, type MotionValue } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,42 +22,10 @@ export const JOURNEY_VIDEO =
   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260717_120352_eb988725-1351-43b3-8095-16e4a1005e3d.mp4'
 
 const STAGES = [
-  {
-    no: '01',
-    glow: '#9D7BFF',
-    tag: 'Soạn thảo',
-    heading: ['Bạn nói một câu', 'Mèo cầm bút lên', 'Thư thành hình'],
-    side: 'Một câu tiếng Việt là đủ.\nMèo hiểu ngữ cảnh\nvà viết thay bạn.',
-    body: 'MeoArc đọc lại cuộc trò chuyện, chọn giọng văn hợp với người nhận rồi dựng sẵn nội dung.',
-    cta: 'Chặng kế: bạn duyệt',
-  },
-  {
-    no: '02',
-    glow: '#FFB03A',
-    tag: 'Niêm phong',
-    heading: ['Thư nằm im', 'Chờ bạn gật đầu', 'Rồi mới đóng dấu'],
-    side: 'Dấu sáp không tự\nđóng xuống. Quyền\nquyết định là của bạn.',
-    body: 'Đây là chỗ MeoArc khác các trợ lý khác: mọi việc không hoàn tác được đều dừng lại xin phép.',
-    cta: 'Chặng kế: lên đường',
-  },
-  {
-    no: '03',
-    glow: '#4FE9FF',
-    tag: 'Truyền đi',
-    heading: ['Thư rời bàn', 'Băng qua đêm', 'Tới máy chủ thư'],
-    side: 'Gmail API hay\nMicrosoft Graph —\nbạn không phải bận tâm.',
-    body: 'Cùng một thao tác cho cả hai nhà cung cấp. Thư đi bằng đường nào là việc của MeoArc.',
-    cta: 'Chặng cuối: đến nơi',
-  },
-  {
-    no: '04',
-    glow: '#FF6FB5',
-    tag: 'Đã giao',
-    heading: ['Thư đến tay', 'Người nhận mở ra', 'Hành trình khép lại'],
-    side: 'Một bản lưu trong\nmục Đã gửi. Một dòng\ntrong nhật ký.',
-    body: 'Bạn luôn tra lại được: gửi cho ai, lúc nào, do bạn duyệt hay do bạn tự bấm.',
-    cta: 'Xem MeoArc làm được gì',
-  },
+  { no: '01', glow: '#9D7BFF', tag: 'Soạn thảo', line: 'Bạn nói một câu.',      cta: 'Bạn duyệt' },
+  { no: '02', glow: '#FFB03A', tag: 'Niêm phong', line: 'Mèo chờ bạn gật đầu.', cta: 'Lên đường' },
+  { no: '03', glow: '#4FE9FF', tag: 'Truyền đi', line: 'Thư băng qua đêm.',     cta: 'Đến nơi' },
+  { no: '04', glow: '#FF6FB5', tag: 'Đã giao',   line: 'Thư đến tay người nhận.', cta: 'Xem MeoArc làm được gì' },
 ]
 
 const BOUNDS: [number, number][] = [[0, 0.26], [0.26, 0.52], [0.52, 0.78], [0.78, 1.01]]
@@ -73,6 +41,74 @@ function VortexMark({ className }: { className?: string }) {
       <path d="M128 40a88 88 0 0 1 88 88h-24a64 64 0 0 0-64-64z" opacity="0.55" />
       <path d="M128 216a88 88 0 0 1-88-88h24a64 64 0 0 0 64 64z" opacity="0.55" />
     </svg>
+  )
+}
+
+
+/* ══ HÌNH TƯỢNG TRƯNG CHO TỪNG CHẶNG ══════════════════════════════════════════
+   Bốn hình vẽ nét, cùng khung 120×120, cùng độ dày nét. Vẽ tay chứ không dùng bộ
+   icon có sẵn vì bộ icon nào cũng chỉ có "phong bì" chung chung — ở đây cần bốn
+   TRẠNG THÁI khác nhau của cùng một lá thư, và người xem phải nhận ra ngay đó là
+   cùng một lá thư đang đi qua bốn chặng.
+
+   Nét dùng currentColor nên tự ăn theo màu đèn của chặng; lớp glow là chính hình
+   đó vẽ lại lần nữa, nhoè và dày hơn, đặt phía sau.                             */
+const GLYPH: Record<string, ReactElement> = {
+  // 01 — Ngòi bút đang viết: thư mới thành hình, mấy dòng chữ hiện dần
+  '01': (
+    <g>
+      <rect x="26" y="18" width="58" height="76" rx="4" />
+      <path d="M38 40h30M38 52h34M38 64h22" opacity="0.55" />
+      <path d="M74 84l18-18a5 5 0 0 0-7-7L67 77l-3 10z" />
+    </g>
+  ),
+  // 02 — Phong bì niêm phong + dấu tick: chỗ MeoArc dừng lại xin phép
+  '02': (
+    <g>
+      <rect x="16" y="30" width="88" height="60" rx="5" />
+      <path d="M16 34l44 32 44-32" opacity="0.55" />
+      <circle cx="60" cy="62" r="15" />
+      <path d="M53 62l5 5 10-11" />
+    </g>
+  ),
+  // 03 — Thư bay theo cung, có các nút mạng: đang truyền qua Gmail / Graph
+  '03': (
+    <g>
+      <path d="M12 84C30 40 74 22 108 30" strokeDasharray="6 7" opacity="0.6" />
+      <path d="M52 40l30 12-30 12 6-12z" />
+      <circle cx="12" cy="84" r="5" />
+      <circle cx="108" cy="30" r="5" />
+    </g>
+  ),
+  // 04 — Phong bì đã mở, thư trồi lên, có tick: hành trình khép lại
+  '04': (
+    <g>
+      <path d="M18 54l42-28 42 28v40a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4z" />
+      <rect x="38" y="14" width="44" height="44" rx="4" />
+      <path d="M50 32l7 7 14-15" />
+      <path d="M18 54l42 30 42-30" opacity="0.55" />
+    </g>
+  ),
+}
+
+/** Hình chặng — vẽ hai lần: một lớp nhoè làm quầng đèn, một lớp nét sắc phía trên. */
+function StageGlyph({ no, color }: { no: string; color: string }) {
+  const g = GLYPH[no]
+  const common = {
+    viewBox: '0 0 120 120', fill: 'none', stroke: 'currentColor',
+    strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+  }
+  return (
+    <div key={no} className="anim-fade relative size-[132px] sm:size-[168px] md:size-[196px]"
+      style={{ color }}>
+      {/* Quầng đèn: chính hình đó, nét dày gấp ba và nhoè mạnh */}
+      <svg {...common} aria-hidden
+        className="absolute inset-0 size-full opacity-90"
+        style={{ filter: 'blur(11px)', strokeWidth: 6 }}>{g}</svg>
+      {/* Nét sắc — trắng ngả về màu đèn, để hình luôn đọc được rõ */}
+      <svg {...common} aria-hidden className="absolute inset-0 size-full"
+        style={{ color: 'color-mix(in srgb, ' + color + ' 35%, #ffffff)' }}>{g}</svg>
+    </div>
   )
 }
 
@@ -99,10 +135,13 @@ export function LetterTale() {
     return (
       <div className="mt-12 grid gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((s) => (
-          <div key={s.no} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <span className="font-mono text-4xl font-bold text-white/15">{s.no}</span>
-            <h3 className="mt-3 font-serif text-lg font-bold">{s.heading.join(' · ')}</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-white/55">{s.body}</p>
+          // Nhanh khong-chuyen-dong: van la HINH dan dat, khong quay ve tuong chu
+          <div key={s.no} className="lit-edge flex flex-col items-center rounded-2xl bg-white/[0.03] p-6 text-center"
+            style={{ ['--lit' as string]: s.glow }}>
+            <StageGlyph no={s.no} color={s.glow} />
+            <span className="mt-4 font-mono text-xs" style={{ color: s.glow }}>{s.no}</span>
+            <span className="mt-1 text-[11px] font-medium uppercase tracking-[0.28em] text-white/75">{s.tag}</span>
+            <p className="mt-3 text-[15px] leading-relaxed text-white/90">{s.line}</p>
           </div>
         ))}
       </div>
@@ -190,70 +229,53 @@ export function LetterTale() {
             </div>
           </nav>
 
-          {/* ── Nội dung chính ── */}
-          <div className="relative z-10 flex flex-1 flex-col justify-between px-6 pb-8 md:px-10 md:pb-10">
-            <div className="relative flex flex-1 items-center">
-              {/* Cột trái — chú thích chặng */}
-              <div className="anim-stagger absolute left-0 top-[18%] hidden flex-col gap-6 lg:flex"
-                style={{ animationDelay: '0.4s' }}>
-                <p className="max-w-[220px] whitespace-pre-line text-base leading-relaxed text-white/80">
-                  {cur.side}
-                </p>
-                <div className="mt-4 flex flex-col gap-2">
-                  <div className="flex items-center gap-1">
-                    {STAGES.map((s, i) => (
-                      <span key={s.no}
-                        className={cn('size-4 rounded-full border transition-colors duration-500',
-                          i === stage ? 'border-white bg-white/80' : 'border-white/40')} />
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="whitespace-pre-line text-xs text-white/70">{cur.tag}</span>
-                    <span className="font-mono text-xs text-white/50">{cur.no}</span>
-                  </div>
-                </div>
-              </div>
+          {/* ── Nội dung chính ──
+              Bản cũ có BỐN khối chữ cùng lúc: ghi chú cột trái, tiêu đề ba dòng cỡ
+              lớn, tên chặng, và đoạn mô tả dưới. Mắt không biết đọc đâu trước nên
+              rốt cuộc không đọc gì, và khối này thành ra một bức tường chữ.
 
-              {/* Tiêu đề giữa — ba dòng, đổi theo chặng */}
-              <div className="anim-stagger w-full text-center" style={{ animationDelay: '0.5s' }}>
-                <StageHeading p={p} />
-              </div>
+              Bản này để HÌNH nói: một hình vẽ nét lớn phát sáng ở giữa cho biết lá
+              thư đang ở trạng thái nào, và đúng MỘT dòng chữ ngắn bên dưới. Người
+              xem nắm được chặng chỉ bằng liếc mắt, không phải bằng đọc. */}
+          <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-8 md:px-10 md:pb-10">
+
+            {/* Hình tượng trưng — nhân vật chính của khung hình */}
+            <StageGlyph no={cur.no} color={cur.glow} />
+
+            {/* Tên chặng: số + một chữ, cỡ nhỏ, để không tranh với hình */}
+            <div className="anim-fade mt-7 flex items-center gap-3">
+              <span className="font-mono text-xs tabular-nums" style={{ color: cur.glow }}>{cur.no}</span>
+              <span className="h-3 w-px bg-white/25" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-white/80">
+                {cur.tag}
+              </span>
             </div>
 
-            {/* ── Hàng dưới: mô tả · nút · chỉ báo ── */}
-            <div className="mt-8 grid grid-cols-1 items-center gap-6 md:grid-cols-3">
-              <div className="anim-stagger flex items-center justify-center md:justify-end"
-                style={{ animationDelay: '0.7s' }}>
-                <p className="max-w-[260px] text-center text-sm leading-relaxed text-white md:ml-auto md:text-left">
-                  {cur.body}
-                </p>
-              </div>
+            {/* Dòng chữ DUY NHẤT của chặng */}
+            <StageLine p={p} />
 
-              <div className="anim-stagger flex flex-col items-center gap-8 md:gap-24"
-                style={{ animationDelay: '0.85s' }}>
-                <span className="text-2xl font-medium text-white md:text-3xl">{cur.tag}</span>
-                <button
-                  onClick={() => document.getElementById('start')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="btn-cut group flex w-full max-w-[280px] items-center justify-center gap-2 bg-white py-3.5 text-black transition-colors hover:bg-white/90"
-                >
-                  <span className="text-sm font-medium">{cur.cta}</span>
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </button>
-              </div>
-
-              <div className="anim-stagger flex items-center justify-center gap-3 md:justify-end"
-                style={{ animationDelay: '1s' }}>
-                {STAGES.map((s, i) => (
-                  <span key={s.no}
-                    className={cn(
-                      'btn-cut-sm flex size-10 items-center justify-center font-mono text-xs transition-colors duration-500',
-                      i === stage ? 'bg-white text-black' : 'bg-white/25 text-white/70',
-                    )}>
-                    {s.no}
-                  </span>
-                ))}
-              </div>
+            {/* Chỉ báo chặng — bốn vạch, vạch đang chạy sáng lên và dài ra */}
+            <div className="anim-fade mt-10 flex items-center gap-2">
+              {STAGES.map((st, i) => (
+                <span key={st.no}
+                  className={cn('h-[3px] rounded-full transition-all duration-700',
+                    i === stage ? 'w-10' : 'w-5 bg-white/20')}
+                  style={i === stage
+                    ? { background: st.glow, boxShadow: `0 0 12px 1px ${st.glow}` }
+                    : undefined} />
+              ))}
             </div>
+
+            {/* Một nút duy nhất, chỉ hiện ở chặng cuối — trước đó nút chỉ làm nhiễu */}
+            {stage === STAGES.length - 1 && (
+              <button
+                onClick={() => document.getElementById('start')?.scrollIntoView({ behavior: 'smooth' })}
+                className="anim-fade btn-cut group mt-8 flex items-center justify-center gap-2 bg-white px-7 py-3.5 text-black transition-colors hover:bg-white/90"
+              >
+                <span className="text-sm font-medium">{cur.cta}</span>
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            )}
           </div>
 
           {/* Thanh tiến độ của riêng khối này */}
@@ -265,28 +287,28 @@ export function LetterTale() {
   )
 }
 
-/** Ba dòng tiêu đề, mỗi chặng mờ vào/mờ ra theo tiến độ cuộn. */
-function StageHeading({ p }: { p: MotionValue<number> }) {
+/** Một dòng chữ duy nhất mỗi chặng, mờ vào/mờ ra theo tiến độ cuộn. */
+function StageLine({ p }: { p: MotionValue<number> }) {
   return (
-    <div className="relative mx-auto h-[13rem] max-w-4xl sm:h-[15rem] md:h-[17rem] lg:h-[19rem]">
+    <div className="relative mx-auto h-[4.5rem] w-full max-w-3xl sm:h-[5.5rem]">
       {STAGES.map((s, i) => (
-        <HeadingLayer key={s.no} p={p} index={i} lines={s.heading} />
+        <LineLayer key={s.no} p={p} index={i} text={s.line} />
       ))}
     </div>
   )
 }
 
-function HeadingLayer({ p, index, lines }: { p: MotionValue<number>; index: number; lines: string[] }) {
+function LineLayer({ p, index, text }: { p: MotionValue<number>; index: number; text: string }) {
   const [a, b] = BOUNDS[index]
   const f = 0.05
   const opacity = useTransform(p, [a - f, a + f, b - f, b + f], [0, 1, 1, 0], { clamp: true })
-  const y = useTransform(p, [a - f, a + f, b - f, b + f], [26, 0, 0, -26], { clamp: true })
+  const y = useTransform(p, [a - f, a + f, b - f, b + f], [22, 0, 0, -22], { clamp: true })
   return (
     <motion.h2
-      style={{ opacity, y, textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}
-      className="absolute inset-0 flex flex-col justify-center text-3xl font-normal leading-[1.1] tracking-[-0.04em] text-white sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
+      style={{ opacity, y, textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}
+      className="absolute inset-0 flex items-center justify-center text-center text-2xl font-normal leading-tight tracking-[-0.03em] text-white sm:text-3xl md:text-4xl"
     >
-      {lines.map((l) => <span key={l}>{l}</span>)}
+      {text}
     </motion.h2>
   )
 }
