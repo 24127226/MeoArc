@@ -116,3 +116,29 @@ def test_khong_doc_trom_duoc_tep_ngoai_thu_muc_build(dist, tmp_path):
 
     r = c.get("/../bi-mat.txt")
     assert "TOKEN_ENCRYPTION_KEY" not in r.text
+
+
+def test_dia_chi_goc_tra_ve_giao_dien_chu_khong_phai_json(dist):
+    """Người ta gửi link TRẦN cho nhau, không ai gửi kèm '/app'. Mở địa chỉ gốc mà
+    thấy một cục JSON thì tưởng sản phẩm hỏng."""
+    c = TestClient(_app(dist))
+    r = c.get("/")
+
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"], "Dia chi goc van tra JSON"
+    assert "id=root" in r.text
+
+
+def test_chua_build_thi_dia_chi_goc_van_la_cua_api(dist):
+    """Chưa gộp frontend thì câu 'backend đang chạy' vẫn có ích — đừng gỡ nhầm."""
+    app = FastAPI()
+
+    @app.get("/")
+    def goc():
+        return {"message": "backend dang chay"}
+
+    gan_frontend(app, "/khong/ton/tai")
+    r = TestClient(app).get("/")
+
+    assert r.status_code == 200
+    assert r.json()["message"] == "backend dang chay"

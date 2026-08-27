@@ -98,6 +98,18 @@ def gan_frontend(app: FastAPI, duong_dan: str | None = None) -> bool:
 
     index = dist / "index.html"
 
+    # Go route "/" cu (tra JSON "backend dang chay") de bo bat-tat-ca ben duoi nhan
+    # luon dia chi goc. Starlette duyet route theo thu tu dang ky nen route "/" khai
+    # trong app.py se thang neu khong go ra.
+    #
+    # Vi sao dang lam: nguoi ta gui link TRAN cho nhau, khong ai gui kem "/app".
+    # Mo dia chi goc ma thay mot cuc JSON thi tuong san pham hong. Cau bao "backend
+    # dang chay" chi co ich khi CHUA gop frontend — luc do van con nguyen.
+    app.router.routes = [
+        r for r in app.router.routes
+        if not (getattr(r, "path", None) == "/" and "GET" in getattr(r, "methods", set()))
+    ]
+
     @app.get("/{duong_dan_day_du:path}", include_in_schema=False)
     async def phuc_vu_spa(duong_dan_day_du: str):
         goc = duong_dan_day_du.split("/", 1)[0].lower()
