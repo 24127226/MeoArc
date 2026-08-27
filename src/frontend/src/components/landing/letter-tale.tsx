@@ -6,23 +6,25 @@ import { cn } from '@/lib/utils'
 /* ══════════════════════════════════════════════════════════════════════════════
    HÀNH TRÌNH LÁ THƯ — khung điện ảnh cắt góc bát giác.
 
-   Điểm cốt lõi về trải nghiệm: video KHÔNG tự chạy một mạch. Nó được TUA theo
-   đúng vị trí cuộn (video scrubbing) — người dùng kéo tới đâu, hình chạy tới đó,
-   dừng tay thì hình đứng lại. Nhờ vậy đoạn phim và bốn chặng của lá thư luôn khớp
-   nhau, và người đọc chậm không bị phim "chạy mất".
+   ĐÃ BỎ VIDEO Ở KHỐI NÀY. Trước đây nền là một đoạn phim được tua theo vị trí
+   cuộn. Nó ngốn băng thông, phải phủ hai lớp đen lên trên mới đọc được chữ, và
+   chính hai lớp đen đó kéo cả trang xuống tối. Đoạn phim ấy giờ chỉ còn ở nút
+   bấm cuối trang, nơi nó đứng một mình và được nhìn tử tế.
 
-   Kỹ thuật: gán video.currentTime = tiến-độ-cuộn × thời-lượng, làm mượt bằng lò xo
-   rồi ghi trong vòng lặp rAF (đặt currentTime trực tiếp mỗi lần cuộn sẽ giật).
+   Thay vào đó là một SÂN KHẤU NEON dựng bằng CSS: sàn lưới chạy xa dần, hai vệt
+   đèn quét, và một vầng sáng chân trời ĐỔI MÀU THEO CHẶNG — chặng 01 tím, 02 hổ
+   phách, 03 lam, 04 hồng. Nhờ vậy màu nền tự kể chuyện lá thư đi tới đâu, mà
+   không cần một byte video nào, và sáng hơn hẳn vì không còn lớp phủ tối.
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/** Xuất ra để CTA cuối trang dùng lại — một nguồn duy nhất, sửa link chỉ sửa ở đây. */
+/** Đoạn phim hành trình — GIỜ CHỈ DÙNG cho khối kêu gọi cuối trang (landing.tsx). */
 export const JOURNEY_VIDEO =
   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260717_120352_eb988725-1351-43b3-8095-16e4a1005e3d.mp4'
-const FALLBACK_VIDEO = '/landing/purple-desert.mp4'
 
 const STAGES = [
   {
     no: '01',
+    glow: '#9D7BFF',
     tag: 'Soạn thảo',
     heading: ['Bạn nói một câu', 'Mèo cầm bút lên', 'Thư thành hình'],
     side: 'Một câu tiếng Việt là đủ.\nMèo hiểu ngữ cảnh\nvà viết thay bạn.',
@@ -31,6 +33,7 @@ const STAGES = [
   },
   {
     no: '02',
+    glow: '#FFB03A',
     tag: 'Niêm phong',
     heading: ['Thư nằm im', 'Chờ bạn gật đầu', 'Rồi mới đóng dấu'],
     side: 'Dấu sáp không tự\nđóng xuống. Quyền\nquyết định là của bạn.',
@@ -39,6 +42,7 @@ const STAGES = [
   },
   {
     no: '03',
+    glow: '#4FE9FF',
     tag: 'Truyền đi',
     heading: ['Thư rời bàn', 'Băng qua đêm', 'Tới máy chủ thư'],
     side: 'Gmail API hay\nMicrosoft Graph —\nbạn không phải bận tâm.',
@@ -47,6 +51,7 @@ const STAGES = [
   },
   {
     no: '04',
+    glow: '#FF6FB5',
     tag: 'Đã giao',
     heading: ['Thư đến tay', 'Người nhận mở ra', 'Hành trình khép lại'],
     side: 'Một bản lưu trong\nmục Đã gửi. Một dòng\ntrong nhật ký.',
@@ -74,34 +79,10 @@ function VortexMark({ className }: { className?: string }) {
 export function LetterTale() {
   const reduced = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [src, setSrc] = useState(JOURNEY_VIDEO)
   const [stage, setStage] = useState(0)
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
   const p = useSpring(scrollYProgress, { stiffness: 80, damping: 26, restDelta: 0.0005 })
-
-  // ── TUA VIDEO THEO CUỘN ──
-  // Ghi currentTime trong vòng lặp rAF thay vì ngay trong sự kiện cuộn: trình duyệt
-  // chỉ tua được vài lần mỗi giây, gọi dồn dập sẽ khựng hình.
-  useEffect(() => {
-    if (reduced) return
-    let raf = 0
-    let last = -1
-    const loop = () => {
-      const v = videoRef.current
-      if (v && v.readyState >= 2 && Number.isFinite(v.duration)) {
-        const t = Math.min(v.duration - 0.05, Math.max(0, p.get() * v.duration))
-        if (Math.abs(t - last) > 0.03) {
-          v.currentTime = t
-          last = t
-        }
-      }
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [p, reduced])
 
   // Chặng hiện tại theo tiến độ cuộn
   useEffect(() => {
@@ -133,20 +114,60 @@ export function LetterTale() {
       <div className="sticky top-0 h-screen w-full bg-black p-3 md:p-4">
         {/* Khung điện ảnh bo góc — video nằm sau, nội dung nổi trên */}
         <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-black">
-          <video
-            ref={videoRef}
-            key={src}
-            src={src}
-            muted
-            playsInline
-            preload="auto"
-            onError={() => setSrc((s) => (s === JOURNEY_VIDEO ? FALLBACK_VIDEO : s))}
-            className="anim-fade absolute inset-0 size-full object-cover"
-            style={{ animationDelay: '0.2s' }}
-          />
-          {/* Làm trầm hình để chữ trắng luôn đọc được */}
-          <div aria-hidden className="absolute inset-0 bg-black/45" />
-          <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(0,0,0,0.75)_100%)]" />
+          {/* ══ SÂN KHẤU NEON — thay chỗ đoạn phim cũ ══
+              Bốn tầng, xếp từ xa tới gần. Tất cả đều ăn theo màu `cur.glow` nên khi
+              sang chặng mới cả sân khấu đổi màu trong 1.2s, đủ chậm để thấy là một
+              chuyển cảnh chứ không phải một cú nháy. */}
+          <div aria-hidden className="absolute inset-0 overflow-hidden bg-[#04030A]"
+            style={{ ['--g' as string]: cur.glow, transition: 'none' }}>
+
+            {/* 1 — VẦNG SÁNG CHÂN TRỜI. Nguồn sáng chính. Đặt thấp và rộng để ánh
+                 sáng hắt NGƯỢC LÊN chữ, kiểu đèn sân khấu rọi từ dưới. */}
+            <div className="lt-fade absolute inset-x-0 bottom-0 h-[62%]"
+              style={{
+                background:
+                  'radial-gradient(120% 100% at 50% 100%, color-mix(in srgb, var(--g) 85%, transparent) 0%, ' +
+                  'color-mix(in srgb, var(--g) 34%, transparent) 32%, transparent 68%)',
+              }} />
+
+            {/* 2 — SÀN LƯỚI CHẠY XA DẦN. Kẻ ngang giãn dần + kẻ dọc toả ra tạo phối
+                 cảnh một mặt sàn. Đây là thứ làm khung hình "ra chất công nghệ". */}
+            <div className="lt-floor absolute inset-x-0 bottom-0 h-[46%]"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(to bottom, color-mix(in srgb, var(--g) 95%, transparent) 0 1.5px, transparent 1.5px 54px),' +
+                  'repeating-linear-gradient(to right, color-mix(in srgb, var(--g) 72%, transparent) 0 1.5px, transparent 1.5px 76px)',
+                // rotateX 74deg + perspective 320px ep san thanh mot soi ~2px: nhin
+                // ra man hinh la khong thay gi. Ha goc xuong 58deg va noi rong
+                // perspective de con do sau ma van con be mat de nhin.
+                maskImage: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.55) 45%, transparent 88%)',
+                WebkitMaskImage: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.55) 45%, transparent 88%)',
+                transform: 'perspective(520px) rotateX(58deg) scale(1.45)',
+                transformOrigin: 'bottom center',
+              }} />
+
+            {/* 3 — HAI VỆT ĐÈN QUÉT chéo qua khung, lệch pha nhau để không đập nhịp. */}
+            <div className="lt-beam absolute -left-1/3 top-[-30%] h-[170%] w-[46%] rotate-[18deg]"
+              style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--g) 30%, transparent), transparent)' }} />
+            <div className="lt-beam absolute -right-1/4 top-[-30%] h-[170%] w-[34%] -rotate-[14deg]"
+              style={{ animationDelay: '-5s', background: 'linear-gradient(90deg, transparent, color-mix(in srgb, #ffffff 22%, transparent), transparent)' }} />
+
+            {/* 4 — VIỀN HẮT SÁNG quanh mép khung. Chính chi tiết này khiến mắt đọc ra
+                 "đèn neon" chứ không phải "nền tối màu": ánh sáng phải chạm được vào
+                 một CẠNH thì mới có gì để phản chiếu. */}
+            <div className="absolute inset-0 rounded-2xl"
+              style={{
+                boxShadow:
+                  'inset 0 0 1px 1px color-mix(in srgb, var(--g) 70%, transparent),' +
+                  'inset 0 0 60px -12px color-mix(in srgb, var(--g) 55%, transparent),' +
+                  'inset 0 -90px 120px -70px color-mix(in srgb, var(--g) 80%, transparent)',
+              }} />
+          </div>
+
+          {/* Lớp làm trầm: CHỈ 18% và chỉ ở giữa, vừa đủ cho chữ trắng đạt tương phản.
+              Bản cũ phủ 45% toàn khung + một lớp radial 75% nữa — hai lớp đó là lý do
+              chính khiến trang bị chê tối. Bỏ video thì cũng không cần phủ dày như thế. */}
+          <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.42)_0%,transparent_72%)]" />
 
           {/* ── Thanh trên: nhãn thương hiệu + hai nút cắt góc ── */}
           <nav className="relative z-10 flex items-start justify-between px-6 pt-6 md:px-10 md:pt-8">

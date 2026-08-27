@@ -1943,3 +1943,62 @@
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ÁNH SÁNG CHO TRANG GIỚI THIỆU
+
+   Vấn đề: trang bị chê tối và "chưa ra neon". Nguyên nhân KHÔNG phải nền quá đen —
+   nền đen là đúng, neon chỉ nổi trên nền đen. Nguyên nhân là không có gì để ánh
+   sáng CHẠM VÀO. Một ống neon trong phòng trống nhìn như một vệt màu; vẫn ống ấy
+   đặt cạnh một mép tường thì đọc ra ngay là đèn, vì ta thấy nó rọi lên cạnh tường.
+
+   Nên cách chữa không phải là kéo nền sáng lên (làm thế thì mất tương phản, neon
+   càng chìm) mà là DỰNG THÊM CẠNH cho ánh sáng bám: viền phát sáng, sàn lưới, vệt
+   quét. Đó là việc của các lớp dưới đây.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Vầng sáng chân trời — thở nhẹ để khung hình không bị chết cứng */
+@keyframes lt-fade { 0%,100% { opacity: 0.82 } 50% { opacity: 1 } }
+.lt-fade { animation: lt-fade 6s ease-in-out infinite; transition: background 1.2s ease }
+
+/* Sàn lưới trôi về phía người xem — tạo cảm giác đang tiến tới */
+@keyframes lt-floor { from { background-position: 0 0, 0 0 } to { background-position: 0 54px, 0 0 } }
+.lt-floor { animation: lt-floor 2.6s linear infinite; transition: background-image 1.2s ease }
+
+/* Vệt đèn quét ngang khung */
+@keyframes lt-beam { 0% { transform: translateX(-40%) } 100% { transform: translateX(340%) } }
+.lt-beam { animation: lt-beam 11s ease-in-out infinite; filter: blur(28px); transition: background 1.2s ease }
+
+/* ── VIỀN HẮT SÁNG dùng chung cho thẻ/khối trên landing ──
+   Ba tầng cùng lúc, và cần đủ cả ba mới ra "vật thể được đèn rọi":
+     1. sợi viền 1px gần bão hoà  → chính cái ống đèn
+     2. quầng hắt VÀO TRONG       → ánh sáng rọi lên mặt trong của thành
+     3. quầng bleed RA NGOÀI      → không khí quanh đèn bị nhuộm màu
+   Đặt --lit để đổi màu; mặc định tím thương hiệu. */
+.lit-edge {
+  --lit: #9D7BFF;
+  border: 1px solid color-mix(in srgb, var(--lit) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    inset 0 0 34px -14px color-mix(in srgb, var(--lit) 85%, transparent),
+    0 0 26px -6px color-mix(in srgb, var(--lit) 42%, transparent);
+  transition: box-shadow 0.35s var(--ease-soft), border-color 0.35s var(--ease-soft);
+}
+.lit-edge:hover {
+  border-color: color-mix(in srgb, var(--lit) 85%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    inset 0 0 44px -10px color-mix(in srgb, var(--lit) 95%, transparent),
+    0 0 54px -4px color-mix(in srgb, var(--lit) 68%, transparent);
+}
+
+/* Đường kẻ phát sáng — dùng để chia mục, thay cho border xám chìm nghỉm */
+.lit-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lit, #9D7BFF) 90%, transparent), transparent);
+  box-shadow: 0 0 14px 1px color-mix(in srgb, var(--lit, #9D7BFF) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-fade, .lt-floor, .lt-beam { animation: none }
+}

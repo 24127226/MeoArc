@@ -114,7 +114,7 @@ function UnifiedInboxMock() {
             { Glyph: GoogleGlyph, t: 'Gmail', d: 'Gmail API' },
             { Glyph: MsGlyph, t: 'Outlook', d: 'Microsoft Graph' },
           ].map(({ Glyph, t, d }) => (
-            <div key={t} className="flex items-center gap-2.5 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2.5 backdrop-blur-md">
+            <div key={t} className="flex items-center gap-2.5 lit-edge rounded-2xl bg-white/[0.05] px-4 py-2.5 backdrop-blur-md [--lit:#4FE9FF]">
               <Glyph className="size-5" />
               <div className="leading-tight">
                 <p className="text-[13px] font-semibold">{t}</p>
@@ -149,7 +149,7 @@ function UnifiedInboxMock() {
         </svg>
 
         {/* Một hộp thư chung */}
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
+        <div className="lit-edge overflow-hidden rounded-2xl bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-2.5">
             <span className="flex items-center gap-2 text-[12px] font-semibold">
               <MeoMascot mood="idle" className="size-4" />
@@ -185,7 +185,7 @@ function UnifiedInboxMock() {
 /** Mockup giao diện 3 cột — dùng cho hero và mục "bạn bấm nút cuối". */
 function AppMock({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
+    <div className="lit-edge overflow-hidden rounded-2xl bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
       <div className="flex items-center gap-1.5 border-b border-white/[0.07] px-3 py-2">
         <span className="size-2 rounded-full bg-[#F0A848]/70" />
         <span className="size-2 rounded-full bg-white/20" />
@@ -736,7 +736,7 @@ export function LandingPage() {
               className="mx-auto mt-8 flex w-full max-w-md flex-col gap-2.5 sm:flex-row">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@cua-ban.com" aria-label="Địa chỉ email"
-                className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-3.5 text-[15px] text-white outline-none backdrop-blur-md transition-colors placeholder:text-white/35 focus:border-[#F0A848]/60" />
+                className="min-w-0 flex-1 lit-edge rounded-2xl bg-white/[0.07] px-4 py-3.5 text-[15px] text-white outline-none backdrop-blur-md placeholder:text-white/35 [--lit:#FFB03A]" />
               <MovingBorderButton className="justify-center">
                 {isAuthenticated ? 'Vào MeoArc' : 'Bắt đầu'}
                 <ArrowRight className="size-4.5" />
@@ -769,7 +769,7 @@ export function LandingPage() {
       </footer>
 
       {/* ══ CTA đáy cho điện thoại ══ */}
-      <div className={cn('fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#06060B]/90 p-3 backdrop-blur-xl transition-transform duration-500 sm:hidden',
+      <div className={cn('fixed inset-x-0 bottom-0 z-50 lit-edge bg-[#06060B]/90 p-3 backdrop-blur-xl transition-transform duration-500 sm:hidden',
         scrolled ? 'translate-y-0' : 'translate-y-full')}>
         <button onClick={goCta}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#F0A848] py-3.5 text-[15px] font-semibold text-[#1a1206] active:scale-[0.98]">
