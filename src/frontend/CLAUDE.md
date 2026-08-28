@@ -108,10 +108,23 @@ giữa ba cột là tự hạ nó xuống ngang hàng với "Thùng rác".
   (làm việc)", **thứ trong tuần + tuần này/sau**, "ngày mai/kia/cuối tuần", giờ
   đứng riêng. Bắt buộc có CẢ động từ cam kết LẪN mốc thời gian mới nhận.
   Mọi cam kết mang `doTinCay`; dưới 0.6 thì giao diện HỎI chứ không tự khẳng định.
-- `src/pages/schedule.tsx` — lịch tháng (bắt đầu THỨ HAI), khối lượng mỗi ngày vẽ
-  bằng VẠCH chứ không bằng số (42 ô mà bắt đọc 42 con số là bắt người dùng làm
-  việc của biểu đồ). Dùng lại đúng `ChatPanel` — đổi trang chứ không đổi người
-  nói chuyện. Truyền `EmailActions` rỗng: trang này không thao tác trên thư.
+- `src/pages/schedule.tsx` — HAI KHUNG cạnh nhau, KHÔNG cuộn: cột trái là lịch nhỏ
+  + danh sách "Sắp tới" (phần tóm tắt), cột phải là lưới thẻ. Bản trước xếp dọc
+  (lịch to rồi tóm tắt bên dưới) nên phải cuộn — mà cuộn trong một trang lịch là
+  hỏng: người ta mở lịch để NHÌN THẤY CẢ BỨC TRANH.
+  - **Thẻ, không phải chấm.** Một hạn nộp thứ Sáu KHÔNG phải việc của thứ Sáu:
+    cần 6 tiếng thì nó là việc của cả thứ Tư và thứ Năm. `batDau` (từ `tinhBatDau`)
+    cho thẻ TRẢI DÀI qua đúng số ngày; chỉ ngày đầu mang chữ, ngày giữa/cuối là
+    thanh nối (góc cắt chỉ ở hai đầu đợt) — lặp tiêu đề mọi ngày thì mắt đọc ra
+    ba việc chứ không phải một việc kéo dài. Chặn ở 14 ngày để một ước lượng hỏng
+    không bôi kín cả lưới.
+  - **Xếp lớp khi nhiều.** Lệch 3px lúc nghỉ, xoè thành hàng khi rê chuột; ưu tiên
+    cao nhất nằm trên cùng. Vẽ đủ 4 thẻ thì ô cao gấp 4 ô khác và cả lưới méo.
+  - **Bấm thẻ → `KhungHoi`**: chọn "Xem thư gốc" hay "Hỏi trợ lý về việc này".
+    Xem thư mở `EmailDetail` toàn màn; quay lại về đúng chỗ cũ vì lịch không unmount.
+  - **Chat = nút nổi góc dưới phải.** Mở ra thì lưới tháng NHƯỜNG CHỖ cho danh
+    sách — vừa mở chat là đang muốn BÀN về lịch, không phải ngắm lưới tháng.
+  Dùng lại đúng `ChatPanel`; truyền `EmailActions` rỗng: trang này không thao tác thư.
 - `src/components/layout/alert-overlay.tsx` — báo hiệu nổi trên cùng. Ba quy tắc
   chống làm phiền: một lần cho mỗi thứ (nhớ qua `sessionStorage`), tối đa 2 tin
   cùng lúc, và chỉ báo khi còn kịp làm gì đó (<24h và chưa quá hạn).

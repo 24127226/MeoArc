@@ -39,6 +39,15 @@ export type CamKet = {
   noiDung: string
   /** Hạn — null nghĩa là có việc nhưng không có thời điểm (vẫn phải theo dõi). */
   han: Date | null
+  /** Ngày BẮT ĐẦU nên làm, suy ra từ ước lượng thời lượng. Null = làm gọn trong
+   *  đúng ngày hạn.
+   *
+   *  Đây là phần "lịch ngầm" đã nêu trong kế hoạch: một hạn nộp thứ Sáu KHÔNG
+   *  phải một việc của thứ Sáu — nếu nó cần sáu tiếng thì nó là việc của cả thứ
+   *  Tư và thứ Năm nữa. Cuốn lịch thường vẽ nó thành một chấm ở thứ Sáu, và đó
+   *  chính là lý do người ta hay vỡ kế hoạch: họ nhìn thấy một chấm, không nhìn
+   *  thấy khối lượng. */
+  batDau: Date | null
   /** Hạn được SUY RA chứ không ghi trong thư (vd "trong 3 ngày làm việc"). */
   hanSuyRa: boolean
   trangThai: 'chua_lam' | 'dang_doi' | 'xong'
@@ -180,6 +189,23 @@ export function mucRuiRo(e: Email, han: Date | null, moc = new Date()): MucRuiRo
   return 1
 }
 
+/** Suy ra ngày nên BẮT ĐẦU từ khối lượng việc.
+ *
+ *  Chia cho một TRẦN THẤP HƠN trần ngày (3 giờ thay vì 6): không ai dồn toàn bộ
+ *  một ngày cho đúng một việc. Lấy trần thật thì cửa sổ làm việc bị tính ngắn
+ *  bằng nửa, và lời khuyên "bắt đầu từ hôm nay" sẽ tới muộn một ngày.
+ *
+ *  Việc dưới ngưỡng đó trả null — làm gọn trong ngày, không cần trải ra. */
+const GIO_MOI_NGAY_THUC_TE = 180
+export function tinhBatDau(han: Date, phut: number): Date | null {
+  const soNgay = Math.ceil(phut / GIO_MOI_NGAY_THUC_TE)
+  if (soNgay <= 1) return null
+  const d = new Date(han)
+  d.setDate(d.getDate() - (soNgay - 1))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
 /** Ước lượng thô thời lượng, theo độ dài thư và mức ưu tiên.
  *  Cách trung thực nhất về sau là HỎI người dùng ở vài việc đầu rồi học dần —
  *  đoán bừa rồi cho ra một kế hoạch không ai tin thì tệ hơn không có. */
@@ -215,6 +241,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
         id: `ck-${e.id}`,
         noiDung: `Chờ hồi âm: ${e.subject}`,
         han: null,
+        batDau: null,
         hanSuyRa: false,
         trangThai: 'dang_doi',
         nguoiCho: e.to || 'người nhận',
@@ -245,6 +272,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
       id: `ck-${e.id}`,
       noiDung: rutNoiDung(e),
       han,
+      batDau: han ? tinhBatDau(han, uocLuong(e)) : null,
       hanSuyRa: doc?.suyRa ?? false,
       trangThai: e.status === 'Done' ? 'xong' : e.status === 'Waiting' ? 'dang_doi' : 'chua_lam',
       nguoiCho: e.sender,
@@ -307,12 +335,41 @@ export function gomTheoNgay(ds: CamKet[]): Map<string, CamKet[]> {
   const m = new Map<string, CamKet[]>()
   for (const c of ds) {
     if (!c.han) continue
-    const k = khoaNgay(c.han)
-    const cu = m.get(k)
-    if (cu) cu.push(c)
-    else m.set(k, [c])
+    // TRẢI QUA MỌI NGÀY TỪ `batDau` TỚI `han`, không chỉ ngày hạn.
+    //
+    // `batDau` vốn đã được tính (một việc 6 tiếng thì cần 3 ngày), nhưng trước đó
+    // không ai dùng nó để vẽ — nên một việc trải ba ngày vẫn chỉ hiện đúng ở ngày
+    // cuối. Đó lại chính là cách một cuốn lịch thường đánh lừa người dùng: họ
+    // thấy MỘT chấm ở thứ Sáu và tưởng đó là việc của thứ Sáu, trong khi thực ra
+    // phải bắt đầu từ thứ Tư mới kịp.
+    //
+    // Chặn ở 14 ngày: một ước lượng hỏng (hoặc thư nói "trong vòng 90 ngày") mà
+    // không chặn thì nó bôi kín cả lưới tháng và xoá sạch mọi thứ khác.
+    const cuoi = new Date(c.han); cuoi.setHours(0, 0, 0, 0)
+    const dau = new Date(c.batDau ?? c.han); dau.setHours(0, 0, 0, 0)
+    const soNgay = Math.min(14, Math.max(1, Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1))
+    for (let i = 0; i < soNgay; i++) {
+      const d = new Date(dau)
+      d.setDate(d.getDate() + i)
+      const k = khoaNgay(d)
+      const cu = m.get(k)
+      if (cu) cu.push(c)
+      else m.set(k, [c])
+    }
   }
   return m
+}
+
+/** Ngày này nằm ở đâu trong đợt làm của một cam kết.
+ *  Dùng để vẽ thẻ nối liền: ngày đầu mang chữ, ngày giữa/cuối chỉ là thanh nối —
+ *  nếu ngày nào cũng lặp lại tiêu đề thì mắt đọc ra BA việc, không phải một việc
+ *  kéo dài ba ngày. */
+export function viTriTrongDot(ck: CamKet, ngay: Date): 'don' | 'dau' | 'giua' | 'cuoi' {
+  if (!ck.han || !ck.batDau) return 'don'
+  const d = khoaNgay(ngay)
+  if (d === khoaNgay(ck.batDau)) return 'dau'
+  if (d === khoaNgay(ck.han)) return 'cuoi'
+  return 'giua'
 }
 
 /** 42 ô của một lưới lịch tháng (6 tuần × 7 ngày), bắt đầu từ THỨ HAI.

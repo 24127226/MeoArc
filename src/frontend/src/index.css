@@ -2774,6 +2774,12 @@
    đèn viền biến mất. Bù bằng một lớp ::before nằm dưới, cùng hình, phóng to vài
    pixel và tô màu đèn — đó là quầng.
    ══════════════════════════════════════════════════════════════════════════════ */
+/* CẨN THẬN: lớp này đặt `position: relative`, và vì toàn bộ CSS tự viết ở file
+   này nằm NGOÀI `@layer` của Tailwind nên nó THẮNG các tiện ích vị trí của
+   Tailwind (`fixed`, `absolute`, `sticky`).
+   Muốn định vị khác thì phải ghi bằng style nội tuyến, đừng dựa vào class —
+   đã dính đúng lỗi này một lần: nút trợ lý `fixed bottom-6 right-6` bị ép về
+   `relative` và rơi lên góc trên phải. */
 .goc-cat {
   --cat: 14px;
   position: relative;
