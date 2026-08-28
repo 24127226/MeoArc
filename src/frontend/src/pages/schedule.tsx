@@ -515,8 +515,16 @@ function ThanhViec({
       // biến mất ngay lúc người dùng với tay tới nó.
       onMouseEnter={() => {}}
       onMouseLeave={onDong}
-      style={{ left, top, width: W }}
-      className="nhay-bat goc-cat-nho goc-cat fixed z-50 flex items-center gap-1 border
+      // `position` PHẢI ghi nội tuyến. `.goc-cat` đặt `position: relative`, và vì
+      // nó là CSS tự viết nằm ngoài @layer nên nó THẮNG tiện ích `fixed` của
+      // Tailwind. Dùng class thì thanh này thành `relative`, rơi vào dòng chảy
+      // bình thường ở cuối DOM và văng ra ngoài màn hình — đã đo được: left 2260,
+      // top 1017 trên khung 1440×900.
+      //
+      // Đúng cái bẫy đã ghi chú cho nút trợ lý ở trên, và tôi vẫn giẫm lại. Ghi
+      // ở CẢ HAI chỗ để lần sau ai đọc file này cũng vấp thấy.
+      style={{ position: 'fixed', left, top, width: W }}
+      className="nhay-bat goc-cat-nho goc-cat z-50 flex items-center gap-1 border
                  border-[color-mix(in_srgb,var(--rr)_60%,transparent)]
                  bg-[var(--nen-2,var(--elevated))]/96 p-1 backdrop-blur-md
                  shadow-[0_8px_24px_-8px_rgba(0,0,0,0.55)]"
