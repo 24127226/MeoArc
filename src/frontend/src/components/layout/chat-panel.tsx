@@ -1121,7 +1121,7 @@ export function ChatPanel({
       : null
 
   return (
-    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+    <aside className="ai-panel-bg den-noi-trai relative z-10 flex h-full flex-1 flex-col overflow-hidden shadow-soft duration-300 animate-in fade-in">
       {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ, và nó PHẢI ĂN NHẬP VỚI NỀN, KHÔNG PHẢI DÁN LÊN NỀN.
           Bản thô là một bong bóng TRẮNG LOÁ trên nền studio sáng. Đặt nguyên nó
           lên nền #05060D thì nó không thuộc về căn phòng ấy — nó là một tấm ảnh
@@ -1157,53 +1157,11 @@ export function ChatPanel({
       {/* Bong bóng dựng bằng CSS: nền dự phòng khi đoạn phim không tải được
           (mạng chặn, CDN hỏng). Không có nó thì panel thành một mảng đen trơn. */}
       {phimHong && <ChatAmbience />}
-      {/* Watermark maison — Phiên bản SÁNG BÓNG ÁNH KIM cho Dark Mode, chốt hạ bài toán tàng hình */}
-      <div aria-hidden className="maison-watermark relative z-[2]">
-        <style>{`
-          .wm-title {
-            font-family: var(--font-display);
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            /* Light Mode: Giữ độ nét thanh lịch, xám Champagne dập khối tinh tế */
-            color: color-mix(in srgb, var(--foreground) 16%, transparent);
-            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.45);
-            transition: all 0.3s ease;
-          }
-          
-          .dark .wm-title {
-            /* HẠ từ 38% xuống 12%. Đây là HÌNH NỀN, không phải nội dung: khung trợ lý
-               giờ mở sẵn nên chữ này nằm ngay sau mọi cuộc hội thoại. Ở 38% nó tranh
-               chỗ với thứ người dùng đang đọc; ở 12% nó làm đúng việc của hình nền. */
-            color: color-mix(in srgb, var(--foreground) 12%, transparent);
-            /* Quầng sáng neon bóng bẩy hắt ra từ lòng chữ, giả lập hiệu ứng kim loại bóng loáng phản quang dưới ánh đèn */
-            text-shadow: 
-              0 0 1px rgba(255, 255, 255, 0.6),
-              0 0 8px color-mix(in srgb, var(--active) 30%, transparent),
-              1px 2px 3px rgba(0, 0, 0, 0.7);
-          }
-
-          .wm-sign span {
-            font-family: var(--font-serif);
-            font-style: italic;
-            color: color-mix(in srgb, var(--foreground) 18%, transparent);
-            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-          }
-          
-          .dark .wm-sign span {
-            /* Chữ ký phụ cũng được tráng bạc nhạt mờ ảo để không bị chìm nghỉm */
-            color: color-mix(in srgb, var(--foreground) 24%, #ffffff);
-            text-shadow: 0 0 4px rgba(255, 255, 255, 0.2), 1px 1px 2px rgba(0, 0, 0, 0.5);
-          }
-        `}</style>
-
-        {/* Chữ ký tác giả ĐÃ GỠ khỏi mặt sản phẩm.
-            Khung trợ lý giờ mở sẵn nên đây là thứ ĐẦU TIÊN người dùng nhìn thấy — chỗ đó
-            phải nói sản phẩm làm được gì, không phải ai làm ra nó. Tên tác giả thuộc về
-            trang giới thiệu và tài liệu, không thuộc về nền màn hình làm việc.
-            Giữ lại chữ MEOARC mờ làm hình nền, hạ độ mờ để không tranh chỗ với hội thoại. */}
-        <div className="wm-title">MEOARC</div>
-      </div>
+      {/* CHỮ "MEOARC" LÀM NỀN ĐÃ GỠ HẲN, cùng toàn bộ khối <style> đi kèm.
+          Nó từng là chữ ký của khung này, rồi bị hạ xuống 12% để thôi tranh chỗ
+          với hội thoại. Nhưng hạ độ mờ chỉ chữa triệu chứng: nền panel giờ đã có
+          một VẬT THẬT — bông hoa thuỷ tinh — nên chồng thêm một dòng chữ khổng lồ
+          sau nó là hai thứ cùng đòi làm hình nền. Bỏ hẳn thì bông hoa mới có chỗ. */}
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
@@ -1283,7 +1241,7 @@ export function ChatPanel({
               onClick={() => setHistoryOpen((v) => !v)}
               title="Kích hoạt dải phím thao tác"
               className={cn(
-                "flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-gold/40 hover:text-foreground shadow-sm",
+                "den-vien flex size-9 items-center justify-center rounded-xl bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:text-foreground",
                 historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
               )}
             >
@@ -1294,7 +1252,7 @@ export function ChatPanel({
                 onClick={onClose}
                 title="Đóng trợ lý — về Hộp thư"
                 aria-label="Đóng trợ lý AI"
-                className="flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-destructive/40 hover:text-foreground shadow-sm"
+                className="den-vien flex size-9 items-center justify-center rounded-xl bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:text-foreground [--tint:var(--destructive)]"
               >
                 <X className="size-4" />
               </button>
@@ -1311,7 +1269,7 @@ export function ChatPanel({
               : "max-h-0 opacity-0 -translate-y-4 pointer-events-none overflow-hidden mt-0 pt-0 border-t-0"
           )}
         >
-          <div className="flex items-center gap-2 px-4 py-1 rounded-full bg-background/60 backdrop-blur-md border border-foreground/[0.05] shadow-inner">
+          <div className="den-vien flex items-center gap-2 px-4 py-1 rounded-full bg-background/60 backdrop-blur-md">
             <kbd className="hidden items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-background px-1.5 py-0.5 text-[9px] font-mono font-medium text-muted-foreground/70 lg:flex">
               ⌘K
             </kbd>

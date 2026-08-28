@@ -203,10 +203,10 @@
    ============================================================ */
 @theme inline {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --font-serif: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   /* Display "maison" — chữ khắc thời trang cao cấp: watermark, masthead, số liệu lớn.
      Cormorant Garamond (thanh mảnh, tương phản cao) = chất Vogue/old-money. */
-  --font-display: 'Cormorant Garamond', 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   /* Bộ chữ công nghệ — DÙNG RIÊNG cho trang giới thiệu & đăng nhập, không đụng app.
      tech  = tiêu đề/nhãn (Space Grotesk: hình học, sắc, hiện đại)
      techMono = số liệu, mã, chỉ số (JetBrains Mono: chữ số đều li) */
@@ -2048,17 +2048,15 @@
    cái ghi cứng đứng sau nên nó thắng, và biến trở thành vô nghĩa. Phải thắng lại
    bằng ĐỘ ƯU TIÊN của selector: `.giao-dien-app .font-serif` (hai lớp) mạnh hơn
    `.font-serif` (một lớp). Vẫn giữ việc đổi biến cho các chỗ đọc biến trực tiếp. */
-.giao-dien-app {
-  --font-serif: var(--font-sans);
-  --font-display: var(--font-sans);
-}
-.giao-dien-app .font-serif,
-.giao-dien-app .font-display,
+/* Khối này TRƯỚC ĐÂY ép serif → sans để diệt Fraunces trong hộp thư. Giờ
+   `--font-serif` chính là Panchang — mặt chữ ta muốn — nên phải gỡ ép buộc đó ra,
+   nếu không tiêu đề trong app lại rơi về Inter và mất giọng.
+   Vẫn giữ phần siết chân chữ: Panchang ở cỡ lớn giãn hơi rộng. */
 .giao-dien-app h1,
 .giao-dien-app h2,
 .giao-dien-app h3,
-.giao-dien-app h4 {
-  font-family: var(--font-sans);
+.giao-dien-app .font-serif {
+  letter-spacing: -0.015em;
 }
 /* Sans thay serif ở cỡ lớn dễ bị rời rạc — siết chân chữ lại cho thành một khối */
 .giao-dien-app h1,
@@ -2631,4 +2629,95 @@
   mix-blend-mode: multiply;
   filter: contrast(1.2) saturate(1.55) hue-rotate(-8deg);
   opacity: 0.5;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   HỆ ĐÈN VIỀN — ánh sáng nằm ở CẠNH
+
+   Đây là tư duy cốt lõi của giao diện neon, và cũng là chỗ dự án làm chưa tới.
+   Trước đó ánh sáng chỉ có ở NỀN — bông hoa, dải phổ, chùm đèn — còn mọi khung
+   kết cấu vẫn dùng viền xám chết: border-foreground/[0.06], border-border/40.
+   Kết quả là một căn phòng có đèn nhưng đồ đạc trong đó không phản chiếu gì.
+
+   Neon thật hoạt động ngược lại: cái ta nhìn thấy hầu như luôn là ÁNH SÁNG BÁM
+   TRÊN MỘT CẠNH. Ống đèn trong phòng trống chỉ là một vệt màu; đặt cạnh mép
+   tường thì nó thành đèn, vì ta thấy nó rọi lên cạnh tường.
+
+   ── VÌ SAO PHẢI CÓ CẤP BẬC ──
+   Cho mọi thứ phát sáng bằng nhau thì không thứ gì nổi lên, và màn hình thành
+   một mớ đèn nhấp nháy — đó là lý do phần lớn giao diện "neon" trông rẻ tiền.
+   Nên bốn cấp, mỗi cấp một vai rõ ràng, và cấp càng cao thì càng HIẾM:
+
+     cấp 0  đường nối kết cấu — chỉ một sợi sáng, KHÔNG toả. Dùng cho ranh giới
+            giữa các cột: chúng dài hàng trăm pixel, cho toả thì cả màn hình mờ.
+     cấp 1  nghỉ  — sợi viền mờ + quầng hắt vào trong. Mặc định của mọi khung.
+     cấp 2  chạm  — sáng lên và bắt đầu toả ra ngoài. Hover/focus.
+     cấp 3  đang chọn — sáng nhất, toả rộng nhất. Chỉ một thứ tại một thời điểm.
+
+   ── BẢN SÁNG DÙNG CƠ CHẾ KHÁC ──
+   Quầng sáng trên nền hồng phấn thì tàng hình: sáng cộng sáng vẫn là sáng. Nên
+   ở bản sáng, "cạnh được chiếu sáng" biểu hiện thành SỢI VIỀN BÃO HOÀ + bóng đổ
+   MÀU thay vì quầng phát. Đúng nguyên tắc chi-tiết-nhỏ-màu-đậm của bảng Attitude.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Cấp 0: đường nối kết cấu, một cạnh, không toả ────────────────────────── */
+.den-noi-phai, .den-noi-trai, .den-noi-duoi { position: relative }
+.den-noi-phai::after, .den-noi-trai::after, .den-noi-duoi::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(var(--huong, 180deg),
+    transparent, color-mix(in srgb, var(--tint, var(--spark)) 65%, transparent) 18%,
+    color-mix(in srgb, var(--tint, var(--spark)) 65%, transparent) 82%, transparent);
+}
+.den-noi-phai::after { top: 0; bottom: 0; right: -0.5px; width: 1px }
+.den-noi-trai::after { top: 0; bottom: 0; left: -0.5px; width: 1px }
+.den-noi-duoi::after { left: 0; right: 0; bottom: -0.5px; height: 1px; --huong: 90deg }
+
+/* ── Cấp 1 → 3: khung có đèn ──────────────────────────────────────────────── */
+.den-vien {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 26%, transparent);
+  box-shadow: inset 0 0 14px -9px color-mix(in srgb, var(--tint) 60%, transparent);
+  transition: border-color 0.3s var(--ease-soft), box-shadow 0.3s var(--ease-soft);
+}
+.den-vien-cham,
+.den-vien:hover {
+  border-color: color-mix(in srgb, var(--tint) 58%, transparent);
+  box-shadow:
+    inset 0 0 20px -8px color-mix(in srgb, var(--tint) 75%, transparent),
+    0 0 24px -8px color-mix(in srgb, var(--tint) 55%, transparent);
+}
+.den-vien-chon {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 88%, transparent);
+  box-shadow:
+    inset 0 0 26px -7px color-mix(in srgb, var(--tint) 85%, transparent),
+    0 0 38px -6px color-mix(in srgb, var(--tint) 70%, transparent);
+}
+
+/* Bản sáng: đổi quầng phát thành sợi bão hoà + bóng đổ MÀU */
+:root:not(.dark) .den-vien {
+  border-color: color-mix(in srgb, var(--tint) 40%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--tint) 14%, transparent);
+}
+:root:not(.dark) .den-vien-cham,
+:root:not(.dark) .den-vien:hover {
+  border-color: color-mix(in srgb, var(--tint) 85%, transparent);
+  box-shadow:
+    0 2px 10px -2px color-mix(in srgb, var(--tint) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+:root:not(.dark) .den-vien-chon {
+  border-color: var(--tint);
+  box-shadow:
+    0 3px 16px -3px color-mix(in srgb, var(--tint) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+:root:not(.dark) .den-noi-phai::after,
+:root:not(.dark) .den-noi-trai::after,
+:root:not(.dark) .den-noi-duoi::after {
+  background: linear-gradient(var(--huong, 180deg),
+    transparent, color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 18%,
+    color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 82%, transparent);
 }

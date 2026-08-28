@@ -184,10 +184,14 @@ function EmailCard({
         selected
           ? 'shadow-[inset_0_4px_12px_rgba(0,0,0,0.35)] bg-black/20 border-t border-black/30 border-b border-white/5 scale-[0.995]'
           : kbActive
-            ? 'neon-edge-strong'
-            // Nghỉ: viền gần như tàng hình. Rê chuột: viền sáng lên và quầng TRÀN RA
-            // ngoài cạnh — đó mới là đèn, chứ viền màu suông thì chỉ là cái khung.
-            : 'border border-white/[0.04] hover:-translate-y-0.5 hover:neon-edge',
+            // Đang chọn bằng bàn phím = cấp 3, sáng nhất. Chỉ MỘT thẻ tại một
+            // thời điểm — đó là lý do cấp này được phép rực đến vậy.
+            ? 'den-vien-chon'
+            // NGHỈ giờ là CẤP 1, không còn `border-white/[0.04]` gần như tàng hình.
+            // Thẻ thư là đơn vị nội dung chính của cả ứng dụng; để nó không có
+            // cạnh nào bắt sáng thì mọi thứ khác phát sáng cũng vô nghĩa — mắt
+            // không có gì để so. Rê chuột lên cấp 2: sáng thêm và bắt đầu toả.
+            : 'den-vien hover:-translate-y-0.5',
       )}
     >
       <span
@@ -702,7 +706,7 @@ export function EmailList({
                   ? 'Hỏi: "thư chưa đọc có đính kèm"…'
                   : 'Tìm (phím / để focus)…'
             }
-            className="border border-foreground/[0.08] bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 shadow-[0_4px_12px_rgba(0,0,0,0.12)] backdrop-blur-xl ring-1 ring-foreground/[0.04] focus-visible:ring-gold/40 focus-visible:from-foreground/[0.09]"
+            className="den-vien bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 backdrop-blur-xl focus-visible:den-vien-cham"
           />
           <button
             onClick={() => setNlMode((v) => !v)}
@@ -827,7 +831,7 @@ export function EmailList({
              Thay bằng kính mờ, lớp duy nhất trong dự án không có hoa văn nào để
              nhìn. Giữ lại bóng lún phía trong để cột vẫn có chiều sâu. */
           style={{ backgroundColor: 'var(--list)' }}
-          className="kinh-mo w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin shadow-[inset_0_5px_16px_rgba(0,0,0,0.28)] border border-foreground/[0.08]"
+          className="kinh-mo den-vien w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin"
         >
           {loading ? (
             [0, 1, 2, 3].map((i) => (

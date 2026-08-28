@@ -58,7 +58,7 @@ function SystemStatus({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="mx-2 rounded-lg border border-foreground/[0.06] px-3 py-2.5">
+    <div className="den-vien mx-2 rounded-lg px-3 py-2.5">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/55">
           <span className="pulse-dot" aria-hidden />
@@ -99,7 +99,7 @@ export function NavRail({
         // rgba(239,217,210) — một màu kem còn sót từ bảng màu cũ, nên ở bản sáng
         // mới nó chỏi hẳn). Thay bằng kính mờ: sọc là hoa văn nên mắt luôn thấy
         // nó và nó tranh chỗ với nhãn điều hướng; kính mờ không có gì để nhìn.
-        'kinh-mo relative z-20 flex h-full shrink-0 flex-col bg-rail py-5 border-r border-border/40 transition-[width] duration-300 ease-soft',
+        'kinh-mo den-noi-phai relative z-20 flex h-full shrink-0 flex-col bg-rail py-5 transition-[width] duration-300 ease-soft',
         collapsed ? 'w-[76px]' : 'w-[212px]',
       )}
     >

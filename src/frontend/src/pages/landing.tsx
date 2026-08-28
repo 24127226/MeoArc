@@ -508,12 +508,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ══ AGENT THẬT SỰ — video metal human phủ TOÀN MÀN ══ */}
+      {/* ══ AGENT THẬT SỰ — video thumb-v1 phủ TOÀN MÀN ══ */}
       <section ref={agentRef} id="agent"
         className="relative flex min-h-screen items-end overflow-hidden py-20 sm:items-center sm:py-24">
         {/* Desktop: đẩy tượng sang phải, chữ bên trái. Điện thoại: tượng ở giữa, chữ dồn xuống dưới. */}
         <VideoBackdrop
-          src="/landing/metal-human.mp4" poster="/landing/metal-human.jpg"
+          src="/landing/thumb-v1.mp4" poster="/landing/thumb-v1.jpg"
           tint="cyan" dim="none" parallax play="inview"
           className="[&_img]:object-center [&_video]:object-center sm:[&_img]:object-[72%_center] sm:[&_video]:object-[72%_center]"
         />
