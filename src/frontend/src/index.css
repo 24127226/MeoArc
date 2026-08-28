@@ -2746,7 +2746,7 @@
 .ld-tech .font-serif,
 .ld-tech .font-display,
 .ld-tech .ld-title {
-  font-family: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Chakra Petch', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.012em;
 }
 
@@ -2813,3 +2813,73 @@
 .nhay-bat { animation: nhay-bat 0.45s steps(1, end) both }
 
 @media (prefers-reduced-motion: reduce) { .nhay-bat { animation: none; opacity: 1 } }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NÚT & Ô ICON THEO NGÔN NGỮ CÔNG NGHỆ
+
+   Nút bo tròn nói "chạm vào tôi, tôi mềm" — ngôn ngữ ứng dụng tiêu dùng. Nút
+   góc cắt nói "đây là một điều khiển trên bảng máy". Cùng một hành động, hai
+   câu chuyện khác nhau, và câu thứ hai mới là câu sản phẩm này muốn kể.
+
+   Ba thứ làm nên một nút "công nghệ", và thiếu thứ nào cũng hụt:
+     1. HÌNH góc cắt — đã có ở .goc-cat
+     2. CẠNH bắt sáng, và sáng thêm khi chạm — trạng thái đọc được bằng ánh sáng
+        chứ không bằng đổi màu nền
+     3. VẠCH CHỈ THỊ — một sợi ngắn ở mép, thứ có mặt trên mọi bảng điều khiển
+        thật và gần như không bao giờ có trên nút web. Chi tiết nhỏ nhất nhưng
+        là thứ khiến mắt đọc ra "thiết bị" thay vì "trang web".
+   ══════════════════════════════════════════════════════════════════════════════ */
+.nut-ky-thuat {
+  --tint: var(--spark);
+  --cat: 9px;
+  position: relative;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+  border: 1px solid color-mix(in srgb, var(--tint) 30%, transparent);
+  transition: border-color 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft),
+    background-color 0.25s var(--ease-soft);
+}
+.nut-ky-thuat:hover {
+  border-color: color-mix(in srgb, var(--tint) 75%, transparent);
+  box-shadow: inset 0 0 18px -8px color-mix(in srgb, var(--tint) 85%, transparent);
+}
+.nut-ky-thuat:active { transform: translateY(0.5px) }
+
+/* Vạch chỉ thị ở mép trên-trái, chạy dài ra khi chạm.
+   Đặt ở mép ĐỐI DIỆN với góc cắt trên-trái để hai chi tiết không chồng nhau. */
+.nut-ky-thuat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: calc(var(--cat) + 4px);
+  height: 1.5px; width: 12px;
+  background: color-mix(in srgb, var(--tint) 90%, #fff);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--tint) 70%, transparent);
+  transition: width 0.3s var(--ease-soft);
+  pointer-events: none;
+}
+.nut-ky-thuat:hover::before { width: 34px }
+
+/* Ô ICON — vuông góc cắt, icon phát sáng theo màu đèn của khối */
+.o-icon {
+  --tint: var(--spark);
+  --cat: 7px;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+  border: 1px solid color-mix(in srgb, var(--tint) 34%, transparent);
+  color: color-mix(in srgb, var(--tint) 82%, #fff);
+  transition: border-color 0.25s var(--ease-soft), filter 0.25s var(--ease-soft);
+}
+.o-icon:hover {
+  border-color: color-mix(in srgb, var(--tint) 80%, transparent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tint) 70%, transparent));
+}
+/* Bản sáng: quầng phát tàng hình trên nền hồng, nên dùng viền bão hoà + nét đậm */
+:root:not(.dark) .nut-ky-thuat:hover { box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--tint) 40%, transparent) }
+:root:not(.dark) .o-icon { color: color-mix(in srgb, var(--tint) 88%, #000) }
+:root:not(.dark) .o-icon:hover { filter: none; border-color: var(--tint) }

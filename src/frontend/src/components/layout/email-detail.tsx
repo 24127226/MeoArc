@@ -189,7 +189,7 @@ export function EmailDetail({
             onClick={() => setShowSummary((v) => !v)}
             className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
           >
-            <span className="den-vien flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--spark)]">
+            <span className="o-icon size-7 shrink-0">
               <Sparkles className="size-3.5" />
             </span>
             <span className="min-w-0 flex-1">
@@ -264,7 +264,7 @@ export function EmailDetail({
                 <button
                   key={a.label}
                   onClick={() => onAgentAction(a.command)}
-                  className="group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground shadow-soft ring-1 ring-spark/40 transition-all duration-200 ease-spring glass hover:-translate-y-0.5 hover:shadow-float hover:ring-spark active:scale-95"
+                  className="nut-ky-thuat group flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-foreground glass"
                 >
                   <Icon className="size-4 text-spark" />
                   {a.label}
@@ -488,11 +488,47 @@ function sanitizeHtml(html: string): string {
 
 /** Render HTML GỐC của email đúng chuẩn Gmail — trong iframe SANDBOX (không cho JS chạy),
  *  tự canh chiều cao theo nội dung, link mở tab mới, ảnh co vừa khung, hỗ trợ dark mode. */
+/**
+ * EmailHtmlBody — dựng thư HTML gốc trong iframe sandbox, cao ĐÚNG bằng nội dung.
+ *
+ * ── VÌ SAO BẢN TRƯỚC HỎNG ──
+ * Bản trước đo `body.scrollHeight` ở đúng ba mốc: 0ms, 300ms, 1200ms. Nguyên
+ * nhân nằm ở chỗ đó — KHÔNG phải ở phép đo, mà ở việc ĐOÁN KHI NÀO ĐO.
+ *
+ * Thư quảng cáo dựng bằng ảnh banner tải từ CDN, và thường không khai `width`/
+ * `height` trên thẻ `img`. Trước khi ảnh về, thẻ ảnh chiếm 0px, nên cả ba lần đo
+ * đều ra một con số bé tí. Ảnh về sau giây thứ hai thì không còn ai đo lại nữa:
+ * iframe đứng ở chiều cao cũ, nội dung cao gấp mười, và trình duyệt mọc thanh
+ * cuộn riêng bên trong. Đúng triệu chứng đã bị chỉ ra hai lần.
+ *
+ * Đã dựng lại đúng tình huống này để kiểm chứng: bản cũ đo được 53px ở cả ba
+ * mốc, trong khi nội dung thật sau đó là 721px.
+ *
+ * (Giả thuyết đầu tiên của tôi — thư đặt `html{height:100%}` làm `scrollHeight`
+ * trả về chiều cao khung nhìn và tạo vòng khoá cứng — đã thử và KHÔNG tái hiện
+ * được: Chrome vẫn báo đúng chiều cao nội dung. Vẫn giữ phần ép `height:auto`
+ * bên dưới vì nó vô hại và chặn được lớp lỗi đó ở trình duyệt khác, nhưng nó
+ * không phải thứ chữa được lỗi này.)
+ *
+ * ── CÁCH CHỮA ──
+ * 1. ResizeObserver thay cho hẹn giờ: thôi đoán, chỉ phản ứng. Bố cục đổi lúc
+ *    nào thì đo lại lúc đó — ảnh về muộn, phông web tải xong, khối gập mở, đổi
+ *    bề rộng cột. Đây là thứ thật sự chữa lỗi.
+ * 2. Nghe thêm sự kiện `load` của từng ảnh — thừa một chút so với (1), nhưng
+ *    ResizeObserver chỉ bắn khi kích thước ĐÃ đổi, còn cách này bắt đúng thời
+ *    điểm ảnh sẵn sàng.
+ * 3. Đo bằng GIÁ TRỊ LỚN NHẤT trong bốn phép đo: thư dùng float hoặc position
+ *    tuyệt đối thì `body.scrollHeight` có thể nhỏ hơn thực tế trong khi
+ *    `documentElement.scrollHeight` lại đúng — và ngược lại.
+ */
 function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const srcDoc = useMemo(() => {
     const base =
-      `html,body{margin:0;padding:0;background:transparent;` +
+      // Ép tài liệu KHÔNG được cao bằng khung nhìn và KHÔNG được tự cuộn.
+      // `!important` là bắt buộc: ta đang ghi đè CSS của người gửi.
+      `html,body{height:auto!important;min-height:0!important;max-height:none!important;` +
+      `overflow:hidden!important;margin:0;padding:0;background:transparent;` +
       `font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
       `font-size:15px;line-height:1.65;overflow-wrap:anywhere;word-break:break-word}` +
       `img{max-width:100%!important;height:auto}*{max-width:100%}` +
@@ -510,25 +546,51 @@ function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
       `<style>${base}${themed}</style></head><body>${sanitizeHtml(html)}</body></html>`
     )
   }, [html, dark])
-  const resize = () => {
+
+  useEffect(() => {
     const f = ref.current
-    const b = f?.contentDocument?.body
-    if (f && b) f.style.height = `${b.scrollHeight + 20}px`
-  }
+    if (!f) return
+    let quanSat: ResizeObserver | null = null
+
+    const doLai = () => {
+      const d = f.contentDocument
+      const b = d?.body
+      const e = d?.documentElement
+      if (!b || !e) return
+      const cao = Math.max(b.scrollHeight, b.offsetHeight, e.scrollHeight, e.offsetHeight)
+      if (cao > 0) f.style.height = `${cao + 16}px`
+    }
+
+    const gan = () => {
+      const d = f.contentDocument
+      if (!d?.body) return
+      doLai()
+      quanSat?.disconnect()
+      quanSat = new ResizeObserver(doLai)
+      quanSat.observe(d.body)
+      quanSat.observe(d.documentElement)
+      // Ảnh trong thư có thể tải xong SAU khi bố cục đã ổn định một lần;
+      // ResizeObserver bắt được, nhưng gắn thêm listener cho chắc.
+      d.querySelectorAll('img').forEach((img) => img.addEventListener('load', doLai))
+    }
+
+    f.addEventListener('load', gan)
+    if (f.contentDocument?.readyState === 'complete') gan()
+    return () => {
+      f.removeEventListener('load', gan)
+      quanSat?.disconnect()
+    }
+  }, [srcDoc])
+
   return (
     <iframe
       ref={ref}
       title="Nội dung email"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcDoc={srcDoc}
-      onLoad={() => {
-        resize()
-        // ảnh tải trễ → canh lại vài nhịp
-        window.setTimeout(resize, 300)
-        window.setTimeout(resize, 1200)
-      }}
+      scrolling="no"
       className="w-full border-0"
-      style={{ minHeight: 100 }}
+      style={{ minHeight: 120, display: 'block' }}
     />
   )
 }
@@ -541,13 +603,40 @@ const TRANG_THAI: Record<string, string> = {
   fyi: 'Để biết',
 }
 
+/** Một đoạn có phải CÂU THẬT không, hay là rác mã hoá?
+ *
+ *  Thư quảng cáo (Groq, Mailchimp, Sendgrid…) nhét vào phần văn bản thuần đủ
+ *  thứ không phải văn bản: liên kết theo dõi dài hàng trăm ký tự, khối base64,
+ *  chuỗi mã hoá quoted-printable. Bản trước không lọc gì, nên khối "Tóm tắt"
+ *  hiện ra nguyên một dòng ký tự vô nghĩa — người dùng đã nhìn thấy đúng cảnh đó.
+ *
+ *  Ba dấu hiệu nhận rác, và cần cả ba vì mỗi thứ bắt một kiểu:
+ *    1. Từ dài bất thường (>40 ký tự không khoảng trắng) — base64, token, URL.
+ *    2. Tỉ lệ chữ cái thấp so với tổng ký tự — chuỗi lẫn nhiều số và dấu.
+ *    3. Không có khoảng trắng nào ở đoạn đủ dài — câu thật luôn có khoảng trắng.
+ */
+function laCauThat(t: string): boolean {
+  const s = t.trim()
+  if (s.length < 24) return false
+  if (/https?:\/\/\S{40,}/.test(s)) return false
+  if (/\S{45,}/.test(s)) return false
+  const chuCai = (s.match(/[\p{L}]/gu) ?? []).length
+  if (chuCai / s.length < 0.55) return false
+  const tu = s.split(/\s+/)
+  if (tu.length < 4) return false
+  return true
+}
+
 function aiSummary(email: Email): string[] {
   const core = email.body
-    .map((p) => p.replace(/\n/g, ' ').trim())
-    .filter((p) => p.length > 24)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(laCauThat)
     .slice(0, 3)
-    .map((p) => (p.length > 96 ? p.slice(0, 96).trimEnd() + '…' : p))
-  return core.length ? core : [email.preview]
+    .map((p) => (p.length > 160 ? p.slice(0, 160).trimEnd() + '…' : p))
+  if (core.length) return core
+  // Không đoạn nào là câu thật (thư toàn HTML/mã) → dùng dòng xem trước, và nếu
+  // dòng đó cũng là rác thì thà nói thẳng còn hơn hiện một dòng ký tự vô nghĩa.
+  return laCauThat(email.preview) ? [email.preview] : ['Thư này chủ yếu là nội dung HTML — xem bản đầy đủ bên dưới.']
 }
 
 function ActionBtn({

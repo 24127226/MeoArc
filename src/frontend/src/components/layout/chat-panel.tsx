@@ -1241,7 +1241,7 @@ export function ChatPanel({
               onClick={() => setHistoryOpen((v) => !v)}
               title="Kích hoạt dải phím thao tác"
               className={cn(
-                "den-vien flex size-9 items-center justify-center rounded-xl bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:text-foreground",
+                "o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90",
                 historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
               )}
             >
@@ -1252,7 +1252,7 @@ export function ChatPanel({
                 onClick={onClose}
                 title="Đóng trợ lý — về Hộp thư"
                 aria-label="Đóng trợ lý AI"
-                className="den-vien flex size-9 items-center justify-center rounded-xl bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:text-foreground [--tint:var(--destructive)]"
+                className="o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90 [--tint:var(--destructive)]"
               >
                 <X className="size-4" />
               </button>
