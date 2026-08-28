@@ -203,10 +203,10 @@
    ============================================================ */
 @theme inline {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   /* Display "maison" — chữ khắc thời trang cao cấp: watermark, masthead, số liệu lớn.
      Cormorant Garamond (thanh mảnh, tương phản cao) = chất Vogue/old-money. */
-  --font-display: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   /* Bộ chữ công nghệ — DÙNG RIÊNG cho trang giới thiệu & đăng nhập, không đụng app.
      tech  = tiêu đề/nhãn (Space Grotesk: hình học, sắc, hiện đại)
      techMono = số liệu, mã, chỉ số (JetBrains Mono: chữ số đều li) */
@@ -2721,3 +2721,95 @@
     transparent, color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 18%,
     color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 82%, transparent);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PANCHANG — CHỈ CHO TIÊU ĐỀ TRANG GIỚI THIỆU
+
+   Trước đó Panchang được đặt làm `--font-serif` toàn cục, và nó tràn vào mọi chỗ
+   có class `.font-serif` bên trong hộp thư: tên người gửi, tiêu đề thư, chữ cái
+   đại diện, tiêu đề khối tóm tắt. Hệ quả là màn hình đọc thư có ba bốn mặt chữ
+   cùng lúc — Panchang, Inter, monospace — và trông lộn xộn.
+
+   Lý do sâu hơn để không dùng nó ở đó: Panchang là mặt chữ HIỂN THỊ. Chân chữ
+   vuông, các nét gần như cùng độ dày, khoảng trong chữ rộng — đọc rất mạnh ở cỡ
+   lớn, nhưng ở 13-15px thì các chữ cái bắt đầu giống nhau và mắt phải làm việc
+   nhiều hơn. Hộp thư là nơi người ta đọc hàng trăm dòng nhỏ mỗi ngày.
+
+   Nên: Panchang chỉ ở tiêu đề trang giới thiệu — nơi chữ to, ít, và nhiệm vụ là
+   gây ấn tượng. Bên trong ứng dụng dùng Space Grotesk cho tiêu đề (vẫn là mặt
+   chữ hình học, vẫn giữ chất công nghệ, nhưng dựng để đọc) và Inter cho phần
+   thân. Nếu Panchang không tải được thì Space Grotesk đỡ ngay — cùng giọng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.ld-tech h1,
+.ld-tech h2,
+.ld-tech h3,
+.ld-tech .font-serif,
+.ld-tech .font-display,
+.ld-tech .ld-title {
+  font-family: 'Panchang', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.012em;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KHUNG GÓC CẮT — ngôn ngữ hình học lấy từ Arwes
+
+   Đọc mã nguồn `packages/frames` của Arwes thì thấy điều này: KHÔNG khung nào
+   của họ dùng `border-radius`. Mọi khung đều là SVG path với góc CẮT VÁT 45°,
+   và — chi tiết đáng học nhất — chỉ HAI góc đối nhau được cắt (mặc định là trên
+   trái + dưới phải), hai góc còn lại để vuông.
+
+   Vì sao bất đối xứng lại quan trọng: cắt cả bốn góc thì ra hình bát giác, mà
+   bát giác là một hình CÂN — nó đứng yên, không có hướng. Cắt hai góc đối nhau
+   thì khung có một trục chéo, và mắt đọc ra một chiều chuyển động. Đó là khác
+   biệt giữa "một cái khung tám cạnh" và "một tấm panel trên bảng điều khiển".
+
+   Đây cũng là điều giao diện này thiếu: mọi thứ đang là `rounded-xl`/`rounded-2xl`
+   — góc bo tròn nói "thân thiện, tiêu dùng, an toàn". Không sai, nhưng không phải
+   thứ đang được yêu cầu.
+
+   Dựng bằng `clip-path` thay vì SVG: nó cắt được cả nền, cả backdrop-filter, và
+   cả phần tràn của con — thứ mà một đường viền SVG không làm được.
+
+   Lưu ý đánh đổi: `clip-path` cắt luôn `box-shadow`, nên quầng sáng ngoài của
+   đèn viền biến mất. Bù bằng một lớp ::before nằm dưới, cùng hình, phóng to vài
+   pixel và tô màu đèn — đó là quầng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.goc-cat {
+  --cat: 14px;
+  position: relative;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+}
+/* Biến thể nhỏ cho chip/nút */
+.goc-cat-nho { --cat: 8px }
+
+/* Quầng sáng cho khung đã bị clip-path cắt mất box-shadow */
+.goc-cat-den { position: relative }
+.goc-cat-den::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--tint, var(--spark)) 55%, transparent);
+  clip-path: polygon(
+    var(--cat, 14px) 0, 100% 0, 100% calc(100% - var(--cat, 14px)),
+    calc(100% - var(--cat, 14px)) 100%, 0 100%, 0 var(--cat, 14px)
+  );
+  filter: blur(0.5px);
+  pointer-events: none;
+  transition: background 0.3s var(--ease-soft);
+}
+.goc-cat-den:hover::before {
+  background: color-mix(in srgb, var(--tint, var(--spark)) 100%, transparent);
+}
+
+/* ══ NHÁY KHI HIỆN RA ══════════════════════════════════════════════════════
+   Arwes cho phần trang trí hiện lên theo nhịp [0, 1, 0.5, 1] chứ không mờ dần
+   đều. Một phần tư giây nhấp nháy đó là toàn bộ khác biệt giữa "phần tử xuất
+   hiện" và "màn hình vừa được BẬT LÊN". Rẻ đến mức vô lý so với hiệu quả. */
+@keyframes nhay-bat { 0% { opacity: 0 } 40% { opacity: 1 } 60% { opacity: 0.45 } 100% { opacity: 1 } }
+.nhay-bat { animation: nhay-bat 0.45s steps(1, end) both }
+
+@media (prefers-reduced-motion: reduce) { .nhay-bat { animation: none; opacity: 1 } }

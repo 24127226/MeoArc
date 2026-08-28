@@ -102,6 +102,19 @@ export function EmailDetail({
   }, [email.id, showSummary])
   const points = llmSummary ?? aiSummary(email)
 
+  /* TÓM TẮT CHỈ HIỆN KHI NÓ THỰC SỰ RÚT GỌN.
+     `aiSummary` (bản lùi khi chưa có LLM) chỉ lấy ba đoạn đầu của thân thư rồi
+     cắt bớt — với một lá thư ba đoạn thì đó là BẢN SAO NGUYÊN VĂN, không phải
+     tóm tắt. Ảnh chụp cho thấy đúng vậy: ba gạch đầu dòng trùng khít ba đoạn
+     ngay bên dưới. Người đọc mất một khối màn hình để đọc lại thứ họ sắp đọc.
+
+     Nên: có tóm tắt THẬT từ mô hình thì luôn hiện; còn bản lùi cục bộ chỉ hiện
+     khi thư đủ dài để việc rút gọn có nghĩa. Thư ngắn thì bỏ hẳn khối này —
+     không có gì để tóm tắt thì đừng giả vờ là có. */
+  const soChu = email.body.join(' ').trim().split(/\s+/).length
+  const phutDoc = Math.max(1, Math.round(soChu / 200))
+  const dangThucSuTomTat = llmSummary != null || soChu > 140
+
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in slide-in-from-right-4">
       {/* Adaptive accent — panel nhuốm sắc theo category của thư đang đọc */}
@@ -157,21 +170,31 @@ export function EmailDetail({
 
       {/* Nội dung */}
       <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto px-5 py-5">
-        {/* Thread Smart Card (UC004 + UC008) — bento mọng .ripe tóm tắt luồng thư */}
+        {/* TÓM TẮT — bản trước bị chê "chữ không à", và đúng: nó là một cái hộp
+            chứa vài dòng chữ, không có gì để mắt bám vào ngoài chữ.
+
+            Bản này cho nó CẤU TRÚC trước khi cho nó chữ: một hàng số liệu (trạng
+            thái xử lý · số chữ · phút đọc) rồi mới tới các ý chính. Hàng số liệu
+            trả lời được câu hỏi đầu tiên người ta hỏi khi mở một lá thư — "cái
+            này có cần tôi làm gì không, và có dài không" — mà không cần đọc chữ nào.
+
+            Cũng bỏ `.ripe` (bề mặt mọng thời cũ) và dùng đèn viền cho khớp phần
+            còn lại của giao diện. */}
+        {dangThucSuTomTat && (
         <div
           style={{ ['--tint' as string]: c.bar }}
-          className="ripe glass overflow-hidden rounded-2xl shadow-tint-lg edge-light"
+          className="den-vien goc-cat overflow-hidden"
         >
           <button
             onClick={() => setShowSummary((v) => !v)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-left"
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
           >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emphasis text-emphasis-foreground shadow-subtle">
-              <Sparkles className="size-4" />
+            <span className="den-vien flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--spark)]">
+              <Sparkles className="size-3.5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
-                Tóm tắt luồng thư · AI
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/70">
+                Tóm tắt · AI
               </span>
               {!showSummary && (
                 <span className="block truncate text-xs text-muted-foreground">
@@ -186,10 +209,29 @@ export function EmailDetail({
               )}
             />
           </button>
+
           {showSummary && (
-            <div className="space-y-2 px-4 pb-4">
+            <div className="px-4 pb-4">
+              {/* HÀNG SỐ LIỆU — thứ đọc được bằng liếc mắt, không phải bằng đọc */}
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                {[
+                  { nhan: 'Trạng thái', gtri: TRANG_THAI[email.priority ?? 'fyi'] },
+                  { nhan: 'Độ dài', gtri: `${soChu} chữ` },
+                  { nhan: 'Thời gian đọc', gtri: `${phutDoc} phút` },
+                ].map((o) => (
+                  <div key={o.nhan} className="den-vien goc-cat-nho goc-cat px-2.5 py-2">
+                    <p className="text-[8.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70">
+                      {o.nhan}
+                    </p>
+                    <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+                      {o.gtri}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
               {email.tldr && (
-                <p className="text-sm font-medium leading-relaxed text-foreground">{email.tldr}</p>
+                <p className="mb-2.5 text-sm font-medium leading-relaxed text-foreground">{email.tldr}</p>
               )}
               {summaryLoading && !llmSummary ? (
                 <div className="space-y-2">
@@ -198,10 +240,11 @@ export function EmailDetail({
                   <div className="skeleton h-3 w-2/3 rounded" />
                 </div>
               ) : (
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {points.map((s, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-foreground/90">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-active" />
+                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-foreground/90">
+                      <span className="mt-[7px] size-1.5 shrink-0 rounded-full"
+                        style={{ background: c.bar, boxShadow: `0 0 8px ${c.bar}` }} />
                       <span className="min-w-0">{s}</span>
                     </li>
                   ))}
@@ -210,6 +253,7 @@ export function EmailDetail({
             </div>
           )}
         </div>
+        )}
 
         {/* Contextual Agent Actions (UC016) — nút "đoán trước ý định" */}
         {onAgentAction && (
@@ -230,7 +274,16 @@ export function EmailDetail({
           </div>
         )}
 
-        <div className="rounded-2xl p-5 shadow-soft edge-light glass">
+        {/* THÂN THƯ KHÔNG CÒN NẰM TRONG MỘT CÁI THẺ.
+            Trước đây cả lá thư bị bọc trong `rounded-2xl p-5 glass` — một khối
+            kính bo góc, đổ bóng, có viền. Nhìn ra là "một mẩu nội dung đặt trong
+            một ô", và ô đó lại nằm trong một cột đang cuộn: đọc một lá thư dài
+            thành ra cuộn trong ô, trong cột.
+
+            Gmail không làm vậy vì lá thư KHÔNG PHẢI một mẩu nội dung trong màn
+            hình — nó LÀ màn hình. Nên bỏ hết khung: chỉ còn khoảng đệm rộng và
+            một mặt phẳng để đọc. */}
+        <div className="px-1 pb-2">
           {/* Eyebrow: nhãn + thời gian (micro uppercase) */}
           <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             {email.label && (
@@ -481,6 +534,13 @@ function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
 }
 
 /** Tóm tắt mock từ nội dung email (UC008) — backend thật dùng LLM. */
+/** Nhãn trạng thái xử lý — cùng bộ với badge triage ở danh sách thư. */
+const TRANG_THAI: Record<string, string> = {
+  action: 'Cần xử lý',
+  waiting: 'Đang đợi',
+  fyi: 'Để biết',
+}
+
 function aiSummary(email: Email): string[] {
   const core = email.body
     .map((p) => p.replace(/\n/g, ' ').trim())

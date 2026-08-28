@@ -175,7 +175,7 @@ function EmailCard({
         // như kẹo mềm ở bản sáng. `bloom-hover` thì thừa: `neon-edge` khi rê
         // chuột đã lo phần quầng sáng, mà nó lại chiếm `::before` — chỗ mà viền
         // ngũ sắc bên dưới cần dùng.
-        'group relative w-full overflow-hidden rounded-xl p-4 pl-5 text-left transition-all duration-300 ease-soft glass active:scale-[0.99]',
+        'goc-cat group relative w-full overflow-hidden p-4 pl-5 text-left transition-all duration-300 ease-soft glass active:scale-[0.99]',
         // VIỀN NGŨ SẮC CHO THƯ CHƯA ĐỌC. Vừa là chữ ký thị giác, vừa mang thông
         // tin: dải phổ chạy vòng quanh thẻ = thư còn "sống", chưa ai đụng tới.
         // Chỉ gắn cho thư chưa đọc nên số thẻ chạy animation luôn nhỏ — nếu rải

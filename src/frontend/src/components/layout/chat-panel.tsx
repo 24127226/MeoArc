@@ -1269,7 +1269,7 @@ export function ChatPanel({
               : "max-h-0 opacity-0 -translate-y-4 pointer-events-none overflow-hidden mt-0 pt-0 border-t-0"
           )}
         >
-          <div className="den-vien flex items-center gap-2 px-4 py-1 rounded-full bg-background/60 backdrop-blur-md">
+          <div className="den-vien goc-cat-nho goc-cat flex items-center gap-2 px-4 py-1 bg-background/60 backdrop-blur-md">
             <kbd className="hidden items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-background px-1.5 py-0.5 text-[9px] font-mono font-medium text-muted-foreground/70 lg:flex">
               ⌘K
             </kbd>
