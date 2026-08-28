@@ -641,6 +641,114 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 const PHIM_TOI = '/landing/space-bubble.mp4'   // nền đen  → dùng với screen
 const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với multiply
 
+/**
+ * TheDuDinh — agent xin phép TRƯỚC khi làm việc có hậu quả ra ngoài hộp thư.
+ *
+ * Đây là màn quan trọng nhất khi MeoArc gọi MCP đi đặt vé, đặt phòng — và cũng
+ * là chỗ dễ làm sai nhất. Ba quyết định thiết kế, mỗi cái chữa một cách hỏng:
+ *
+ * 1. MỖI BƯỚC MỘT MỨC RỦI RO RIÊNG, không gộp thành một cục "đặt chuyến đi".
+ *    Gộp lại thì người dùng không thấy được bước nào rút lại được, bước nào
+ *    không — và họ sẽ duyệt cả cụm mà không biết mình vừa duyệt cái gì.
+ *
+ * 2. NÚT GIỮA LÀ NÚT QUAN TRỌNG NHẤT. "Chỉ thêm vào lịch" cho phép lấy phần an
+ *    toàn và bỏ phần tốn tiền. Thiếu nó thì người dùng chỉ có duyệt tất hoặc bỏ
+ *    tất — và khi phải chọn giữa hai cực đó, họ sẽ bỏ tất.
+ *
+ * 3. AGENT NÓI RA CHỖ NÓ ĐOÁN. Không giấu phần suy đoán đi. Một trợ lý nói rõ
+ *    chỗ mình không chắc thì đáng tin hơn hẳn một trợ lý lúc nào cũng quả quyết.
+ *
+ * Mức rủi ro CAO NHẤT trong các bước quyết định độ sáng của cả thẻ — vì đó mới
+ * là thứ người dùng đang thật sự đánh cược khi bấm duyệt.
+ */
+function TheDuDinh({
+  reply,
+  resolved,
+}: {
+  reply: Extract<AgentReply, { kind: 'dudinh' }>
+  resolved?: boolean
+}) {
+  const capCao = Math.max(...reply.buoc.map((b) => b.mucRuiRo)) as 1 | 2 | 3
+  const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+  const coTienThat = reply.buoc.some((b) => b.mucRuiRo === 3)
+
+  return (
+    <div
+      className={cn(
+        // NỀN ĐỤC, không để trong suốt. Panel trợ lý có đoạn phim chạy phía sau;
+        // thẻ này chứa SỐ TIỀN và các bước không hoàn tác được, nên nó là chỗ
+        // cuối cùng được phép hy sinh độ đọc để lấy hiệu ứng. Vẫn giữ backdrop-blur
+        // để nó còn thuộc về khung kính chung.
+        'goc-cat mt-2 flex flex-col gap-3.5 bg-[var(--elevated)]/92 p-4 backdrop-blur-md',
+        capCao === 3 ? 'rui-ro-3' : capCao === 2 ? 'rui-ro-2' : 'rui-ro-1',
+        resolved && 'opacity-60',
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em]"
+          style={{ color: 'var(--rr)' }}>
+          {coTienThat ? 'Không hoàn tác · tiêu tiền thật' : 'Cần bạn duyệt'}
+        </span>
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--rr)' }}>
+          {reply.buoc.length} bước
+        </span>
+      </div>
+
+      <h3 className="text-[15px] font-semibold leading-snug text-foreground">{reply.title}</h3>
+
+      <div className="flex flex-col">
+        {reply.buoc.map((b, i) => (
+          <div key={i}
+            className="grid grid-cols-[14px_1fr_auto] items-center gap-2.5 border-t border-foreground/[0.07] py-2.5 first:border-t-0">
+            <span className={cn('cham-rr', `c${b.mucRuiRo}`)} aria-hidden />
+            <span className="min-w-0 text-[13px] text-foreground">
+              {b.mo_ta}{' '}
+              <span className="text-muted-foreground">· {b.hau_qua}</span>
+            </span>
+            <span className="font-mono text-[12px] tabular-nums"
+              style={{ color: b.tien ? `var(--rr-${b.mucRuiRo === 3 ? 'khong' : b.mucRuiRo === 2 ? 'can' : 'hoan'})` : undefined }}>
+              {b.tien ? `${b.tien.toLocaleString('vi-VN')} ₫` : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {tong > 0 && (
+        <div className="flex items-baseline justify-between border-t border-foreground/[0.07] pt-2.5">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">
+            Tổng chi
+          </span>
+          <span className="font-mono text-[15px] font-bold tabular-nums" style={{ color: 'var(--rr)' }}>
+            {tong.toLocaleString('vi-VN')} ₫
+          </span>
+        </div>
+      )}
+
+      {reply.cho_doan && (
+        <p className="border-l-2 py-2 pl-3 pr-2 text-[12.5px] leading-relaxed text-muted-foreground"
+          style={{ borderColor: 'var(--rr)', background: 'color-mix(in srgb, var(--rr) 5%, transparent)' }}>
+          {reply.cho_doan}
+        </p>
+      )}
+
+      {!resolved && (
+        <div className="flex flex-wrap gap-2">
+          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-semibold text-white"
+            style={{ ['--tint' as string]: 'var(--rr)', background: 'var(--rr)' }}>
+            Duyệt từng bước
+          </button>
+          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-foreground">
+            Chỉ thêm vào lịch
+          </button>
+          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-muted-foreground">
+            Bỏ qua
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ChatPanel({
   emails,
   actions,
@@ -2132,6 +2240,15 @@ function AgentMessage({
           onApply={onApplyCategorize}
           onReject={onReject}
         />
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'dudinh') {
+    return (
+      <AgentRow>
+        <AgentText>{reply.intro}</AgentText>
+        <TheDuDinh reply={reply} resolved={resolved} />
       </AgentRow>
     )
   }

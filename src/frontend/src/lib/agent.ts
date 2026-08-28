@@ -21,6 +21,17 @@ export type EmailRef = {
 }
 
 /** Phản hồi của agent — quyết định canvas hiển thị gì. */
+/** Một bước trong thẻ dự định. `mucRuiRo` ánh xạ thẳng sang thang sáng CSS. */
+export type DuDinhBuoc = {
+  mo_ta: string
+  /** Ghi chú hậu quả: "hoàn tác được", "không đổi, không hoàn"… */
+  hau_qua: string
+  /** 1 hoàn tác được · 2 người khác đã thấy · 3 mất tiền thật */
+  mucRuiRo: 1 | 2 | 3
+  /** Số tiền, đồng. 0 = không tốn gì. */
+  tien?: number
+}
+
 export type AgentReply =
   | { kind: 'text'; text: string; emails?: EmailRef[] }
   | { kind: 'done'; text: string }
@@ -75,6 +86,22 @@ export type AgentReply =
     }
   // --- Inbox Autopilot (UC017) — hộp thư tự lái, ambient + reversible ---
   | { kind: 'autopilot'; intro: string; title: string; plan: AutopilotStep[] }
+  /** THẺ DỰ ĐỊNH — agent xin phép TRƯỚC khi làm việc có hậu quả ra bên ngoài.
+   *
+   *  Khác `plan` ở một điểm quyết định: `plan` là các bước TRONG hộp thư, sai thì
+   *  sửa lại được. `dudinh` là các bước ra THẾ GIỚI THẬT qua MCP — đặt vé, đặt
+   *  phòng, thanh toán. Nên mỗi bước phải mang riêng mức rủi ro và chi phí của nó,
+   *  KHÔNG gộp thành một cục "đặt chuyến đi": người dùng cần thấy bước nào rút lại
+   *  được, bước nào không. */
+  | {
+      kind: 'dudinh'
+      intro: string
+      title: string
+      buoc: DuDinhBuoc[]
+      /** Chỗ agent phải đoán vì thư không nói rõ. Nói ra chỗ mình không chắc thì
+       *  đáng tin hơn hẳn lúc nào cũng quả quyết. */
+      cho_doan?: string
+    }
 
 /** Hành động Mèo tự đề xuất cho từng thư khi tự lái. */
 export type AutopilotAction = 'archive' | 'markRead' | 'flag' | 'reply' | 'keep'
@@ -197,6 +224,23 @@ export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   }
 
   // --- Daily Digest (UC014) ---
+  // Đặt vé / đặt phòng / chuyến đi → THẺ DỰ ĐỊNH. Đây là nhánh MCP ra thế giới
+  // thật, nên nó không bao giờ tự chạy — luôn dừng ở đây xin phép.
+  if (/(dat ve|dat phong|dat khach san|chuyen di|di cong tac|book)/.test(q)) {
+    return {
+      kind: 'dudinh',
+      intro: 'Mình đọc thư mời rồi tra thử. Đây là dự định — bạn duyệt thì mình mới làm.',
+      title: 'Đi Đà Nẵng dự hội thảo · 12–14/09',
+      buoc: [
+        { mo_ta: 'Thêm 3 mốc vào lịch', hau_qua: 'hoàn tác được', mucRuiRo: 1 },
+        { mo_ta: 'Vé bay SGN → DAD, 12/09 06:20', hau_qua: 'không đổi, không hoàn', mucRuiRo: 3, tien: 1850000 },
+        { mo_ta: 'Khách sạn 2 đêm, gần địa điểm', hau_qua: 'huỷ miễn phí tới 10/09', mucRuiRo: 2, tien: 1240000 },
+      ],
+      cho_doan:
+        'Thư mời không ghi giờ kết thúc ngày 14. Mình chọn chuyến bay về 19:40 cho chắc — nếu hội thảo tan sớm thì bạn sửa lại giúp mình.',
+    }
+  }
+
   if (/(digest|diem tin|bao cao|tom luoc ngay)/.test(q)) {
     const unread = emails.filter((e) => e.unread).length
     const starred = emails.filter((e) => e.starred).length
