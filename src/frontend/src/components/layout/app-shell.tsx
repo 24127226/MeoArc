@@ -11,6 +11,7 @@ import { useTheme } from '@/components/theme-provider'
 import { emails as seedEmails } from '@/data/emails'
 import { CommitmentsView } from '@/components/layout/commitments-view'
 import { cn } from '@/lib/utils'
+import { AlertOverlay } from '@/components/layout/alert-overlay'
 import type { EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 
@@ -240,6 +241,8 @@ export function AppShell() {
 
   return (
     <div className="giao-dien-app relative flex h-screen w-full overflow-hidden bg-background text-foreground">
+      {/* Báo hiệu nổi trên cùng — thư cần xử lý và hạn sắp tới. */}
+      <AlertOverlay emails={emails} />
       {/* Cực quang nền — dải sáng uốn lượn như khung hình đầu trang giới thiệu.
           Nằm SAU mọi panel (các panel là khối kính nên ánh sáng vẫn thấp thoáng qua). */}
       <div aria-hidden className="aurora-stage">

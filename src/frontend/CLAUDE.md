@@ -93,3 +93,32 @@ Màu LUÔN qua token/utility (không hardcode hex trong component, trừ `src/da
 
 ## Quy ước
 Giải thích tiếng Việt file nào sửa và vì sao. Không đổi bảng màu / thiết kế đã chốt trừ khi được yêu cầu.
+
+## Lịch trình — trang riêng `/lich` (thêm 2026-08-28)
+
+**Vì sao là TRANG RIÊNG, không phải một tab trong hộp thư.** Hộp thư cố ý chiếm
+một cột hẹp — đó là quyết định sản phẩm: người ta không vào MeoArc để đọc thư và
+thao tác từng lá như Gmail; nếu chỉ cần thế thì họ đã ở lại Gmail. Lịch trình thì
+ngược lại — đó chính là thứ MeoArc làm mà Gmail không làm, nên nhét nó vào một cột
+giữa ba cột là tự hạ nó xuống ngang hàng với "Thùng rác".
+
+- `src/lib/cam-ket.ts` — trích **cam kết** (không phải "sự kiện") từ thư. Cam kết
+  có thêm trạng thái, người đang chờ, và nguồn gốc — đó là khoảng cách giữa một
+  cuốn lịch và một người trợ lý. Đọc được: ngày tuyệt đối, "trong vòng N ngày
+  (làm việc)", **thứ trong tuần + tuần này/sau**, "ngày mai/kia/cuối tuần", giờ
+  đứng riêng. Bắt buộc có CẢ động từ cam kết LẪN mốc thời gian mới nhận.
+  Mọi cam kết mang `doTinCay`; dưới 0.6 thì giao diện HỎI chứ không tự khẳng định.
+- `src/pages/schedule.tsx` — lịch tháng (bắt đầu THỨ HAI), khối lượng mỗi ngày vẽ
+  bằng VẠCH chứ không bằng số (42 ô mà bắt đọc 42 con số là bắt người dùng làm
+  việc của biểu đồ). Dùng lại đúng `ChatPanel` — đổi trang chứ không đổi người
+  nói chuyện. Truyền `EmailActions` rỗng: trang này không thao tác trên thư.
+- `src/components/layout/alert-overlay.tsx` — báo hiệu nổi trên cùng. Ba quy tắc
+  chống làm phiền: một lần cho mỗi thứ (nhớ qua `sessionStorage`), tối đa 2 tin
+  cùng lúc, và chỉ báo khi còn kịp làm gì đó (<24h và chưa quá hạn).
+
+### Thang rủi ro — `.rui-ro-1/2/3` trong `index.css`
+Khác `.den-vien` (mã hoá trạng thái con trỏ), thang này mã hoá **hỏng thì mất gì**:
+hoàn tác được / người khác đã thấy / mất tiền thật. Màu NGỮ NGHĨA tách hẳn khỏi
+màu thương hiệu. **Cấp 3 phải hiếm** — cho quá nhiều thứ vào đó thì người dùng học
+được rằng ánh đỏ không có nghĩa gì, và đúng lúc cần nó nhất thì nó đã mất tác dụng.
+`AgentReply` có thêm kind `dudinh` (thẻ dự định) dùng thang này.

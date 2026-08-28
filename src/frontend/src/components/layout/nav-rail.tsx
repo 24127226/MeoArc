@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  ListChecks,
+  CalendarDays,
   Inbox,
   Send,
   FileEdit,
@@ -17,15 +18,15 @@ import { AccountMenu } from '@/components/layout/account-menu'
 import { SettingsDialog } from '@/components/layout/settings-dialog'
 import { NotificationBell } from '@/components/layout/notification-bell'
 
-type NavItem = { id: string; label: string; icon: React.ElementType }
+type NavItem = { id: string; label: string; icon: React.ElementType; sangTrang?: string }
 
 const items: NavItem[] = [
   { id: 'inbox', label: 'Hộp thư', icon: Inbox },
   { id: 'agent', label: 'AI Agent', icon: Sparkles },
-  // "Việc của tôi" — cam kết trích từ hộp thư. Đặt ngay sau AI Agent chứ không
-  // xuống cuối cùng với đám thư mục: nó KHÔNG phải một thư mục, nó là một cách
-  // nhìn khác về cùng hộp thư đó, và là thứ người dùng mở hằng ngày.
-  { id: 'viec', label: 'Việc của tôi', icon: ListChecks },
+  // "Lịch trình" ĐI SANG TRANG RIÊNG (/lich), không đổi cột giữa như các mục
+  // khác. Nó không phải một thư mục thư, nó là một chế độ làm việc khác — ở đó
+  // người dùng nghĩ về thời gian của họ chứ không nghĩ về từng lá thư.
+  { id: 'lich', label: 'Lịch trình', icon: CalendarDays, sangTrang: '/lich' },
   { id: 'starred', label: 'Gắn sao', icon: Star },
   { id: 'sent', label: 'Đã gửi', icon: Send },
   { id: 'drafts', label: 'Nháp', icon: FileEdit },
@@ -90,6 +91,7 @@ export function NavRail({
   /** Nút "AI Agent" là công tắc → sáng theo trạng thái panel chat, không theo thư mục. */
   agentActive?: boolean
 }) {
+  const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem(COLLAPSE_KEY) === '1',
   )
@@ -145,7 +147,13 @@ export function NavRail({
           return (
             <button
               key={item.id}
-              onClick={() => onSelect(item.id)}
+              onClick={() => {
+                // Mục có `sangTrang` thì ĐIỀU HƯỚNG thật, không đổi cột giữa.
+                // Đây là khác biệt về bản chất chứ không phải tiện tay gộp chung:
+                // các mục kia là thư mục THƯ, mục này là một chế độ làm việc khác.
+                if (item.sangTrang) navigate(item.sangTrang)
+                else onSelect(item.id)
+              }}
               title={collapsed ? item.label : undefined}
               className={cn(
                 'group relative flex items-center rounded-2xl transition-all duration-200 ease-spring press',

@@ -295,3 +295,36 @@ export function apLucTheoNgay(
  *  6 tiếng chứ không phải 8: không ai làm việc tập trung 8 tiếng liền, và đặt
  *  trần theo con số lý tưởng thì cảnh báo quá tải sẽ báo quá muộn. */
 export const TRAN_MOI_NGAY = 6 * 60
+
+/** Khoá ngày dạng "2026-08-28" — dùng làm khoá gom nhóm, tránh so sánh Date. */
+export function khoaNgay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Gom cam kết theo ngày. Trả Map để tra cứu O(1) khi vẽ lưới lịch — vẽ lịch
+ *  tháng là 42 ô, lọc lại cả danh sách cho từng ô thì thành O(42·n) vô ích. */
+export function gomTheoNgay(ds: CamKet[]): Map<string, CamKet[]> {
+  const m = new Map<string, CamKet[]>()
+  for (const c of ds) {
+    if (!c.han) continue
+    const k = khoaNgay(c.han)
+    const cu = m.get(k)
+    if (cu) cu.push(c)
+    else m.set(k, [c])
+  }
+  return m
+}
+
+/** 42 ô của một lưới lịch tháng (6 tuần × 7 ngày), bắt đầu từ THỨ HAI.
+ *  Bắt đầu từ thứ Hai chứ không phải Chủ nhật: đó là quy ước lịch ở Việt Nam,
+ *  và đặt sai thì mọi phép đọc "cuối tuần" của người dùng đều lệch một ô. */
+export function luoiThang(nam: number, thang: number): Date[] {
+  const dau = new Date(nam, thang, 1)
+  const lech = (dau.getDay() + 6) % 7 // CN=0 → 6; T2=1 → 0
+  const bat_dau = new Date(nam, thang, 1 - lech)
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(bat_dau)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+}
