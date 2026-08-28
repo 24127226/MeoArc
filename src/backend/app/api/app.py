@@ -467,6 +467,26 @@ def get_emails(
     # STORE-OF-RECORD: bật cờ + DB đã có thư của user ⇒ phục vụ TỪ DB, KHÔNG gọi Gmail
     # (chống rate-limit — yêu cầu nhóm). DB còn "lạnh" (chưa sync) ⇒ lùi về live như cũ.
     if settings.mailbox_store_enabled and email_store_repo.has_any(db, session.user_id, provider):
+        # ── NÚT "LÀM MỚI" PHẢI THẬT SỰ LÀM MỚI ──
+        # Trước đây nhánh này BỎ QUA HẲN cờ `fresh`: bấm làm mới thì server vẫn trả
+        # đúng các dòng DB cũ, nên thư vừa tới không bao giờ xuất hiện — và vì dữ
+        # liệu không đổi nên lớp thông báo cũng chẳng có gì để báo. Đó là nguyên
+        # nhân gốc của "bấm refresh mà không thấy thông báo nào", nằm ở backend
+        # chứ không phải ở giao diện.
+        #
+        # Đồng bộ TĂNG DẦN chứ không tải lại cả hộp thư: Gmail history.list hỏi
+        # "có gì đổi kể từ mốc X" — không đổi gì thì đúng MỘT lượt gọi API, đổi
+        # thì chỉ lấy phần đổi. Rẻ hơn hẳn 31 lượt của một lần liệt kê lại.
+        #
+        # Lỗi đồng bộ KHÔNG được làm hỏng việc đọc thư: vẫn trả bản DB đang có.
+        # Thà hiện thư hơi cũ còn hơn hiện một màn lỗi.
+        if fresh:
+            try:
+                sync_service.incremental_sync(db, session.user_id, provider, token)
+            except Exception:
+                logger.info("Đồng bộ nhanh thất bại — vẫn phục vụ từ DB", exc_info=True)
+                db.rollback()
+
         items, next_cursor = email_store_repo.get_page(
             db, session.user_id, provider, folder=folder, q=q, unread=unread,
             starred=starred, attachment=attachment, limit=limit, cursor=cursor,
