@@ -9,6 +9,8 @@ import { Onboarding } from '@/components/layout/onboarding'
 import { WanderingCat } from '@/components/wandering-cat'
 import { useTheme } from '@/components/theme-provider'
 import { emails as seedEmails } from '@/data/emails'
+import { CommitmentsView } from '@/components/layout/commitments-view'
+import { cn } from '@/lib/utils'
 import type { EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 
@@ -255,8 +257,21 @@ export function AppShell() {
         badges={{ inbox: inboxUnread }}
         agentActive={aiOpen}
       />
-      {/* Hộp thư: AI tắt + chưa mở thư → CHIẾM TRỌN bề ngang (fill); còn lại là cột.
-          AI tắt → dùng khung header thanh lịch (elegant) đổi tiêu đề thành "HỘP THƯ". */}
+      {/* "Việc của tôi" thay chỗ danh sách thư ở cột giữa — KHÔNG mở thành một
+          màn riêng chiếm cả trang. Lý do: nó là một cách nhìn khác về cùng hộp
+          thư đó, nên giữ nguyên khung ba cột thì người dùng vẫn bấm được vào một
+          việc để nhảy thẳng sang lá thư sinh ra nó, mà không mất ngữ cảnh. */}
+      {activeNav === 'viec' ? (
+        <div className={cn('flex min-h-0 shrink-0 flex-col p-2', aiOpen ? 'w-[420px]' : 'flex-1')}>
+          <CommitmentsView
+            emails={emails}
+            onOpenEmail={(id) => {
+              setActiveNav('inbox')
+              openEmail(id)
+            }}
+          />
+        </div>
+      ) : (
       <EmailList
         emails={emails}
         folder={folder}
@@ -272,6 +287,7 @@ export function AppShell() {
         elegant={!aiOpen}
         fill={!aiOpen && !openedEmail}
       />
+      )}
       {/* Panel phải — chỉ dựng khi CẦN: đang bật AI, HOẶC đang mở 1 thư (reading pane).
           AI tắt + chưa mở thư → không dựng gì → Hộp thư fill trọn khung như Gmail. */}
       {(aiOpen || openedEmail) && (

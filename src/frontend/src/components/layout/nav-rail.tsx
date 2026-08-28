@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  ListChecks,
   Inbox,
   Send,
   FileEdit,
@@ -21,6 +22,10 @@ type NavItem = { id: string; label: string; icon: React.ElementType }
 const items: NavItem[] = [
   { id: 'inbox', label: 'Hộp thư', icon: Inbox },
   { id: 'agent', label: 'AI Agent', icon: Sparkles },
+  // "Việc của tôi" — cam kết trích từ hộp thư. Đặt ngay sau AI Agent chứ không
+  // xuống cuối cùng với đám thư mục: nó KHÔNG phải một thư mục, nó là một cách
+  // nhìn khác về cùng hộp thư đó, và là thứ người dùng mở hằng ngày.
+  { id: 'viec', label: 'Việc của tôi', icon: ListChecks },
   { id: 'starred', label: 'Gắn sao', icon: Star },
   { id: 'sent', label: 'Đã gửi', icon: Send },
   { id: 'drafts', label: 'Nháp', icon: FileEdit },
