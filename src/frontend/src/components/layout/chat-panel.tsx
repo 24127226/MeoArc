@@ -638,7 +638,7 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
  *  Cả hai đều đã chuyển mã cho web: H.264, không tiếng, +faststart. Bản gốc của
  *  bông hoa là 30.9 MB (2888x2160, 19.9 Mbit/s) — bản dùng thật 1.28 MB.
  */
-const PHIM_TOI = '/landing/glass-flower.mp4'   // nền đen  → dùng với screen
+const PHIM_TOI = '/landing/space-bubble.mp4'   // nền đen  → dùng với screen
 const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với multiply
 
 export function ChatPanel({
