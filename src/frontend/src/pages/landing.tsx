@@ -19,6 +19,7 @@ import {
   GridFloor, BeamSweep, ContourLines, ParticleField,
 } from '@/components/landing/ui'
 import { LetterTale, JOURNEY_VIDEO } from '@/components/landing/letter-tale'
+import { QuetCheo, DayChieuSau, KeoNgang } from '@/components/landing/chuyen-canh'
 
 const NAV_SECTIONS = [
   { id: 'hero', label: 'Mở đầu' },
@@ -509,6 +510,11 @@ export function LandingPage() {
       </section>
 
       {/* ══ AGENT THẬT SỰ — video thumb-v1 phủ TOÀN MÀN ══ */}
+      {/* CHUYỂN CẢNH 1/3 — NHÁT CẮT CHÉO.
+          Khối này lộ ra qua một đường chéo đang mở rộng, cùng góc 45° với ngôn
+          ngữ khung góc cắt của cả sản phẩm. Không phải trôi lên như mọi khối
+          trước, nên mắt biết ngay đã sang một cảnh khác. */}
+      <QuetCheo>
       <section ref={agentRef} id="agent"
         className="relative flex min-h-screen items-end overflow-hidden py-20 sm:items-center sm:py-24">
         {/* Desktop: đẩy tượng sang phải, chữ bên trái. Điện thoại: tượng ở giữa, chữ dồn xuống dưới. */}
@@ -557,23 +563,34 @@ export function LandingPage() {
           </div>
         </motion.div>
       </section>
+      </QuetCheo>
 
       <GlowDivider tone="cyan" />
 
       {/* ══ TÍNH NĂNG — zig-zag, mỗi hình chứng minh đúng tiêu đề ══ */}
-      <section id="features" className="relative py-24 sm:py-28">
+      {/* CHUYỂN CẢNH 2/3 — CUỘN NGANG.
+          Đây là cú phá vỡ mạnh nhất, và là thứ khiến trang thôi đọc ra như một
+          tờ giấy: trên tờ giấy thì mọi thứ chỉ đi được một chiều. Khối bị ghim
+          lại, người dùng vẫn cuộn dọc như thường, nhưng nội dung chạy NGANG.
+          Tiêu đề để NGOÀI vùng ghim — nó là lời giới thiệu cho đoạn ngang, phải
+          đọc xong rồi mới tới. */}
+      <section id="features" className="relative pt-24 sm:pt-28">
         <Aurora className="opacity-60" />
         <div className="relative z-10 mx-auto max-w-6xl px-6">
           <Reveal className="mx-auto max-w-2xl text-center">
             <p className="ld-chip mx-auto">Tính năng</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.6rem]">MeoArc giải quyết việc gì</h2>
+            <p className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-white/40">
+              Cuộn để xem ngang
+              <ArrowRight className="size-3.5" />
+            </p>
           </Reveal>
+        </div>
 
-          {/* BENTO ưu tiên HÌNH: mỗi ô chỉ một nhãn ngắn + một hình chứng minh.
-              Bỏ hẳn các đoạn văn dài — người xem lướt bằng mắt, không đọc. */}
-          <div className="mt-12 grid gap-3 sm:grid-cols-12">
+        {/* BENTO ưu tiên HÌNH: mỗi ô chỉ một nhãn ngắn + một hình chứng minh. */}
+        <KeoNgang soManHinh={2.6} className="relative z-10">
             {/* Ô lớn — màn duyệt bản nháp */}
-            <Reveal className="sm:col-span-7">
+            <div className="w-[min(78vw,660px)] shrink-0">
               <SpotCard className="group relative h-full overflow-hidden p-5">
                 <div aria-hidden className="absolute -right-16 -top-16 size-52 rounded-full bg-[#F0A848]/15 blur-3xl" />
                 <div className="relative flex items-center justify-between">
@@ -587,10 +604,10 @@ export function LandingPage() {
                 </h3>
                 <div className="relative mt-4"><AppMock compact /></div>
               </SpotCard>
-            </Reveal>
+            </div>
 
             {/* Ô — hai nguồn hội tụ */}
-            <Reveal delay={0.06} className="sm:col-span-5">
+            <div className="w-[min(70vw,470px)] shrink-0">
               <SpotCard className="relative h-full overflow-hidden p-5">
                 <div aria-hidden className="absolute -left-12 -top-12 size-44 rounded-full bg-[#4FD1C5]/15 blur-3xl" />
                 <div className="relative flex items-center justify-between">
@@ -600,15 +617,15 @@ export function LandingPage() {
                 <h3 className="ld-title relative mt-3 text-2xl sm:text-[1.75rem]">Hai hộp thư, một nơi</h3>
                 <div className="relative mt-4"><UnifiedInboxMock /></div>
               </SpotCard>
-            </Reveal>
+            </div>
 
             {/* Ba ô nhỏ — ICON KHỔNG LỒ, chỉ vài chữ */}
             {[
               { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn' },
               { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K' },
               { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài' },
-            ].map((b, i) => (
-              <Reveal key={b.n} delay={0.12 + i * 0.06} className="sm:col-span-4">
+            ].map((b) => (
+              <div key={b.n} className="w-[min(66vw,380px)] shrink-0">
                 <SpotCard className="group relative h-full overflow-hidden p-5">
                   {/* icon lớn mờ làm hoạ tiết nền */}
                   <b.icon
@@ -626,12 +643,16 @@ export function LandingPage() {
                   <h3 className="ld-title relative mt-5 text-2xl">{b.t}</h3>
                   <p className="relative mt-0.5 text-[13px] text-white/45">{b.s}</p>
                 </SpotCard>
-              </Reveal>
+              </div>
             ))}
-          </div>
-        </div>
+        </KeoNgang>
       </section>
 
+      {/* CHUYỂN CẢNH 3/3 — TIẾN TỪ XA LẠI.
+          Trượt lên là chuyển động trong mặt phẳng; tiến từ xa là chuyển động
+          theo trục sâu. Khác nhau về CHẤT, nên đặt sau một khối cuộn ngang thì
+          mắt lại đọc ra một cảnh mới nữa. */}
+      <DayChieuSau>
       {/* ══ BENTO — nền hạt sáng trôi + chùm quét chéo ══ */}
       <section id="auto" className="relative overflow-hidden py-20 sm:py-24">
         <ParticleField tone="#87F5F5" count={22} />
@@ -676,6 +697,7 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+      </DayChieuSau>
 
       {/* ══ CÁCH VẬN HÀNH ══ */}
       <section id="how" className="relative border-y border-white/[0.07]">
