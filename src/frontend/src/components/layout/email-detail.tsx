@@ -29,6 +29,7 @@ import {
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { useToast } from '@/components/ui/toast'
 import { useTheme } from '@/components/theme-provider'
+import { SenderAvatar } from '@/components/layout/sender-avatar'
 import { CATEGORY } from '@/data/categories'
 import type { Email } from '@/data/emails'
 import type { EmailActions } from '@/lib/email-actions'
@@ -303,8 +304,10 @@ export function EmailDetail({
 
           {/* Người gửi */}
           <div className="mt-5 flex items-center gap-3">
-            <div
-              className="gloss flex size-11 shrink-0 items-center justify-center rounded-full font-serif text-base font-semibold ring-1 ring-inset"
+            <SenderAvatar
+              email={email.senderEmail}
+              initial={email.senderInitial}
+              className="gloss size-11 shrink-0 rounded-full font-mono text-base font-semibold ring-1 ring-inset"
               style={
                 {
                   backgroundColor: 'rgba(251, 240, 226, 0.92)',
@@ -312,9 +315,7 @@ export function EmailDetail({
                   ['--tw-ring-color' as string]: c.bar,
                 } as CSSProperties
               }
-            >
-              {email.senderInitial}
-            </div>
+            />
             <div className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-foreground">
                 {email.sender}

@@ -47,6 +47,9 @@ API_PREFIXES = (
     "auth", "me", "emails", "agent", "confirmations", "notifications",
     "subscription", "audit", "contacts", "uploads", "sync", "gmail",
     "admin", "dev", "health", "metrics", "docs", "redoc", "openapi.json",
+    # Thiếu tiền tố ở đây thì bắt-tất-cả của SPA nuốt mất route: gọi API hỏng sẽ
+    # trả về trang HTML thay vì 404, và lỗi đó rất khó lần vì "có phản hồi 200".
+    "avatars",
 )
 
 

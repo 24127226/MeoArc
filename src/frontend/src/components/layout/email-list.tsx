@@ -36,6 +36,7 @@ import {
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { ComposeDialog } from '@/components/layout/compose-dialog'
 import { MailboxChrome } from '@/components/layout/mailbox-chrome'
+import { SenderAvatar } from '@/components/layout/sender-avatar'
 import { MeoMascot } from '@/components/meo-mascot'
 import { useToast } from '@/components/ui/toast'
 import { emailHaystack, interpretNL, matchText } from '@/lib/search'
@@ -213,8 +214,10 @@ function EmailCard({
 
       <div className="flex items-start gap-3.5">
         <div className="relative size-9 shrink-0">
-          <div
-            className="gloss flex size-9 items-center justify-center rounded-full font-serif text-sm font-semibold ring-1 ring-inset"
+          <SenderAvatar
+            email={email.senderEmail}
+            initial={email.senderInitial}
+            className="gloss size-9 shrink-0 rounded-full font-mono text-sm font-semibold ring-1 ring-inset"
             style={
               {
                 backgroundColor: 'rgba(251, 240, 226, 0.92)',
@@ -222,9 +225,7 @@ function EmailCard({
                 ['--tw-ring-color' as string]: c.bar,
               } as CSSProperties
             }
-          >
-            {email.senderInitial}
-          </div>
+          />
           <span
             role="checkbox"
             aria-checked={checked}
