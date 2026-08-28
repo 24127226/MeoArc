@@ -54,4 +54,8 @@ class Email(BaseModel):
     tldr: str | None = None                 # tóm tắt do AI; ban đầu có thể trống
     folder: Folder | None = None            # thiếu = coi như "inbox"
     threadId: str | None = None             # id LUỒNG Gmail (nhóm thư trả lời nhau) — agent cần
-                                            # để reply đúng thread; FE chưa dùng nên optional
+                                            # để reply đúng thread
+    threadCount: int = 1                    # SỐ THƯ trong luồng. Gmail gộp một cuộc trao đổi
+                                            # thành MỘT dòng; nếu trả về từng thư riêng thì một
+                                            # cuộc qua lại 5 lượt hiện thành 5 thẻ, khác hẳn
+                                            # Gmail và làm hộp thư trông đầy gấp mấy lần thật.

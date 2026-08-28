@@ -148,16 +148,23 @@ _FOLDER_LABEL = {
     "drafts": "DRAFT",
     "trash": "TRASH",
     "starred": "STARRED",
+    # SPAM TỪNG THIẾU Ở ĐÂY, và thiếu theo cách im lặng nhất có thể: `.get(folder,
+    # "INBOX")` bên dưới nuốt mọi thư mục lạ rồi trả về INBOX. Nên bấm "Thư rác"
+    # thì Gmail được hỏi về INBOX và MeoArc hiện lại đúng hộp thư đến — không lỗi,
+    # không log, chỉ là dữ liệu sai.
+    "spam": "SPAM",
 }
 # Các giá trị folder hợp lệ để gắn vào Email (khớp kiểu Folder bên schema).
 # 'starred' KHÔNG nằm đây (nó là cờ, không phải thư mục) → gắn tạm 'inbox'.
-_VALID_TAGS = {"inbox", "sent", "drafts", "archive", "trash"}
+_VALID_TAGS = {"inbox", "sent", "drafts", "archive", "trash", "spam"}
 
 
 def _folder_from_labels(labels: list[str]) -> str:
     """Suy THƯ MỤC app từ nhãn hệ thống Gmail. Dùng khi lấy 1 thư (get_message) — nơi KHÔNG
     biết trước thư mục — để sync lũy tiến gán ĐÚNG (trước đây hardcode 'inbox' → thư Đã gửi/
     Lưu trữ/Thùng rác bị dồn nhầm vào Hộp thư đến)."""
+    if "SPAM" in labels:
+        return "spam"
     if "TRASH" in labels:
         return "trash"
     if "DRAFT" in labels:
@@ -226,7 +233,10 @@ def list_messages(
         params["q"] = " ".join(["-in:inbox -in:sent -in:draft -in:trash -in:spam", *extra])
     else:
         params["labelIds"] = _FOLDER_LABEL.get(folder, "INBOX")
-        if params["labelIds"] == "TRASH":      # Gmail mặc định giấu thùng rác/spam
+        # Gmail mặc định GIẤU cả thùng rác LẪN thư rác khỏi mọi truy vấn. Không bật
+        # cờ này thì hỏi labelIds=SPAM vẫn trả về rỗng — đúng triệu chứng "Gmail có
+        # thư mà MeoArc không thấy".
+        if params["labelIds"] in ("TRASH", "SPAM"):
             params["includeSpamTrash"] = "true"
         if extra:                               # lọc nhanh trong 1 thư mục cụ thể
             params["q"] = " ".join(extra)

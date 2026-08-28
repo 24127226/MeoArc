@@ -1,3 +1,7 @@
+// Thư demo cho màn Lịch trình. `demo-lich.ts` chỉ nhập KIỂU từ file này, mà nhập
+// kiểu bị xoá lúc biên dịch — nên vòng phụ thuộc này không tồn tại khi chạy.
+import { DEMO_LICH } from '@/data/demo-lich'
+
 /** Category màu của inbox — tên màu lấy từ palette "Provence Meadow".
  *  Bảng màu cụ thể nằm ở email-list.tsx (CATEGORY) để giữ một nguồn duy nhất. */
 export type Category = 'moss' | 'sea' | 'sun' | 'cherry' | 'sky' | 'terra' | 'wine'
@@ -39,9 +43,9 @@ export type Email = {
   folder?: 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash' | 'spam' 
 }
 
-const ME = 'Anh Quân <quanpta.meoarc@gmail.com>'
+const ME = 'Anh Quân <meoarc.hcmus@gmail.com>'
 
-export const emails: Email[] = [
+const EMAILS_GOC: Email[] = [
   {
     id: '1',
     sender: 'Giáo vụ HCMUS',
@@ -257,3 +261,7 @@ export const emails: Email[] = [
     folder: 'trash',
   },
 ]
+
+/** Hop thu demo = bo goc + thu lich trinh thang 8-9 (xem data/demo-lich.ts).
+ *  Tach lam hai de xoa bo demo chi can bo dung mot dong. */
+export const emails: Email[] = [...EMAILS_GOC, ...DEMO_LICH]

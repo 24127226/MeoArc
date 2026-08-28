@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X, Mail, AlarmClock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Email } from '@/data/emails'
@@ -38,6 +38,16 @@ type Tin = {
 
 const KHOA_DA_BAO = 'meoarc:daBao'
 
+/* ── VÌ SAO CÁC BIẾN NÀY Ở CẤP MÔ-ĐUN, KHÔNG PHẢI useRef ──
+   `AlertOverlay` được gắn ở HAI nơi: hộp thư (app-shell) và trang lịch. Nếu mỗi
+   bản giữ một tập riêng trong bộ nhớ thì đổi trang là mất trí nhớ, và cùng một
+   hạn được báo lại — đúng triệu chứng "thông báo lặp lại nhiều quá".
+
+   Đặt ở cấp mô-đun thì mọi bản dùng CHUNG một tập, và sessionStorage lo phần
+   sống sót qua F5. */
+let _daBao: Set<string> | null = null
+let _daThay: Set<string> | null = null
+
 function docDaBao(): Set<string> {
   try {
     return new Set(JSON.parse(sessionStorage.getItem(KHOA_DA_BAO) ?? '[]') as string[])
@@ -57,7 +67,7 @@ function ghiDaBao(s: Set<string>) {
 export function AlertOverlay({ emails }: { emails: Email[] }) {
   const navigate = useNavigate()
   const [hien, setHien] = useState<Tin[]>([])
-  const daBao = useRef<Set<string>>(docDaBao())
+  if (_daBao === null) _daBao = docDaBao()
 
   /* ── THƯ NÀO LÀ "MỚI" ──────────────────────────────────────────────────
      Bản trước lọc theo `priority === 'High'`, và đó là một lỗi mô hình chứ
@@ -71,7 +81,6 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
      Lần đầu gắn thì ghi nhận TOÀN BỘ id mà KHÔNG báo gì — nếu không thì mở
      app lên là dội một loạt thông báo cho những lá thư đã nằm đó từ hôm qua,
      và người dùng sẽ tắt tính năng này trong ngày đầu tiên. */
-  const daThay = useRef<Set<string> | null>(null)
 
   // Danh sách tin ĐÁNG báo, tính lại mỗi khi hộp thư đổi.
   const ungVien = useMemo<Tin[]>(() => {
@@ -94,12 +103,12 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
     }
 
     // Lần đầu: chỉ ghi nhận, không báo.
-    if (daThay.current === null) {
-      daThay.current = new Set(emails.map((e) => e.id))
+    if (_daThay === null) {
+      _daThay = new Set(emails.map((e) => e.id))
     } else {
       for (const e of emails) {
-        if (daThay.current.has(e.id)) continue
-        daThay.current.add(e.id)
+        if (_daThay.has(e.id)) continue
+        _daThay.add(e.id)
         if (!e.unread) continue // thư mình vừa gửi cũng là "mới" nhưng không cần báo
         ra.push({
           id: `thu-${e.id}`,
@@ -119,11 +128,23 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
   }, [emails])
 
   useEffect(() => {
-    const moi = ungVien.filter((t) => !daBao.current.has(t.id)).slice(0, 2)
-    if (!moi.length) return
-    for (const t of moi) daBao.current.add(t.id)
-    ghiDaBao(daBao.current)
-    setHien((cu) => [...moi, ...cu].slice(0, 2))
+    const chuaBao = ungVien.filter((t) => !_daBao!.has(t.id))
+    if (!chuaBao.length) return
+
+    // ĐÁNH DẤU TẤT CẢ, kể cả những tin không được hiện.
+    //
+    // Đây là lỗi lặp thật sự: bản trước `slice(0, 2)` TRƯỚC rồi mới đánh dấu, nên
+    // tin thứ ba trở đi bị bỏ mà KHÔNG được ghi nhận — và cứ mỗi lần hộp thư đổi
+    // (đánh dấu đã đọc, gắn nhãn, làm mới) là chúng lại lọt vào danh sách ứng viên
+    // và bắn lại. Mãi mãi.
+    //
+    // Trần "2 tin cùng lúc" là trần HIỂN THỊ, không phải trần ghi nhận. Tin thứ ba
+    // đã có chỗ của nó ở trang Lịch trình rồi; chỗ này chỉ để chặn sự chú ý.
+    for (const t of chuaBao) _daBao!.add(t.id)
+    ghiDaBao(_daBao!)
+
+    setHien((cu) => [...chuaBao.slice(0, 2), ...cu].slice(0, 2))
+    const moi = chuaBao.slice(0, 2)
 
     // Thư mới tự tắt; HẠN thì ở lại cho tới khi người dùng đóng.
     const hens = moi

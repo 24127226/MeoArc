@@ -437,6 +437,41 @@ async def root():
 
 # ── /emails — list theo thư mục + LỌC + TÌM + PHÂN TRANG (UC003/005) ──
 # `token = Depends(get_gmail_token)` → tự lấy access_token CÒN HẠN (làm mới nếu cần, Nấc 9).
+def _gom_theo_luong(items: list) -> list:
+    """Gộp các thư CÙNG MỘT LUỒNG thành một dòng, như Gmail vẫn làm.
+
+    Gmail hiển thị một cuộc trao đổi năm lượt thành MỘT dòng. MeoArc trước đây trả
+    về từng thư riêng, nên cùng cuộc đó hiện thành NĂM thẻ — hộp thư trông đầy gấp
+    mấy lần thật, và người dùng phải tự nhận ra "à, năm cái này là một chuyện".
+
+    Giữ thư MỚI NHẤT làm đại diện (danh sách từ Gmail đã sắp mới→cũ, nên thư đầu
+    tiên gặp trong mỗi luồng chính là thư mới nhất) và đếm số thư còn lại.
+
+    GIỚI HẠN ĐÃ BIẾT, nói thẳng: gom trong PHẠM VI MỘT TRANG. Một luồng có thư nằm
+    vắt qua hai trang thì vẫn xuất hiện ở cả hai. Muốn triệt để phải chuyển sang
+    Gmail threads.list — đổi cả đường phân trang, nên để lại chứ không làm nửa vời
+    ở đây. Trong thực tế thư cùng luồng gần nhau về thời gian nên hiếm khi bị tách.
+    """
+    ra: list = []
+    vi_tri: dict[str, int] = {}
+    for e in items:
+        tid = getattr(e, "threadId", None)
+        if not tid:
+            ra.append(e)
+            continue
+        if tid in vi_tri:
+            dai_dien = ra[vi_tri[tid]]
+            dai_dien.threadCount = (dai_dien.threadCount or 1) + 1
+            # Cả luồng chỉ cần MỘT thư chưa đọc là cả dòng phải hiện chưa đọc —
+            # đúng cách Gmail làm, và đúng cái người dùng cần biết.
+            if getattr(e, "unread", False):
+                dai_dien.unread = True
+            continue
+        vi_tri[tid] = len(ra)
+        ra.append(e)
+    return ra
+
+
 @app.get("/emails")
 def get_emails(
     folder: str = "inbox",
@@ -491,13 +526,14 @@ def get_emails(
             db, session.user_id, provider, folder=folder, q=q, unread=unread,
             starred=starred, attachment=attachment, limit=limit, cursor=cursor,
         )
-        return {"items": items, "nextCursor": next_cursor, "criteria": [], "source": "db"}
+        return {"items": _gom_theo_luong(items), "nextCursor": next_cursor,
+                "criteria": [], "source": "db"}
 
     items, next_cursor = mail.list_messages(
         provider, token, folder=folder, q=q, unread=unread, starred=starred,
         attachment=attachment, page_token=cursor, max_results=limit, bypass_cache=fresh,
     )
-    return {"items": items, "nextCursor": next_cursor, "criteria": []}
+    return {"items": _gom_theo_luong(items), "nextCursor": next_cursor, "criteria": []}
 
 
 # ── Nấc 5b: xem CHI TIẾT 1 thư (UC004) — thân thư đầy đủ + đính kèm ──

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Clock, Mail,
-  MessageSquare, Sparkles, X,
+  MessageSquare, Sparkles,
 } from 'lucide-react'
 import { emails as seedEmails, type Email } from '@/data/emails'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
@@ -47,7 +47,10 @@ export function SchedulePage() {
   const [lenh, setLenh] = useState<string | null>(null)
   const [chatMo, setChatMo] = useState(false)
   /** Thẻ vừa bấm → hiện khung hỏi "xem thư hay hỏi AI". */
-  const [dangHoi, setDangHoi] = useState<{ ck: CamKet; x: number; y: number } | null>(null)
+  /** Thẻ đang rê chuột → thanh hành động xổ ra ngay dưới nó.
+   *  Giữ HÌNH CHỮ NHẬT của thẻ chứ không giữ toạ độ chuột: thanh phải bám vào
+   *  MÉP DƯỚI của thẻ, không phải chỗ con trỏ tình cờ dừng lại. */
+  const [dangHoi, setDangHoi] = useState<{ ck: CamKet; hcn: DOMRect } | null>(null)
   /** Thư đang mở toàn màn — bấm quay lại là về đúng lịch, không mất chỗ. */
   const [thuMo, setThuMo] = useState<string | null>(null)
 
@@ -91,7 +94,14 @@ export function SchedulePage() {
       <AlertOverlay emails={emails} />
 
       {/* ══ CỘT TRÁI — lịch nhỏ + sắp tới. Đây là phần "tóm tắt" ══ */}
-      <aside className="den-noi-phai flex w-[268px] shrink-0 flex-col overflow-hidden">
+      {/* Mở chat → cột này GIÃN RA và cột giữa BIẾN MẤT. Trước đó cả hai cùng
+          liệt kê lịch trình, tức là hai chỗ nói cùng một thứ trên một màn hình —
+          thừa, và làm loãng chính thứ đang muốn nhấn. Mở chat thì màn hình chỉ
+          còn đúng hai khối: lịch và cuộc trò chuyện. */}
+      <aside className={cn(
+        'den-noi-phai flex shrink-0 flex-col overflow-hidden',
+        chatMo ? 'flex-1' : 'w-[268px]',
+      )}>
         <div className="flex items-center gap-3 px-4 py-4">
           <Link to="/app" className="o-icon size-8 shrink-0" aria-label="Về hộp thư">
             <ArrowLeft className="size-4" />
@@ -102,6 +112,14 @@ export function SchedulePage() {
 
         <LichNho thang={thang} homNay={homNay} theoNgay={theoNgay} onDoiThang={setThang} />
 
+        {/* Chat mở → cột này là khối chính, nên hiện DANH SÁCH ĐẦY ĐỦ.
+            Chat đóng → nó chỉ là phần tóm tắt bên cạnh lưới thẻ, nên rút gọn còn
+            6 mục sắp tới. Cùng một chỗ, hai vai khác nhau tuỳ ngữ cảnh. */}
+        {chatMo ? (
+          <div className="mt-1 min-h-0 flex-1 overflow-hidden">
+            <DanhSachViec camKet={camKet} homNay={homNay} onBamThe={setDangHoi} />
+          </div>
+        ) : (
         <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin px-3 pb-3">
           <p className="px-1 py-2 font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground/60">
             Sắp tới
@@ -112,7 +130,7 @@ export function SchedulePage() {
             sapToi.map((c) => (
               <button
                 key={c.id}
-                onClick={(e) => setDangHoi({ ck: c, x: e.clientX, y: e.clientY })}
+                onClick={(e) => setDangHoi({ ck: c, hcn: e.currentTarget.getBoundingClientRect() })}
                 className="group flex items-start gap-2.5 rounded-lg px-1 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
               >
                 <span className={cn('cham-rr mt-1.5', `c${c.mucRuiRo}`)} aria-hidden />
@@ -126,9 +144,11 @@ export function SchedulePage() {
             ))
           )}
         </div>
+        )}
       </aside>
 
-      {/* ══ KHUNG LỚN — lịch thẻ ══ */}
+      {/* ══ KHUNG LỚN — lịch thẻ. ẨN HẲN khi chat mở. ══ */}
+      {!chatMo && (
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="den-noi-duoi flex shrink-0 items-center gap-3 px-5 py-3.5">
           <h2 className="text-[17px] font-semibold tracking-tight">
@@ -149,12 +169,9 @@ export function SchedulePage() {
 
         {/* Chat mở → lịch NHỎ LẠI và ưu tiên danh sách. Người dùng vừa mở chat là
             họ đang muốn BÀN về lịch, không phải ngắm lưới tháng. */}
-        {chatMo ? (
-          <DanhSachViec camKet={camKet} homNay={homNay} onBamThe={setDangHoi} />
-        ) : (
-          <LuoiThe o={o} thang={thang} homNay={homNay} theoNgay={theoNgay} onBamThe={setDangHoi} />
-        )}
+        <LuoiThe o={o} thang={thang} homNay={homNay} theoNgay={theoNgay} onBamThe={setDangHoi} />
       </main>
+      )}
 
       {/* ══ CHAT — nút tượng trưng góc dưới phải, bấm mới hiện ══ */}
       {chatMo ? (
@@ -185,8 +202,8 @@ export function SchedulePage() {
 
       {/* ══ KHUNG HỎI khi bấm một thẻ ══ */}
       {dangHoi && (
-        <KhungHoi
-          ck={dangHoi.ck} x={dangHoi.x} y={dangHoi.y}
+        <ThanhViec
+          ck={dangHoi.ck} hcn={dangHoi.hcn}
           onDong={() => setDangHoi(null)}
           onXemThu={() => { setThuMo(dangHoi.ck.emailId); setDangHoi(null) }}
           onHoiAI={() => hoiAI(dangHoi.ck)}
@@ -261,7 +278,7 @@ function LuoiThe({
   thang: Date
   homNay: Date
   theoNgay: Map<string, CamKet[]>
-  onBamThe: (v: { ck: CamKet; x: number; y: number }) => void
+  onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
 }) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,1fr)] gap-1 p-3">
@@ -295,7 +312,7 @@ function ONgay({
   trongThang: boolean
   laHomNay: boolean
   viec: CamKet[]
-  onBamThe: (v: { ck: CamKet; x: number; y: number }) => void
+  onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
 }) {
   const [xoe, setXoe] = useState(false)
   // Ưu tiên cao nhất lên TRÊN CÙNG của chồng — thứ người ta cần thấy trước.
@@ -343,7 +360,7 @@ function ONgay({
             ck={c}
             viTri={i}
             xoe={xoe}
-            onBam={(e) => onBamThe({ ck: c, x: e.clientX, y: e.clientY })}
+            onBam={(e) => onBamThe({ ck: c, hcn: e.currentTarget.getBoundingClientRect() })}
           />
         ))}
         {xep.length > 4 && !xoe && (
@@ -362,7 +379,9 @@ function TheViec({
   ck: CamKet
   viTri: number
   xoe: boolean
-  onBam: (e: React.MouseEvent) => void
+  /** Nhận cả chuột lẫn tiêu điểm bàn phím — chỉ cần `currentTarget` để lấy
+   *  hình chữ nhật, nên không phụ thuộc loại sự kiện. */
+  onBam: (e: { currentTarget: HTMLElement }) => void
   /** Ngày của ô đang vẽ — quyết định thẻ này là đầu đợt hay chỉ là đoạn nối. */
   ngay: Date
 }) {
@@ -371,13 +390,25 @@ function TheViec({
   const y = xoe ? viTri * 26 : viTri * 3
   return (
     <button
+      // RÊ CHUỘT là đủ để xổ thanh hành động — không tốn một cú bấm chỉ để biết
+      // có những lựa chọn gì. Vẫn giữ onClick cho bàn phím/cảm ứng, nơi không có
+      // khái niệm "rê chuột".
+      onMouseEnter={onBam}
+      onFocus={onBam}
       onClick={onBam}
       style={{ transform: `translateY(${y}px)`, zIndex: 10 - viTri }}
       className={cn(
         'absolute inset-x-0 top-0 flex flex-col gap-0.5 px-1.5 py-1 text-left',
         'transition-[transform,box-shadow] duration-200 ease-soft',
         ck.mucRuiRo === 3 ? 'rui-ro-3' : ck.mucRuiRo === 2 ? 'rui-ro-2' : 'rui-ro-1',
-        'bg-[var(--elevated)]/90 backdrop-blur-sm hover:z-30 hover:-translate-y-px hover:scale-[1.02]',
+        // VIỀN SÁNG cho thẻ. Trước đây thẻ chỉ có nền đục và một sợi viền mờ nên
+        // trông như một ô bảng tính. Quầng sáng theo đúng màu mức rủi ro biến nó
+        // thành một VẬT nổi trên mặt lịch — và vì màu đã mang nghĩa (hoàn tác được
+        // / người khác đã thấy / mất tiền), quầng sáng đó cũng mang nghĩa luôn.
+        'bg-[var(--elevated)]/92 backdrop-blur-sm',
+        'shadow-[0_0_14px_-4px_var(--rr),inset_0_0_12px_-8px_var(--rr)]',
+        'hover:z-30 hover:-translate-y-px hover:scale-[1.03]',
+        'hover:shadow-[0_0_22px_-3px_var(--rr),inset_0_0_16px_-6px_var(--rr)]',
         // GÓC CẮT CHỈ Ở HAI ĐẦU ĐỢT. Ngày giữa để vuông cả hai phía, nên khi các ô
         // nằm cạnh nhau thì các đoạn nối liền thành MỘT thanh dài thay vì ba viên
         // rời rạc — đó mới đọc ra là "một việc kéo dài ba ngày".
@@ -412,7 +443,7 @@ function DanhSachViec({
 }: {
   camKet: CamKet[]
   homNay: Date
-  onBamThe: (v: { ck: CamKet; x: number; y: number }) => void
+  onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
 }) {
   const con = camKet.filter((c) => c.trangThai !== 'xong')
   return (
@@ -420,7 +451,7 @@ function DanhSachViec({
       {con.map((c) => (
         <button
           key={c.id}
-          onClick={(e) => onBamThe({ ck: c, x: e.clientX, y: e.clientY })}
+          onClick={(e) => onBamThe({ ck: c, hcn: e.currentTarget.getBoundingClientRect() })}
           className={cn(
             'goc-cat flex items-start gap-3 p-3 text-left transition-transform hover:-translate-y-px',
             c.mucRuiRo === 3 ? 'rui-ro-3' : c.mucRuiRo === 2 ? 'rui-ro-2' : 'rui-ro-1',
@@ -449,69 +480,73 @@ function DanhSachViec({
 }
 
 /* ── Khung hỏi: xem thư hay hỏi AI ───────────────────────────────────────── */
-function KhungHoi({
-  ck, x, y, onDong, onXemThu, onHoiAI,
+/**
+ * ThanhViec — thanh hành động xổ ra NGAY DƯỚI thẻ khi rê chuột.
+ *
+ * ── VÌ SAO KHÔNG DÙNG HỘP THOẠI NHƯ BẢN TRƯỚC ──
+ * Bản trước bấm vào thẻ mới mở một hộp có hai dòng chữ. Hai vấn đề: nó tốn một
+ * cú bấm chỉ để BIẾT có những lựa chọn gì, và nó là một hộp chữ đặt đè lên lịch
+ * — nặng nề so với việc nó chỉ đang hỏi "xem thư hay hỏi trợ lý".
+ *
+ * Xổ ra khi rê chuột thì lựa chọn tự lộ, không tốn cú bấm nào; và hai icon thì
+ * nhận ra nhanh hơn hai dòng chữ.
+ *
+ * ── VÌ SAO ĐỊNH VỊ `fixed` CHỨ KHÔNG ĐẶT TRONG THẺ ──
+ * Ô ngày mang `clip-path` (góc cắt), mà clip-path CẮT CẢ CON. Đặt thanh này bên
+ * trong thẻ thì nó bị xén mất ngay khi tràn khỏi ô. Nên tính toạ độ từ hình chữ
+ * nhật của thẻ rồi vẽ ở tầng trên cùng.
+ */
+function ThanhViec({
+  ck, hcn, onDong, onXemThu, onHoiAI,
 }: {
   ck: CamKet
-  x: number
-  y: number
+  hcn: DOMRect
   onDong: () => void
   onXemThu: () => void
   onHoiAI: () => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onDong()
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onDong()
-    }
-    window.addEventListener('keydown', onKey)
-    // `setTimeout` 0: nếu gắn ngay thì chính cú bấm mở khung này lại đóng nó.
-    const t = setTimeout(() => window.addEventListener('mousedown', onClick), 0)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onClick)
-      clearTimeout(t)
-    }
-  }, [onDong])
-
-  // Kẹp vào trong màn hình: bấm một thẻ sát mép phải/đáy thì khung không được
-  // tràn ra ngoài rồi mất một nửa.
-  const W = 246
-  const left = Math.min(Math.max(8, x - W / 2), window.innerWidth - W - 8)
-  const top = Math.min(y + 12, window.innerHeight - 168)
+  const W = 188
+  const left = Math.min(Math.max(8, hcn.left + hcn.width / 2 - W / 2), window.innerWidth - W - 8)
+  const top = Math.min(hcn.bottom + 4, window.innerHeight - 76)
 
   return (
     <div
-      ref={ref}
-      role="dialog"
-      aria-label="Chọn hành động"
+      // Giữ mở khi con trỏ đi từ thẻ xuống thanh — không có cái này thì thanh
+      // biến mất ngay lúc người dùng với tay tới nó.
+      onMouseEnter={() => {}}
+      onMouseLeave={onDong}
       style={{ left, top, width: W }}
-      className="nhay-bat den-vien-chon goc-cat fixed z-50 flex flex-col gap-2 bg-[var(--elevated)]/95 p-3 backdrop-blur-md"
+      className="nhay-bat goc-cat-nho goc-cat fixed z-50 flex items-center gap-1 border
+                 border-[color-mix(in_srgb,var(--rr)_60%,transparent)]
+                 bg-[var(--nen-2,var(--elevated))]/96 p-1 backdrop-blur-md
+                 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.55)]"
     >
-      <div className="flex items-start gap-2">
-        <span className="min-w-0 flex-1 text-[12px] font-medium leading-snug text-foreground">
-          {ck.noiDung}
-        </span>
-        <button onClick={onDong} className="o-icon size-6 shrink-0" aria-label="Đóng">
-          <X className="size-3" />
-        </button>
-      </div>
-
-      <button onClick={onXemThu} className="nut-ky-thuat flex items-center gap-2 px-3 py-2 text-[12.5px] font-medium text-foreground">
+      <button
+        onClick={onXemThu}
+        title="Xem thư gốc"
+        className="nut-ky-thuat flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5
+                   text-[11px] font-medium text-foreground"
+      >
         <Mail className="size-3.5" />
-        Xem thư gốc
+        Thư gốc
       </button>
-      <button onClick={onHoiAI} className="nut-ky-thuat flex items-center gap-2 px-3 py-2 text-[12.5px] font-medium text-foreground"
-        style={{ ['--tint' as string]: 'var(--spark)' }}>
+      <button
+        onClick={onHoiAI}
+        title={`Hỏi trợ lý về: ${ck.noiDung}`}
+        className="nut-ky-thuat flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5
+                   text-[11px] font-medium text-foreground"
+        style={{ ['--tint' as string]: 'var(--spark)' }}
+      >
         <MessageSquare className="size-3.5" />
-        Hỏi trợ lý về việc này
+        Hỏi trợ lý
       </button>
     </div>
   )
 }
 
+
 const THU = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+
 function nhanNgay(d: Date, homNay: Date): string {
   const a = new Date(homNay); a.setHours(0, 0, 0, 0)
   const b = new Date(d); b.setHours(0, 0, 0, 0)
