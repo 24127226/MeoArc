@@ -59,6 +59,20 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
   const [hien, setHien] = useState<Tin[]>([])
   const daBao = useRef<Set<string>>(docDaBao())
 
+  /* ── THƯ NÀO LÀ "MỚI" ──────────────────────────────────────────────────
+     Bản trước lọc theo `priority === 'High'`, và đó là một lỗi mô hình chứ
+     không phải lỗi ngưỡng: thư vừa từ Gmail về CHƯA qua triage của AI nên
+     `priority` là null — tức là đúng những lá thư vừa đến thì không bao giờ
+     được báo. Bấm làm mới xong không thấy gì, y như báo cáo.
+
+     Cái đáng báo là thư MỚI ĐẾN, không phải thư ưu tiên cao. Nên phải nhớ
+     danh sách id đã thấy, rồi so ra thư nào chưa từng thấy.
+
+     Lần đầu gắn thì ghi nhận TOÀN BỘ id mà KHÔNG báo gì — nếu không thì mở
+     app lên là dội một loạt thông báo cho những lá thư đã nằm đó từ hôm qua,
+     và người dùng sẽ tắt tính năng này trong ngày đầu tiên. */
+  const daThay = useRef<Set<string> | null>(null)
+
   // Danh sách tin ĐÁNG báo, tính lại mỗi khi hộp thư đổi.
   const ungVien = useMemo<Tin[]>(() => {
     const ra: Tin[] = []
@@ -79,15 +93,24 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
       })
     }
 
-    for (const e of emails) {
-      if (!e.unread || e.priority !== 'High') continue
-      ra.push({
-        id: `thu-${e.id}`,
-        loai: 'thu',
-        tieu_de: e.subject,
-        phu: `${e.sender} · cần bạn xử lý`,
-        mucRuiRo: 1,
-      })
+    // Lần đầu: chỉ ghi nhận, không báo.
+    if (daThay.current === null) {
+      daThay.current = new Set(emails.map((e) => e.id))
+    } else {
+      for (const e of emails) {
+        if (daThay.current.has(e.id)) continue
+        daThay.current.add(e.id)
+        if (!e.unread) continue // thư mình vừa gửi cũng là "mới" nhưng không cần báo
+        ra.push({
+          id: `thu-${e.id}`,
+          loai: 'thu',
+          tieu_de: e.subject,
+          // Thư mới chưa qua triage nên chưa biết mức ưu tiên. Nói đúng thứ
+          // BIẾT CHẮC (ai gửi) còn hơn đoán một mức ưu tiên chưa có.
+          phu: `${e.sender} · thư mới`,
+          mucRuiRo: e.priority === 'High' ? 2 : 1,
+        })
+      }
     }
 
     // Hạn lên trước thư: một trạng thái đang xấu đi quan trọng hơn một sự kiện

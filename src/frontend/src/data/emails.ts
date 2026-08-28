@@ -34,7 +34,9 @@ export type Email = {
   /** Tóm tắt 1 dòng do AI quét sẵn (UC008) — TL;DR cho card & smart card. */
   tldr?: string
   /** Thư mục (mặc định inbox) — cho nav trái lọc thật. */
-  folder?: 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash'
+  /** Thư mục. `spam` được thêm cùng nút "Thư rác" ở nav — thư mục người ta cần
+   *  nhất khi một lá thư quan trọng "biến mất", và đó là lúc họ hoảng nhất. */
+  folder?: 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash' | 'spam' 
 }
 
 const ME = 'Anh Quân <quanpta.meoarc@gmail.com>'

@@ -11,6 +11,8 @@ import {
   Sparkles,
   ChevronsLeft,
   ChevronsRight,
+  ShieldAlert,
+  MoreHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LogoMark } from '@/components/logo'
@@ -20,21 +22,42 @@ import { NotificationBell } from '@/components/layout/notification-bell'
 
 type NavItem = { id: string; label: string; icon: React.ElementType; sangTrang?: string }
 
-const items: NavItem[] = [
+/* ══════════════════════════════════════════════════════════════════════════════
+   BA MỤC CHÍNH, PHẦN CÒN LẠI GIẤU SAU MỘT NÚT
+
+   Trước đây thanh này có tám mục ngang hàng nhau: Hộp thư, AI Agent, Lịch trình,
+   Gắn sao, Đã gửi, Nháp, Lưu trữ, Thùng rác. Xếp ngang hàng nghĩa là nói với
+   người dùng rằng "Thùng rác" quan trọng bằng "AI Agent" — mà đó là điều sai.
+
+   MeoArc chỉ có ba thứ đáng gọi là trung tâm: đọc thư, nói chuyện với trợ lý, và
+   giữ lịch trình. Sáu thư mục còn lại là chỗ để TÌM LẠI một lá thư — việc người
+   ta làm vài lần một tuần, không phải vài lần một giờ. Chúng không xứng chiếm
+   chỗ ngang hàng, và để chúng ở đó thì ba mục chính cũng mất luôn sức nặng.
+
+   Nên: ba mục chính to hơn, luôn thấy. Phần còn lại nằm sau một nút mở, và vùng
+   đó CUỘN ĐƯỢC — thêm thư mục về sau cũng không đẩy hỏng gì.
+   ══════════════════════════════════════════════════════════════════════════════ */
+const CHINH: NavItem[] = [
   { id: 'inbox', label: 'Hộp thư', icon: Inbox },
-  { id: 'agent', label: 'AI Agent', icon: Sparkles },
-  // "Lịch trình" ĐI SANG TRANG RIÊNG (/lich), không đổi cột giữa như các mục
-  // khác. Nó không phải một thư mục thư, nó là một chế độ làm việc khác — ở đó
-  // người dùng nghĩ về thời gian của họ chứ không nghĩ về từng lá thư.
+  { id: 'agent', label: 'Trợ lý', icon: Sparkles },
   { id: 'lich', label: 'Lịch trình', icon: CalendarDays, sangTrang: '/lich' },
+]
+
+/** Thư mục — chỗ TÌM LẠI thư, không phải chỗ làm việc hằng ngày. */
+const PHU: NavItem[] = [
   { id: 'starred', label: 'Gắn sao', icon: Star },
   { id: 'sent', label: 'Đã gửi', icon: Send },
   { id: 'drafts', label: 'Nháp', icon: FileEdit },
   { id: 'archive', label: 'Lưu trữ', icon: Archive },
+  // Spam TỪNG THIẾU hẳn, dù nó là thư mục người ta cần nhất khi một lá thư quan
+  // trọng "biến mất" — và đó là lúc người dùng hoảng nhất.
+  { id: 'spam', label: 'Thư rác', icon: ShieldAlert },
   { id: 'trash', label: 'Thùng rác', icon: Trash2 },
 ]
 
+
 const COLLAPSE_KEY = 'meoarc:navCollapsed'
+const MO_RONG_KEY = 'meoarc:navMoRong'
 
 /** Ô trạng thái hệ thống — thay cho đồng hồ cơ mạ vàng ở bản trước.
  *
@@ -46,6 +69,53 @@ const COLLAPSE_KEY = 'meoarc:navCollapsed'
  *  đúng thứ đang chạy: trợ lý còn sống, và giờ hiện tại — dạng monospace, thứ chữ mà
  *  bảng điều khiển nào cũng dùng.
  */
+/** Một mục điều hướng. `to` = mục CHÍNH (to hơn, đậm hơn) hay mục phụ. */
+function MucNav({
+  item, collapsed, isActive, count, onBam, to,
+}: {
+  item: NavItem
+  collapsed: boolean
+  isActive: boolean
+  count?: number
+  onBam: () => void
+  to: boolean
+}) {
+  const Icon = item.icon
+  return (
+    <button
+      onClick={onBam}
+      title={collapsed ? item.label : undefined}
+      className={cn(
+        'group press relative flex items-center rounded-2xl transition-all duration-200 ease-spring',
+        collapsed ? 'justify-center' : 'gap-3 px-3',
+        // Mục chính CAO HƠN và chữ ĐẬM HƠN. Thứ bậc phải đọc được bằng mắt chứ
+        // không phải bằng cách suy ra từ vị trí.
+        to ? (collapsed ? 'h-13 py-3' : 'py-3') : collapsed ? 'h-10 py-2' : 'py-2',
+        isActive
+          ? 'bg-secondary text-active glow-active border border-border/40'
+          : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground',
+      )}
+    >
+      {isActive && (
+        <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-active" />
+      )}
+      <span className="relative shrink-0">
+        <Icon className={cn(to ? 'size-[22px]' : 'size-[18px]', isActive && 'stroke-[2.2px]')} />
+        {count ? (
+          <span className="cherry-dot absolute -right-2 -top-2 flex size-4 animate-pulse items-center justify-center rounded-full bg-spark text-[10px] font-semibold text-background">
+            {count}
+          </span>
+        ) : null}
+      </span>
+      {!collapsed && (
+        <span className={cn('truncate leading-none', to ? 'text-[15px] font-semibold' : 'text-sm font-medium')}>
+          {item.label}
+        </span>
+      )}
+    </button>
+  )
+}
+
 function SystemStatus({ collapsed }: { collapsed: boolean }) {
   const [gio, setGio] = useState(() => new Date())
   useEffect(() => {
@@ -92,6 +162,12 @@ export function NavRail({
   agentActive?: boolean
 }) {
   const navigate = useNavigate()
+  const [moRong, setMoRong] = useState(() => {
+    try { return localStorage.getItem(MO_RONG_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(MO_RONG_KEY, moRong ? '1' : '0') } catch { /* riêng tư */ }
+  }, [moRong])
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem(COLLAPSE_KEY) === '1',
   )
@@ -138,56 +214,58 @@ export function NavRail({
         </button>
       </div>
 
-      {/* Items */}
-      <div className="flex flex-1 flex-col gap-1 px-3">
-        {items.map((item) => {
-          const Icon = item.icon
-          const isActive = item.id === 'agent' ? agentActive : activeId === item.id
-          const count = badges[item.id]
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                // Mục có `sangTrang` thì ĐIỀU HƯỚNG thật, không đổi cột giữa.
-                // Đây là khác biệt về bản chất chứ không phải tiện tay gộp chung:
-                // các mục kia là thư mục THƯ, mục này là một chế độ làm việc khác.
-                if (item.sangTrang) navigate(item.sangTrang)
-                else onSelect(item.id)
-              }}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                'group relative flex items-center rounded-2xl transition-all duration-200 ease-spring press',
-                collapsed ? 'h-12 justify-center' : 'gap-3 px-3 py-2.5',
-                isActive
-                  ? 'bg-secondary text-active glow-active border border-border/40'
-                  : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground',
-              )}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-active" />
-              )}
-              <span className="relative shrink-0">
-                <Icon className={cn('size-5', isActive && 'stroke-[2.2px]')} />
-                {count ? (
-                  <span className="absolute -right-2 -top-2 flex size-4 items-center justify-center rounded-full bg-spark text-[10px] font-semibold text-background cherry-dot animate-pulse">
-                    {count}
-                  </span>
-                ) : null}
-              </span>
-              {!collapsed && (
-                <span className="truncate text-sm font-medium leading-none">{item.label}</span>
-              )}
-            </button>
-          )
-        })}
+      {/* ── BA MỤC CHÍNH — to hơn, luôn thấy ── */}
+      <div className="flex shrink-0 flex-col gap-1.5 px-3">
+        {CHINH.map((item) => (
+          <MucNav
+            key={item.id} item={item} collapsed={collapsed} to={true}
+            isActive={item.id === 'agent' ? agentActive : activeId === item.id}
+            count={badges[item.id]}
+            onBam={() => (item.sangTrang ? navigate(item.sangTrang) : onSelect(item.id))}
+          />
+        ))}
       </div>
 
-      {/* Gọi đồng hồ cơ thấu quang an toàn */}
-      <SystemStatus collapsed={collapsed} />
+      {/* ── NÚT MỞ PHẦN CÒN LẠI ── */}
+      <button
+        onClick={() => setMoRong((v) => !v)}
+        title={moRong ? 'Thu gọn thư mục' : 'Xem thêm thư mục'}
+        aria-expanded={moRong}
+        className={cn(
+          'mx-3 mt-3 flex shrink-0 items-center rounded-xl py-2 text-muted-foreground',
+          'transition-colors hover:bg-secondary/40 hover:text-foreground',
+          collapsed ? 'justify-center' : 'gap-3 px-3',
+        )}
+      >
+        <MoreHorizontal className={cn('size-5 shrink-0 transition-transform', moRong && 'rotate-90')} />
+        {!collapsed && <span className="text-sm font-medium leading-none">Thư mục</span>}
+      </button>
 
-      {/* Đáy: cài đặt + tài khoản */}
-      <div className="space-y-2 px-3 border-t border-border/10 pt-4 bg-secondary/5">
-        <div className={cn('flex gap-1.5', collapsed ? 'flex-col items-center' : 'items-center justify-between')}>
+      {/* ── PHẦN CÒN LẠI — CUỘN ĐƯỢC.
+          `min-h-0` ở đây là BẮT BUỘC: trong một flex-column, phần tử con mặc định
+          không co nhỏ hơn nội dung, nên thiếu nó thì vùng này đẩy cụm đáy rơi ra
+          ngoài màn hình thay vì tự cuộn. Đó đúng là lỗi đang có — đồng hồ đẩy tụt
+          và xén mất icon cá nhân. */}
+      {moRong && (
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin px-3 pt-1">
+          {PHU.map((item) => (
+            <MucNav
+              key={item.id} item={item} collapsed={collapsed} to={false}
+              isActive={activeId === item.id}
+              count={badges[item.id]}
+              onBam={() => onSelect(item.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Đẩy cụm đáy xuống khi phần thư mục đang đóng */}
+      {!moRong && <div className="flex-1" />}
+
+      {/* ── ĐÁY CỐ ĐỊNH: đồng hồ + ba nút. `shrink-0` để KHÔNG BAO GIỜ bị xén. ── */}
+      <div className="shrink-0 border-t border-border/10 bg-secondary/5 px-3 pb-3 pt-3">
+        <SystemStatus collapsed={collapsed} />
+        <div className={cn('mt-2 flex gap-1.5', collapsed ? 'flex-col items-center' : 'items-center justify-between')}>
           <NotificationBell />
           <SettingsDialog />
           <AccountMenu />
