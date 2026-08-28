@@ -619,29 +619,73 @@ export function LandingPage() {
               </SpotCard>
             </div>
 
-            {/* Ba ô nhỏ — ICON KHỔNG LỒ, chỉ vài chữ */}
+            {/* Ba ô: ẢNH MỜ CHIẾM TRỌN KHUNG, không phải icon nhỏ trên nền tối.
+                Bản trước là icon lucide ở độ mờ 0.07 đặt trên nền gần đen — tức
+                là tối trên tối, và mắt không bắt được gì. Cả dải ba ô đọc ra là
+                ba hình chữ nhật xám giống hệt nhau.
+
+                Bản này mỗi ô có một ẢNH MÀU phủ kín, làm nhoè mạnh. Nhoè để nó
+                thành TRƯỜNG MÀU chứ không thành một bức ảnh đòi được nhìn: chi
+                tiết biến mất, chỉ còn lại sắc độ, nên nó không tranh chỗ với chữ.
+                Ảnh lấy từ bộ có sẵn của trang giới thiệu — không kéo thêm phụ
+                thuộc, không vướng bản quyền.
+
+                Icon nâng từ 0.07 lên 0.28 và phóng to gấp đôi: giờ nó là CHỦ THỂ
+                của khung, không phải hoa văn góc. */}
             {[
-              { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn' },
-              { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K' },
-              { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài' },
+              { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn',
+                anh: '/landing/flower-field-poster.jpg' },
+              { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K',
+                anh: '/landing/glass-flower.jpg' },
+              { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài',
+                anh: '/landing/thumb-v1.jpg' },
             ].map((b) => (
               <div key={b.n} className="w-[min(66vw,380px)] shrink-0">
                 <SpotCard className="group relative h-full overflow-hidden p-5">
-                  {/* icon lớn mờ làm hoạ tiết nền */}
-                  <b.icon
-                    aria-hidden
-                    className="pointer-events-none absolute -bottom-5 -right-4 size-32 opacity-[0.07] transition-transform duration-700 group-hover:scale-110"
-                    style={{ color: b.c }}
+                  {/* 1 — trường màu: ảnh phủ kín, nhoè mạnh, phóng 1.15 để mép
+                      nhoè không lộ ra thành viền sáng quanh khung */}
+                  <img
+                    src={b.anh} alt="" aria-hidden loading="lazy" decoding="async"
+                    className="pointer-events-none absolute inset-0 size-full scale-[1.15] object-cover
+                               opacity-90 transition-transform duration-700 group-hover:scale-[1.22]"
+                    // brightness NÂNG LÊN chứ không chỉ saturate: mấy tấm ảnh này
+                    // vốn tối, nhoè xong còn tối hơn. Không kéo sáng thì dù bão hoà
+                    // đến mấy vẫn ra một mảng đen — đúng lỗi đã mắc ở lần đầu.
+                    style={{ filter: 'blur(20px) saturate(1.9) brightness(1.45)' }}
                   />
+                  {/* 2 — nhuốm màu riêng của ô. Dùng `screen` chứ KHÔNG dùng
+                      `mix-blend-color`: color chỉ chuyển sắc và GIỮ NGUYÊN độ sáng
+                      của lớp dưới, mà lớp dưới đang tối — nên ô vẫn tối, chỉ đổi
+                      tông. `screen` thì cộng sáng, đúng thứ cần ở đây. */}
+                  <div aria-hidden className="pointer-events-none absolute inset-0 mix-blend-screen"
+                    style={{
+                      background: `radial-gradient(120% 90% at 70% 20%, ${b.c}, transparent 70%)`,
+                      opacity: 0.5,
+                    }} />
+                  {/* 3 — làm trầm ĐÚNG CHỖ CÓ CHỮ, tức là phần TRÊN.
+                      Lần đầu tôi đặt lớp phủ ở đáy — sai phía: tiêu đề và dòng phụ
+                      nằm ở nửa trên, nên chữ trắng rơi thẳng lên vùng ảnh sáng nhất
+                      còn phần được làm trầm thì chẳng có chữ nào.
+                      Phủ từ trên xuống, và chỉ 45% chiều cao: đủ để chữ đọc chắc mà
+                      vẫn chừa hai phần ba khung cho màu và cho icon. */}
+                  <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[45%]
+                    bg-gradient-to-b from-[#06060B]/88 via-[#06060B]/45 to-transparent" />
+                  {/* 4 — icon CHỦ THỂ: 0.28 và cỡ gấp đôi bản trước */}
+                  <b.icon
+                    aria-hidden strokeWidth={1.2}
+                    className="pointer-events-none absolute -bottom-8 -right-6 size-60 text-white
+                               opacity-40 mix-blend-overlay transition-transform duration-700 group-hover:scale-110"
+                  />
+
                   <div className="relative flex items-center justify-between">
-                    <span className="flex size-11 items-center justify-center rounded-2xl"
-                      style={{ background: `${b.c}20`, color: b.c }}>
-                      <b.icon className="size-5.5" />
+                    <span className="o-icon size-11 rounded-none"
+                      style={{ ['--tint' as string]: b.c }}>
+                      <b.icon className="size-5" />
                     </span>
                     <span className="ld-num" style={{ color: b.c }}>{b.n}</span>
                   </div>
-                  <h3 className="ld-title relative mt-5 text-2xl">{b.t}</h3>
-                  <p className="relative mt-0.5 text-[13px] text-white/45">{b.s}</p>
+                  <h3 className="ld-title relative mt-5 text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">{b.t}</h3>
+                  <p className="relative mt-0.5 text-[13px] text-white/70">{b.s}</p>
                 </SpotCard>
               </div>
             ))}
