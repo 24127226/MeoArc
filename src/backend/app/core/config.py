@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     #     KHÔNG phải để giấu khoá Gemini (proxy không giữ khoá, nó chuyển tiếp khoá của
     #     người gọi) mà để URL proxy lộ ra cũng không ai mượn được hạn mức Cloudflare.
     ai_proxy_secret: str = ""
+    #   • model_fallbacks ← MODEL_FALLBACKS : danh sách model DỰ PHÒNG, cách nhau dấu phẩy.
+    #     Hạn mức Gemini free tính RIÊNG TỪNG MODEL — đo thật: gemini-2.5-flash-lite trần
+    #     20 lượt/ngày, trong khi gemini-2.5-flash còn nguyên hạn mức riêng. Xâu chuỗi thì
+    #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
+    #     Để trống = không dự phòng.
+    model_fallbacks: str = "gemini-2.5-flash"
     #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
     #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
     #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.

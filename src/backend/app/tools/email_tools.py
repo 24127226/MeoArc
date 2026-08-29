@@ -25,6 +25,7 @@ from app.tools.schemas import (
     ApplyLabelsInput, ApplyLabelsOutput,
     BulkActionInput, BulkActionOutput, BulkAction,
     ListLabelsInput, ListLabelsOutput,
+    NgoaiPhamViInput, NgoaiPhamViOutput,
 )
 from app.core import labeling
 from app.core.scope import cutoff_iso, scope_note
@@ -229,4 +230,29 @@ async def bulk_action(inp: BulkActionInput, ctx: RequestContext) -> BulkActionOu
     return BulkActionOutput(
         success=True, message=f"Đã xử lý {n}/{len(inp.email_ids)} thư.",
         data={"success_count": n, "failed_count": len(inp.email_ids) - n, "failed_ids": []},
+    )
+
+
+# ── RANH GIỚI NĂNG LỰC ────────────────────────────────────────────────
+@tool_registry.register(category=ToolCategory.SYSTEM, input_schema=NgoaiPhamViInput)
+async def tu_choi_ngoai_pham_vi(inp: NgoaiPhamViInput, ctx: RequestContext) -> NgoaiPhamViOutput:
+    """DÙNG KHI người dùng yêu cầu một việc MeoArc KHÔNG làm được: đặt vé máy bay, đặt
+    khách sạn, gọi xe, thanh toán hoá đơn, đặt lịch hẹn ngoài, mua hàng, gọi điện, hay
+    bất cứ hành động nào ngoài phạm vi hộp thư.
+
+    ĐỪNG đi tìm thư về chủ đề đó rồi báo "không tìm thấy" — người dùng sẽ hiểu nhầm là
+    hộp thư trống, chứ không hiểu là MeoArc không làm được việc đó. Gọi tool này để nói
+    thẳng."""
+    # Không chạm mạng, không chạm hộp thư: đây thuần tuý là một câu trả lời có cấu trúc.
+    # Làm thành TOOL chứ không phải một dòng dặn trong prompt vì mô hình bám theo danh
+    # sách tool chặt hơn hẳn bám theo lời cấm: cấm thì nó vẫn phải chọn MỘT hành động
+    # nào đó, và hành động sẵn có gần nhất lại chính là search_emails.
+    return NgoaiPhamViOutput(
+        success=True,
+        message="Việc này nằm ngoài phạm vi MeoArc.",
+        data={
+            "viec": inp.viec_nguoi_dung_muon,
+            "ly_do": inp.vi_sao_khong_lam_duoc,
+            "thay_the": inp.viec_gan_nhat_lam_duoc,
+        },
     )

@@ -518,3 +518,32 @@ class RequestConfirmationOutput(ToolResult):
     Agent pauses — user response (yes/no) comes back as next chat message.
     """
     data: dict[str, Any] | None = None  # {action_summary, affected_items, action_type}
+
+# =========================================================
+# =            RANH GIỚI NĂNG LỰC (Chặn 01)               =
+# =========================================================
+
+class NgoaiPhamViInput(BaseModel):
+    """Tham số cho `tu_choi_ngoai_pham_vi`."""
+
+    viec_nguoi_dung_muon: Annotated[str, Field(
+        description="Điều người dùng thực sự yêu cầu, viết lại bằng một câu ngắn. "
+                    "Ví dụ: 'đặt vé máy bay SGN đi Đà Nẵng ngày 12/9'.",
+    )]
+
+    vi_sao_khong_lam_duoc: Annotated[str, Field(
+        description="Lý do CỤ THỂ, nói theo góc nhìn người dùng. "
+                    "Ví dụ: 'MeoArc chưa kết nối với hệ thống bán vé nào'. "
+                    "Đừng nói chung chung kiểu 'tôi không thể'.",
+    )]
+
+    viec_gan_nhat_lam_duoc: Annotated[str | None, Field(
+        default=None,
+        description="Việc gần nhất MeoArc LÀM ĐƯỢC và có ích cho ý định đó. "
+                    "Ví dụ: 'tìm trong hộp thư các thư xác nhận vé đã đặt trước đó'. "
+                    "Để trống nếu thật sự không có gì liên quan — đừng bịa cho có.",
+    )]
+
+
+class NgoaiPhamViOutput(ToolResult):
+    data: dict[str, Any] | None = None

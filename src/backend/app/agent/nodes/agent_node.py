@@ -10,7 +10,7 @@
 from typing import Literal
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel, Field
-from app.core.llm import create_llm
+from app.core.llm import create_llm, create_llm_du_phong
 from app.tools.registry import tool_registry
 from app.agent.state import State
 
@@ -20,10 +20,21 @@ MAX_ITERATIONS = 6
 # Lời dặn (system prompt) định hình TÍNH CÁCH + LUẬT cho agent.
 _SYSTEM_BASE = (
     "Bạn là MeoArc — trợ lý email cao cấp, nói TIẾNG VIỆT chỉn chu, lịch sự mà gần gũi.\n\n"
+    "## PHẠM VI — đọc mục này TRƯỚC MỌI MỤC KHÁC\n"
+    "Bạn CHỈ thao tác được trên HỘP THƯ: tìm, đọc, tóm tắt, phân loại, gắn nhãn, soạn,\n"
+    "gửi, trả lời, xoá thư. Ngoài ra bạn KHÔNG có công cụ nào khác.\n"
+    "Bạn KHÔNG đặt được vé máy bay, KHÔNG đặt phòng khách sạn, KHÔNG gọi xe.\n"
+    "Bạn KHÔNG thanh toán hoá đơn, KHÔNG mua hàng, KHÔNG gọi điện thoại.\n"
+    "Bạn KHÔNG ghi được vào Google Calendar hay bất kỳ lịch nào bên ngoài.\n"
+    "Gặp những yêu cầu đó → gọi tool `tu_choi_ngoai_pham_vi`.\n"
+    "TUYỆT ĐỐI KHÔNG biến một yêu cầu HÀNH ĐỘNG thành một lượt TÌM THƯ. 'Đặt vé máy bay\n"
+    "đi Đà Nẵng' KHÔNG PHẢI là 'tìm thư về vé máy bay đi Đà Nẵng'. Trả lời 'không tìm thấy\n"
+    "thư nào về việc đặt vé' là SAI NẶNG: người dùng sẽ hiểu là hộp thư trống, chứ không\n"
+    "hiểu là bạn không làm được việc đó.\n\n"
     "## Nguyên tắc CHÍNH XÁC (quan trọng nhất — đừng bao giờ vi phạm)\n"
     "- LUÔN gọi tool để lấy dữ liệu THẬT trước khi trả lời. TUYỆT ĐỐI KHÔNG bịa người gửi,\n"
     "  tiêu đề, nội dung hay thời gian. Chỉ nói đúng những gì tool trả về.\n"
-    "- BẤT KỲ yêu cầu nào về hộp thư/email hiện có — liệt kê, tóm tắt, PHÂN LOẠI, sắp xếp theo\n"
+    "- BẤT KỲ yêu cầu nào VỀ HỘP THƯ (đã qua kiểm tra Phạm Vi ở trên) — liệt kê, tóm tắt, PHÂN LOẠI, sắp xếp theo\n"
     "  ƯU TIÊN, tìm, đếm — BẮT BUỘC gọi search_emails TRƯỚC (MỘT lần, snippet là đủ), ĐỪNG mở từng\n"
     "  thư. TUYỆT ĐỐI KHÔNG trả lời 'không có dữ liệu'/'không tìm thấy email' khi CHƯA gọi tool —\n"
     "  hộp thư trống là điều hiếm; chưa search mà nói trống là BỊA. Có dữ liệu rồi thì trả lời NGAY\n"
@@ -67,7 +78,11 @@ def _get_llm():
         # registry. Thiếu dòng này thì registry RỖNG → LLM không có tool → agent "bịa" câu trả lời
         # thay vì gọi Gmail. (MCP server đã import sẵn; luồng in-app /agent/chat trước đây thì chưa.)
         import app.tools.email_tools  # noqa: F401 — side-effect: đăng ký tool vào registry
-        base = create_llm()                          # tạo client Gemini từ config (.env)
+        # DỰ PHÒNG NHIỀU MODEL: hạn mức Gemini free tính riêng từng model, và
+        # gemini-2.5-flash-lite chỉ có 20 lượt/ngày (đã đo, đã chạm trần). Hết lượt
+        # giữa buổi trình bày thì agent chết bằng một thông báo đỏ. Xâu chuỗi thì
+        # tổng hạn mức cộng dồn — xem `create_llm_du_phong`.
+        base = create_llm_du_phong()
         tools = tool_registry.to_langchain_tools()   # 7 tool email (đã sửa bug lọc ở registry)
         _llm_with_tools = base.bind_tools(tools)
     return _llm_with_tools
@@ -160,7 +175,9 @@ def _get_present_llm():
     global _present_llm
     if _present_llm is None:
         # Thêm cấu hình cụ thể method="json_mode" để Gemini trả về JSON chuẩn theo cấu trúc
-        _present_llm = create_llm().with_structured_output(PresentReply, method="json_mode")
+        # Bộ trình bày cũng đốt hạn mức như agent, nên cũng phải có dự phòng —
+        # nếu không thì agent nghĩ xong rồi chết ở bước vẽ thẻ, còn khó hiểu hơn.
+        _present_llm = create_llm_du_phong().with_structured_output(PresentReply, method="json_mode")
     return _present_llm
 
 
