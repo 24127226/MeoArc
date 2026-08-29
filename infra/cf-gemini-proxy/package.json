@@ -1,0 +1,16 @@
+{
+  "name": "meoarc-gemini-proxy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cầu nối Gemini qua Cloudflare — gỡ chặn theo vùng cho bản triển khai ở Azure East Asia (Hong Kong).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "node --test test/kiem-tra.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

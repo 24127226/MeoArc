@@ -49,6 +49,21 @@ def create_llm():
 
     if settings.ai_api_key:
         model_kwargs["api_key"] = settings.ai_api_key
+        # Đổi NƠI GỬI khi có proxy (xem `ai_base_url` trong config.py và
+        # `infra/cf-gemini-proxy/`). Google chặn Gemini theo vị trí máy chủ gọi, mà
+        # bản triển khai nằm ở Hong Kong — vùng bị chặn. Proxy khiến lời gọi đi ra
+        # từ nơi khác, không phải đổi vùng Azure.
+        #
+        # CHỈ cho nhà cung cấp Google: `base_url` của Groq/OpenAI trỏ tới máy chủ
+        # CỦA HỌ, bơm URL proxy Gemini vào đó là gửi thư đi sai nhà — và sai kiểu
+        # im lặng, chỉ lòi ra khi đọc log mạng.
+        if settings.ai_base_url and settings.model_provider.startswith("google"):
+            model_kwargs["base_url"] = settings.ai_base_url.rstrip("/")
+            if settings.ai_proxy_secret:
+                model_kwargs["additional_headers"] = {
+                    "x-meoarc-proxy": settings.ai_proxy_secret,
+                }
+            logger.info("Gemini đi qua proxy: %s", settings.ai_base_url)
     elif settings.local_model_base_url:
         model_kwargs["base_url"] = settings.local_model_base_url
     else:

@@ -1500,18 +1500,24 @@ async def agent_chat(
             #    hoat dong. Day la loai loi de tuong la "loi lac" vi no chi xuat hien
             #    o mot moi truong.
             #
-            # Hai duong sua, deu can thao tac ngoai ma nguon:
-            #   1. Tao lai App Service o vung Google co phuc vu (Japan East, Korea
+            # Ba duong sua, deu can thao tac NGOAI ma nguon:
+            #   1. (RE NHAT, KHUYEN DUNG) Dat AI_BASE_URL tro toi Cloudflare Worker
+            #      trong `infra/cf-gemini-proxy/`. Worker day loi goi qua mot Durable
+            #      Object ghim o Bac My nen loi goi DI RA tu My. Vung Azure giu nguyen
+            #      => URL dang nhap giu nguyen => KHONG phai khai bao lai OAuth redirect.
+            #      LUU Y: mot Worker THUONG (khong Durable Object) KHONG cuu duoc —
+            #      Worker chay o PoP gan nguoi goi nhat, tuc la van Hong Kong.
+            #   2. Tao lai App Service o vung Google co phuc vu (Japan East, Korea
             #      Central, Southeast Asia). Vung cua App Service KHONG doi tai cho
-            #      duoc, phai tao moi roi tro lai deploy.
-            #   2. Doi sang Vertex AI (MODEL_PROVIDER=google_vertexai): Vertex CHAY
+            #      duoc, phai tao moi roi tro lai deploy — va URL doi theo.
+            #   3. Doi sang Vertex AI (MODEL_PROVIDER=google_vertexai): Vertex CHAY
             #      DUOC o Hong Kong vi no thuoc nhom san pham doanh nghiep, chinh sach
-            #      vung khac han. Doi lai phai co project GCP + service account.
-            msg = ("🌏 Google không phục vụ Gemini API cho khu vực mà máy chủ này đang đặt. "
-                   "Đây là hạn chế theo vị trí MÁY CHỦ, không phải lỗi tài khoản hay hết lượt. "
-                   "Bản chạy máy cục bộ vẫn dùng agent bình thường; bản triển khai cần chuyển "
-                   "sang vùng Google có phục vụ (Japan East / Korea Central / Southeast Asia), "
-                   "hoặc đổi sang Vertex AI. Các thao tác bấm-nút (đọc/gắn nhãn/gửi) vẫn dùng được.")
+            #      vung khac han. Doi lai phai co project GCP + bat thanh toan.
+            msg = ("🌏 Google không phục vụ Gemini API cho khu vực mà máy chủ này đang đặt "
+                   "(Azure East Asia = Hong Kong). Đây là hạn chế theo vị trí MÁY CHỦ, không "
+                   "phải lỗi tài khoản hay hết lượt — nên bản chạy máy cục bộ vẫn dùng agent "
+                   "bình thường. Cách sửa nhanh nhất: dựng proxy trong infra/cf-gemini-proxy "
+                   "rồi đặt AI_BASE_URL. Các thao tác bấm-nút (đọc/gắn nhãn/gửi) vẫn dùng được.")
         elif "resource_exhausted" in low or "429" in text or "quota" in low:
             # Quota Gemini free hết (theo phút hoặc theo ngày). max_retries=6 đã tự thử lại các
             # lỗi chớp nhoáng; tới đây là hết lượt thật → khuyên người dùng cách xử lý.

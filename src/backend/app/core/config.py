@@ -57,6 +57,29 @@ class Settings(BaseSettings):
     model_name: str = "gemini-2.0-flash"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
+    #   • ai_base_url ← AI_BASE_URL : ĐỔI NƠI GỬI lời gọi Gemini (mặc định trống = gọi
+    #     thẳng generativelanguage.googleapis.com).
+    #
+    #     VÌ SAO CẦN: Google chặn Gemini API theo vị trí MÁY CHỦ GỌI. Bản triển khai
+    #     đang nằm trên Azure "East Asia" = HONG KONG — vùng Google KHÔNG phục vụ. Cùng
+    #     một khoá, cùng một dòng mã: chạy ở máy nhà thì 200, chạy trên Azure thì
+    #     FAILED_PRECONDITION. Đây là loại lỗi dễ tưởng là "lỗi lạc" vì nó chỉ xuất hiện
+    #     ở đúng một môi trường.
+    #
+    #     CÁCH DÙNG: đặt bằng URL của Cloudflare Worker trong `infra/cf-gemini-proxy/`.
+    #     Worker đó chuyển tiếp lời gọi qua một Durable Object ghim ở Bắc Mỹ, nên lời
+    #     gọi ĐI RA từ Mỹ chứ không phải Hong Kong. Vị trí máy chủ Azure không đổi, URL
+    #     đăng nhập không đổi → không phải khai báo lại OAuth redirect với Google.
+    #
+    #     CHỈ áp cho nhà cung cấp Google. Groq/OpenAI cũng có field `base_url` nhưng
+    #     nghĩa khác hẳn — bơm nhầm vào đó là gửi thư đi sai nhà.
+    ai_base_url: str = ""
+    #   • ai_proxy_secret ← AI_PROXY_SECRET : bí mật dùng chung với Worker ở trên, gửi
+    #     kèm mỗi lời gọi qua header `x-meoarc-proxy`. Để trống = không gửi.
+    #     Worker chỉ bắt buộc khi phía nó cũng đặt bí mật, nên hai bên phải khớp nhau.
+    #     KHÔNG phải để giấu khoá Gemini (proxy không giữ khoá, nó chuyển tiếp khoá của
+    #     người gọi) mà để URL proxy lộ ra cũng không ai mượn được hạn mức Cloudflare.
+    ai_proxy_secret: str = ""
     #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
     #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
     #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.

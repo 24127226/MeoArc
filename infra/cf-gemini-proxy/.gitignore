@@ -1,0 +1,5 @@
+node_modules/
+# Trạng thái máy cục bộ của `wrangler dev` (kho Durable Object giả lập, cache).
+# Máy nào chạy dev cũng tự sinh lại — đưa vào repo là gây xung đột vô ích.
+.wrangler/
+.dev.vars
