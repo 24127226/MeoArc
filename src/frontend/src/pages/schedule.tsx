@@ -87,12 +87,60 @@ export function SchedulePage() {
   )
   const emailDangMo = thuMo ? emails.find((e) => e.id === thuMo) : null
 
+  /* ── RÊ CHUỘT CÓ CHỦ ĐÍCH ──────────────────────────────────────────────────
+     Hai vấn đề người dùng gặp, cùng một gốc: bảng chi tiết đổi/biến mất ngay theo
+     từng lần chuột lướt qua.
+
+     • Đi từ thanh XUỐNG bảng thì con trỏ quét qua các thanh ở làn dưới. Mỗi thanh
+       lại tự mở bảng của nó, nên bảng "nhảy" đi chỗ khác — người dùng thấy như nó
+       biến mất, và phải BẤM vào thanh rồi mới với tới được nút.
+     • Lướt ngang qua lưới cũng bật/tắt bảng liên tục, nhấp nháy.
+
+     Chữa bằng độ trễ hai chiều: mở phải DỪNG LẠI một nhịp (140ms) mới tính là có
+     ý định; đóng cũng chờ (260ms) để kịp đưa chuột sang bảng. Vào bảng thì huỷ
+     hẹn đóng. Đây là mẫu "hover intent" quen thuộc, và nó là thứ duy nhất làm
+     đường đi từ thanh sang nút trở nên tự nhiên. */
+  const henMo = useRef<number | null>(null)
+  const henDong = useRef<number | null>(null)
+  const huyHen = () => {
+    if (henMo.current) { clearTimeout(henMo.current); henMo.current = null }
+    if (henDong.current) { clearTimeout(henDong.current); henDong.current = null }
+  }
+  const moThe = (v: { ck: CamKet; hcn: DOMRect }) => {
+    huyHen()
+    // Đang mở đúng thẻ đó rồi thì không đặt hẹn lại — nếu không, mỗi lần chuột
+    // nhích trong cùng một thanh là một lần dựng lại bảng.
+    if (dangHoi?.ck.id === v.ck.id) return
+    henMo.current = window.setTimeout(() => setDangHoi(v), 140)
+  }
+  const dongThe = () => {
+    if (henMo.current) { clearTimeout(henMo.current); henMo.current = null }
+    henDong.current = window.setTimeout(() => setDangHoi(null), 260)
+  }
+  // Dọn hẹn khi rời trang — timer còn sống sau unmount là rò rỉ, và nó sẽ gọi
+  // setState trên component đã chết.
+  useEffect(() => huyHen, [])
+
   const hoiAI = (ck: CamKet) => {
     chuyenCanh(() => {
       setDangHoi(null)
       setChatMo(true)
     })
-    setLenh(`Về việc "${ck.noiDung}" (${ck.nguoiCho} đang chờ) — giúp mình sắp xếp thời gian làm.`)
+    // Câu lệnh phải MANG ĐỦ NGỮ CẢNH. Bản trước chỉ gửi tên việc, nên trợ lý không
+    // biết hạn khi nào, ai chờ, tốn bao lâu — nó chỉ chào rồi hỏi lại, và người dùng
+    // phải gõ lại từ đầu đúng những thứ vừa bấm vào. Bấm "hỏi trợ lý" mà vẫn phải
+    // giải thích lại từ đầu thì cái nút đó không tiết kiệm được gì.
+    const han = ck.han
+      ? `${ck.han.getDate()}/${ck.han.getMonth() + 1} lúc ${gioPhut(ck.han)}`
+      : 'chưa rõ hạn'
+    const gio = Math.round(ck.uocLuongPhut / 6) / 10
+    setLenh(
+      `Việc: "${ck.noiDung}". Hạn: ${han}${ck.hanSuyRa ? ' (hạn này mình suy ra, chưa chắc)' : ''}. `
+      + `${ck.nguoiCho} đang chờ. Ước tính tốn khoảng ${gio} giờ.
+`
+      + 'Giúp mình: (1) nên bắt đầu ngày nào, (2) chia thành mấy buổi, '
+      + '(3) có gì cần hỏi lại người gửi trước khi bắt tay vào làm không.'
+    )
   }
 
   // Thư mở toàn màn: che hẳn lịch. Quay lại là về đúng chỗ cũ vì lịch không
@@ -119,9 +167,13 @@ export function SchedulePage() {
           liệt kê lịch trình, tức là hai chỗ nói cùng một thứ trên một màn hình —
           thừa, và làm loãng chính thứ đang muốn nhấn. Mở chat thì màn hình chỉ
           còn đúng hai khối: lịch và cuộc trò chuyện. */}
+      {/* Mở chat → cột này HẸP LẠI, không giãn ra. Bản trước cho nó `flex-1` nên nó
+          chiếm 1022px để hiện một danh sách, còn cuộc trò chuyện — thứ người dùng vừa
+          chủ động mở — chỉ được 400px cố định. Tỉ lệ ngược hẳn với ý định của họ.
+          Đo trên khung 1422px: cột trái 1022 / chat 400. */}
       <aside className={cn(
         'den-noi-phai flex shrink-0 flex-col overflow-hidden',
-        chatMo ? 'flex-1' : 'w-[268px]',
+        chatMo ? 'w-[340px]' : 'w-[268px]',
       )}>
         <div className="flex items-center gap-3 px-4 py-4">
           {/* Chặn điều hướng mặc định của Link để bọc được chuyển cảnh. Vẫn giữ
@@ -148,8 +200,8 @@ export function SchedulePage() {
             Chat đóng → nó chỉ là phần tóm tắt bên cạnh lưới thẻ, nên rút gọn còn
             6 mục sắp tới. Cùng một chỗ, hai vai khác nhau tuỳ ngữ cảnh. */}
         {chatMo ? (
-          <div className="mt-1 min-h-0 flex-1 overflow-hidden">
-            <DanhSachViec camKet={camKet} homNay={homNay} onBamThe={setDangHoi} />
+          <div className="fade-y mt-1 min-h-0 flex-1 overflow-hidden">
+            <DanhSachViec camKet={camKet} homNay={homNay} onBamThe={moThe} />
           </div>
         ) : (
         <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin px-3 pb-3">
@@ -162,7 +214,7 @@ export function SchedulePage() {
             sapToi.map((c) => (
               <button
                 key={c.id}
-                onClick={(e) => setDangHoi({ ck: c, hcn: e.currentTarget.getBoundingClientRect() })}
+                onClick={(e) => moThe({ ck: c, hcn: e.currentTarget.getBoundingClientRect() })}
                 className="group flex items-start gap-2.5 rounded-lg px-1 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
               >
                 <span className={cn('cham-rr mt-1.5', `c${c.mucRuiRo}`)} aria-hidden />
@@ -202,13 +254,14 @@ export function SchedulePage() {
         {/* Chat mở → lịch NHỎ LẠI và ưu tiên danh sách. Người dùng vừa mở chat là
             họ đang muốn BÀN về lịch, không phải ngắm lưới tháng. */}
         <LuoiThe o={o} thang={thang} homNay={homNay} theoNgay={theoNgay} camKet={camKet}
-          onBamThe={setDangHoi} onMoNgay={setNgayMo} />
+          onBamThe={moThe} onRoiThe={dongThe} dangReId={dangHoi?.ck.id ?? null}
+          onMoNgay={setNgayMo} />
       </main>
       )}
 
       {/* ══ CHAT — nút tượng trưng góc dưới phải, bấm mới hiện ══ */}
       {chatMo ? (
-        <div className="den-noi-trai flex w-[400px] shrink-0 flex-col">
+        <div className="den-noi-trai flex min-w-0 flex-1 flex-col">
           <ChatPanel
             emails={emails}
             actions={KHONG_LAM_GI}
@@ -237,7 +290,8 @@ export function SchedulePage() {
       {dangHoi && (
         <ThanhViec
           ck={dangHoi.ck} hcn={dangHoi.hcn}
-          onDong={() => setDangHoi(null)}
+          onGiuMo={huyHen}
+          onDong={dongThe}
           onXemThu={() => chuyenCanh(() => { setThuMo(dangHoi.ck.emailId); setDangHoi(null) })}
           onHoiAI={() => hoiAI(dangHoi.ck)}
         />
@@ -443,7 +497,7 @@ function LichNho({
 
 /* ── Lưới tháng với THẺ ──────────────────────────────────────────────────── */
 function LuoiThe({
-  o, thang, homNay, theoNgay, camKet, onBamThe, onMoNgay,
+  o, thang, homNay, theoNgay, camKet, onBamThe, onRoiThe, dangReId, onMoNgay,
 }: {
   o: Date[]
   thang: Date
@@ -451,6 +505,9 @@ function LuoiThe({
   theoNgay: Map<string, CamKet[]>
   camKet: CamKet[]
   onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
+  onRoiThe: () => void
+  /** Id cam kết đang được rê chuột — MỌI đoạn của nó đều sáng, kể cả ở hàng khác. */
+  dangReId: string | null
   onMoNgay: (v: { ngay: Date; hcn: DOMRect }) => void
 }) {
   const tuan = useMemo(() => xepDoanTheoTuan(camKet, o), [camKet, o])
@@ -486,6 +543,8 @@ function LuoiThe({
           doan={tt.doan}
           du={tt.du}
           onBamThe={onBamThe}
+          onRoiThe={onRoiThe}
+          dangReId={dangReId}
           onMoNgay={onMoNgay}
         />
       ))}
@@ -506,7 +565,7 @@ function LuoiThe({
    Mỗi làn là MỘT HÀNG của lưới con (`grid-rows-[repeat(3,17px)]`), nên hai việc
    trùng ngày nằm đúng hai làn mà không cần cộng trừ vị trí. */
 function HangTuan({
-  ngay, thang, homNay, theoNgay, doan, du, onBamThe, onMoNgay,
+  ngay, thang, homNay, theoNgay, doan, du, onBamThe, onRoiThe, dangReId, onMoNgay,
 }: {
   ngay: Date[]
   thang: Date
@@ -515,6 +574,8 @@ function HangTuan({
   doan: DoanThe[]
   du: Map<string, number>
   onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
+  onRoiThe: () => void
+  dangReId: string | null
   onMoNgay: (v: { ngay: Date; hcn: DOMRect }) => void
 }) {
   return (
@@ -541,7 +602,9 @@ function HangTuan({
             key={dt.ck.id + '-' + dt.cot}
             doan={dt}
             mo={dt.ck.han ? dt.ck.han.getMonth() !== thang.getMonth() : false}
+            dangRe={dangReId === dt.ck.id}
             onBam={(e) => onBamThe({ ck: dt.ck, hcn: e.currentTarget.getBoundingClientRect() })}
+            onRoi={onRoiThe}
           />
         ))}
       </div>
@@ -647,12 +710,22 @@ function ONgay({
  *  sáng. Chỉ đổi màu là không đủ — người mù màu không thấy gì, và ngay cả mắt
  *  thường cũng khó xếp hạng ba màu nếu chúng không đứng cạnh nhau. */
 function ThanhCamKet({
-  doan, mo, onBam,
+  doan, mo, dangRe, onBam, onRoi,
 }: {
   doan: DoanThe
   /** Hạn nằm ngoài tháng đang xem → lùi lại một bậc cho khỏi tranh chỗ. */
   mo: boolean
+  /** MỌI đoạn của cùng một đợt cùng sáng, kể cả đoạn ở hàng tuần khác.
+   *
+   *  Trước đây chỉ đoạn dưới con trỏ sáng lên, vì hiệu ứng nằm ở lớp `hover:` của
+   *  Tailwind — thứ chỉ biết đến đúng phần tử đang bị rê. Nhưng một đợt ba tuần là
+   *  MỘT việc; sáng lẻ một khúc thì mắt không nối được ba khúc lại với nhau, và cả
+   *  lý do vẽ thanh trải dài (cho thấy việc kéo dài tới đâu) mất tác dụng ngay lúc
+   *  người dùng đang tìm hiểu nó. Nên trạng thái rê phải nằm ở TRÊN, theo id cam
+   *  kết, chứ không nằm ở CSS của từng đoạn. */
+  dangRe: boolean
   onBam: (e: { currentTarget: HTMLElement }) => void
+  onRoi: () => void
 }) {
   const { ck, cot, rong, lan, moDau, ketThuc } = doan
   const ut = ck.mucUuTien
@@ -666,7 +739,9 @@ function ThanhCamKet({
       // RÊ CHUỘT là đủ để xổ bảng chi tiết — không tốn một cú bấm chỉ để biết có
       // gì. Giữ onClick cho bàn phím/cảm ứng, nơi không có "rê chuột".
       onMouseEnter={onBam}
+      onMouseLeave={onRoi}
       onFocus={onBam}
+      onBlur={onRoi}
       onClick={onBam}
       style={{ gridColumn: `${cot + 1} / span ${rong}`, gridRow: lan + 1 }}
       title={ck.noiDung}
@@ -683,6 +758,10 @@ function ThanhCamKet({
             ? 'shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--ut)_60%,transparent),0_0_10px_-5px_var(--ut)]'
             : 'shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--ut)_26%,transparent)]',
         'hover:shadow-[inset_0_0_0_1px_var(--ut),0_0_20px_-2px_var(--ut)]',
+        // Cả đợt cùng sáng. Ghi SAU các lớp bóng mặc định để nó thắng, và dùng cùng
+        // cường độ với `hover:` để đoạn dưới con trỏ không nổi hơn các đoạn kia —
+        // chúng là một việc, phải trông như một việc.
+        dangRe && 'z-20 shadow-[inset_0_0_0_1px_var(--ut),0_0_20px_-2px_var(--ut)]',
         // Bo góc CHỈ ở hai đầu THẬT của đợt. Đoạn bị tuần cắt để vuông, nên nhìn
         // sang hàng dưới vẫn đọc ra là "còn tiếp".
         moDau && 'rounded-l-[4px]',
@@ -784,10 +863,13 @@ function DanhSachViec({
  * nhật của thẻ rồi vẽ ở tầng trên cùng.
  */
 function ThanhViec({
-  ck, hcn, onDong, onXemThu, onHoiAI,
+  ck, hcn, onGiuMo, onDong, onXemThu, onHoiAI,
 }: {
   ck: CamKet
   hcn: DOMRect
+  /** Chuột vào bảng → HUỶ hẹn đóng. Thiếu cái này thì độ trễ chỉ hoãn được vấn đề:
+   *  bảng vẫn tự đóng đúng lúc người dùng đang với tay tới nút. */
+  onGiuMo: () => void
   onDong: () => void
   onXemThu: () => void
   onHoiAI: () => void
@@ -803,9 +885,12 @@ function ThanhViec({
   // Bảng cao hơn nên phải tự lật LÊN TRÊN khi thẻ nằm sát đáy màn hình — không
   // thì nó tràn ra ngoài và người dùng không đọc được gì.
   const CAO = 150
-  const duoi = hcn.bottom + 6
+  // KHÔNG chừa khe giữa thanh và bảng. Khe hở là chỗ con trỏ "rơi ra ngoài" giữa
+  // đường, và mỗi lần rơi là một lần hẹn đóng chạy. Dán sát mép dưới thanh thì
+  // đường đi từ thanh sang nút liền một mạch.
+  const duoi = hcn.bottom
   const lat = duoi + CAO > window.innerHeight - 8
-  const top = lat ? Math.max(8, hcn.top - CAO - 6) : duoi
+  const top = lat ? Math.max(8, hcn.top - CAO) : duoi
 
   const ut = ck.mucUuTien
   const nhanUuTien = ut === 3 ? 'Gấp' : ut === 2 ? 'Quan trọng' : 'Thường'
@@ -813,9 +898,7 @@ function ThanhViec({
 
   return (
     <div
-      // Giữ mở khi con trỏ đi từ thẻ xuống thanh — không có cái này thì thanh
-      // biến mất ngay lúc người dùng với tay tới nó.
-      onMouseEnter={() => {}}
+      onMouseEnter={onGiuMo}
       onMouseLeave={onDong}
       // `position` PHẢI ghi nội tuyến. `.goc-cat` đặt `position: relative`, và vì
       // nó là CSS tự viết nằm ngoài @layer nên nó THẮNG tiện ích `fixed` của

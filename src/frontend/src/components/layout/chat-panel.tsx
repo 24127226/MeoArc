@@ -1054,9 +1054,21 @@ export function ChatPanel({
       })
   }
 
-  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào
+  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào.
+  //
+  // CỜ CHỐNG GỬI HAI LẦN. React StrictMode gọi effect hai lượt khi mount, và cả hai
+  // lượt đều chạy TRƯỚC khi cha kịp xoá lệnh — nên một lần bấm "Hỏi trợ lý" cho ra
+  // HAI câu hỏi và HAI thẻ trả lời giống hệt nhau. Đã chụp được đúng vậy.
+  //
+  // Cờ tự đặt lại khi `injectedCommand` về null (tức cha đã tiêu thụ xong), nên bấm
+  // lại đúng việc đó lần nữa vẫn gửi được. Nếu chỉ so sánh nội dung lệnh thì lần bấm
+  // thứ hai vào CÙNG một việc sẽ bị nuốt — một cách sửa tưởng đúng mà lại chặn nhầm
+  // thao tác hợp lệ.
+  const dangGuiLenh = useRef(false)
   useEffect(() => {
-    if (!injectedCommand) return
+    if (!injectedCommand) { dangGuiLenh.current = false; return }
+    if (dangGuiLenh.current) return
+    dangGuiLenh.current = true
     send(injectedCommand)
     onInjectConsumed?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -210,6 +210,43 @@ const fmtNames = (list: Email[]) =>
 export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   const q = normalize(raw)
 
+  /* --- HỎI VỀ MỘT VIỆC CỤ THỂ trong lịch trình (nút "Hỏi trợ lý" trên thẻ) ---
+     Đặt ĐẦU TIÊN vì câu lệnh này chứa nhiều từ khoá trùng với các nhánh khác
+     ("nộp", "gửi", "hạn"…) và sẽ bị nhánh nào đó nuốt mất nếu đứng sau.
+
+     Trước đây bấm nút đó chỉ MỞ khung chat rồi thả người dùng ở đó: câu lệnh gửi
+     đi chỉ có tên việc, nên trợ lý không biết hạn khi nào, ai chờ, tốn bao lâu —
+     nó chào một câu rồi hỏi lại. Người dùng phải gõ lại đúng những thứ vừa bấm
+     vào, tức là cái nút không tiết kiệm được gì.
+     Nay câu lệnh mang đủ ngữ cảnh (xem `hoiAI` trong pages/schedule.tsx), nên
+     nhánh này trả lời được ngay bằng chính dữ liệu đó. */
+  if (/^viec: /.test(q) && /han:/.test(q)) {
+    const ten = (raw.match(/Việc:\s*"([^"]+)"/) || [])[1] || 'việc này'
+    const han = (raw.match(/Hạn:\s*([^.]+)\./) || [])[1] || 'chưa rõ'
+    const gio = Number((raw.match(/khoảng\s+([\d.]+)\s+giờ/) || [])[1] || 1)
+    const nguoiCho = (raw.match(/\.\s*([^.]+?)\s+đang chờ/) || [])[1] || 'người gửi'
+    const suyRa = /suy ra/.test(raw)
+
+    // Chia buổi theo NGUYÊN TẮC 90 PHÚT: dài hơn thế thì chất lượng rơi, và một
+    // "kế hoạch" gộp 4 tiếng vào một buổi là kế hoạch không ai làm theo được.
+    const soBuoi = Math.max(1, Math.ceil(gio / 1.5))
+    const moiBuoi = Math.round((gio / soBuoi) * 10) / 10
+
+    return {
+      kind: 'result',
+      title: ten.length > 52 ? ten.slice(0, 52) + '…' : ten,
+      intro: `Hạn ${han}${suyRa ? ' (hạn này suy ra từ thư, chưa chắc)' : ''}. Mình gợi ý thế này:`,
+      lines: [
+        `Bắt đầu sớm hơn hạn ${soBuoi === 1 ? 'một ngày' : `${soBuoi} ngày`} — làm sát ngày là chỗ hay vỡ nhất.`,
+        `Chia ${soBuoi} buổi, mỗi buổi ~${moiBuoi} giờ. Quá 90 phút một buổi thì chất lượng rơi.`,
+        `${nguoiCho} đang chờ — báo trước một câu nếu thấy sẽ trễ, đừng để họ tự phát hiện.`,
+        ...(suyRa
+          ? ['Hạn này mình ĐOÁN từ câu chữ trong thư. Mở thư gốc xác nhận lại trước khi tin.']
+          : []),
+      ],
+    }
+  }
+
   // --- Inbox Autopilot (UC017) — hộp thư tự lái (đặt trước để không lọt vào nhánh "dọn") ---
   if (/(tu lai|autopilot|de meo lo|don ca hop thu|don het hop thu|don tu dong|don sach hop thu)/.test(q)) {
     const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
