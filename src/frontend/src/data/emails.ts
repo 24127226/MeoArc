@@ -1,6 +1,7 @@
 // Thư demo cho màn Lịch trình. `demo-lich.ts` chỉ nhập KIỂU từ file này, mà nhập
 // kiểu bị xoá lúc biên dịch — nên vòng phụ thuộc này không tồn tại khi chạy.
 import { DEMO_LICH } from '@/data/demo-lich'
+import { DEMO_QUA_TAI } from '@/data/demo-qua-tai'
 
 /** Category màu của inbox — tên màu lấy từ palette "Provence Meadow".
  *  Bảng màu cụ thể nằm ở email-list.tsx (CATEGORY) để giữ một nguồn duy nhất. */
@@ -262,6 +263,7 @@ const EMAILS_GOC: Email[] = [
   },
 ]
 
-/** Hop thu demo = bo goc + thu lich trinh thang 8-9 (xem data/demo-lich.ts).
- *  Tach lam hai de xoa bo demo chi can bo dung mot dong. */
-export const emails: Email[] = [...EMAILS_GOC, ...DEMO_LICH]
+/** Hop thu demo = bo goc + thu lich trinh thang 8-9 + bo THU DAY de xem man
+ *  Lich trinh duoi tai that (xem data/demo-qua-tai.ts, tat bang co `BAT`).
+ *  Tach lam ba de xoa tung bo chi can bo dung mot dong. */
+export const emails: Email[] = [...EMAILS_GOC, ...DEMO_LICH, ...DEMO_QUA_TAI]

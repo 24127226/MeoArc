@@ -75,6 +75,12 @@ Token `--background/--list/--panel/--rail/--spark/--active/--accent/--sc-base/--
     bên dưới. `apLuc` do app-shell tính rồi truyền vào; không truyền thì không vẽ,
     giữ nav rail độc lập với tầng lịch trình.
 
+### Bộ thư dày — `src/data/demo-qua-tai.ts`
+~50 cam kết dồn cục (vài ngày 8–10 việc) + 2 đợt nhiều tuần, để ba cơ chế xử lý quá
+tải (xếp làn, chip "+N", bảng ngày) THẬT SỰ chạy khi xem. Bộ thường chỉ 17 việc rải
+đều nên chúng gần như không bao giờ kích hoạt — không thấy chạy thì cũng không biết
+đúng hay sai. Tắt bằng `BAT = false` trong chính file đó.
+
 ### Hai bẫy bố cục đã sửa (đo được, dễ tái phát)
 - **`DialogContent` thiếu trần chiều cao.** Chỉ có `top-1/2 -translate-y-1/2` mà
   không `max-height`/`overflow`, nên hộp thoại cao hơn màn hình tràn CẢ HAI đầu và
@@ -151,8 +157,22 @@ giữa ba cột là tự hạ nó xuống ngang hàng với "Thùng rác".
     MỘT phần tử trải ngang qua các cột đó. Lớp thanh dùng lại đúng `grid-cols-7
     gap-1` của lớp ô bên dưới nên tự khớp cột, không tính phần trăm tay.
   - **Xếp làn khi nhiều.** Mỗi làn là một hàng của lưới con (`grid-rows-[repeat(3,17px)]`).
-    Tham lam: việc gấp và việc dài lên làn trên. Quá 3 làn thì không vẽ, ngày đó
-    mang số "+N" — thà nói thẳng "còn nữa" hơn vẽ tràn làm méo lưới.
+    Quá 3 làn thì không vẽ, ngày đó mang số "+N" — thà nói thẳng "còn nữa" hơn vẽ
+    tràn làm méo lưới. Ba quy tắc thứ tự, mỗi cái sửa một lỗi đo được:
+    1. **Đợt dài xuống làn CUỐI**, việc ngắn lên trên. Đợt dài là bối cảnh; việc
+       ngắn mới là thứ phải làm hôm nay. Phân loại theo TỔNG số ngày của cả đợt
+       (`tongNgay >= 3 || khoangRoRang`), không theo bề rộng đoạn trong tuần —
+       một đợt hai tuần bị cắt thành hai đoạn 7 ngày vẫn là đợt dài.
+    2. **Đợt dài xếp TRƯỚC**, từ làn cuối đi lên. Xếp việc ngắn trước thì một tuần
+       đông chiếm sạch làn và đợt dài BIẾN MẤT — tệ hơn hẳn mất một việc lẻ, vì
+       việc lẻ còn hiện ở "+N" của đúng ngày nó, còn đợt dài không có "ngày của
+       nó" để tìm. Xếp từ dưới lên cũng giữ đợt dài CÙNG MỘT LÀN qua các hàng tuần;
+       nhảy làn giữa hai hàng thì mắt đọc ra hai việc khác nhau.
+    3. **Làn 0 CHỪA RIÊNG cho việc ngắn** — đợt dài chỉ dùng làn 1–2. Đo trên bộ
+       thư dày: tuần 14–20/9 có BA đợt dài chồng nhau, chiếm sạch ba làn, và cả
+       tuần không hiện nổi một việc hằng ngày nào (tám việc thứ Sáu dồn vào "+8").
+       Lịch không cho thấy việc phải làm hôm nay thì hỏng nặng hơn lịch giấu bớt
+       một đợt dài.
   - **Ưu tiên là TRỤC RIÊNG (`mucUuTien`), không phải `mucRuiRo`.** Thang rủi ro cố
     ý giữ cấp 3 cực hiếm nên 13/13 việc demo đều cấp 1 — dùng nó để tô thì mọi
     thanh giống hệt nhau. `mucUuTien` gộp `priority` với khoảng cách tới hạn, đi
