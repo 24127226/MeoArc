@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { flushSync } from 'react-dom'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { NavRail } from '@/components/layout/nav-rail'
 import { EmailList } from '@/components/layout/email-list'
 import { EmailDetail } from '@/components/layout/email-detail'
@@ -14,23 +13,8 @@ import { cn } from '@/lib/utils'
 import { AlertOverlay } from '@/components/layout/alert-overlay'
 import type { EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
-
-/** Đổi state có morph mượt qua View Transitions.
- *  Dùng flushSync để DOM cập nhật ĐỒNG BỘ trong callback (chuẩn React 19 + VT),
- *  tránh snapshot che mất panel. Thoái lui an toàn + tôn trọng reduced-motion. */
-function withTransition(fn: () => void) {
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  const doc = document as unknown as { startViewTransition?: (cb: () => void) => unknown }
-  if (reduce || typeof doc.startViewTransition !== 'function') {
-    fn()
-    return
-  }
-  try {
-    doc.startViewTransition(() => flushSync(fn))
-  } catch {
-    fn()
-  }
-}
+import { trichCamKet, apLucTheoNgay } from '@/lib/cam-ket'
+import { chuyenCanh } from '@/lib/chuyen-canh'
 
 /** Layout 3 phần: nav rail trái · email list giữa · (chi tiết email | AI chat) phải */
 export function AppShell() {
@@ -110,13 +94,19 @@ export function AppShell() {
       return
     }
     setActiveNav(id)
-    withTransition(() => setOpenedId(null))
+    chuyenCanh(() => setOpenedId(null))
   }
   const inboxUnread = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox' && e.unread).length
 
+  // Áp lực 7 ngày cho dải ở thanh điều hướng. Tính Ở ĐÂY chứ không trong nav-rail
+  // để nav-rail không phải biết gì về tầng lịch trình — nó còn được dùng ở chỗ
+  // khác, và một thanh điều hướng tự đi lấy dữ liệu nghiệp vụ là chỗ rất dễ kẹt
+  // về sau.
+  const apLuc = useMemo(() => apLucTheoNgay(trichCamKet(emails), 7), [emails])
+
   // Mở email = chuyển panel phải sang chi tiết + đánh dấu đã đọc (UC004)
   const openEmail = (id: string) => {
-    withTransition(() => setOpenedId(id))
+    chuyenCanh(() => setOpenedId(id))
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, unread: false } : e)))
     // Chế độ backend thật: tải nội dung ĐẦY ĐỦ của thư (thân thư + đính kèm) từ Gmail,
     // rồi trộn vào thư trong danh sách → màn chi tiết hiện đủ thay vì chỉ snippet.
@@ -138,7 +128,7 @@ export function AppShell() {
       api.markEmailRead(id, true).catch(() => {})
     }
   }
-  const closeEmail = () => withTransition(() => setOpenedId(null))
+  const closeEmail = () => chuyenCanh(() => setOpenedId(null))
 
   // UC005 — Tìm kiếm trên Gmail (chỉ chế độ backend thật). Gửi từ khoá `q` sang BE,
   // BE hỏi Gmail rồi trả thư khớp → thay danh sách. Ô rỗng → quay về hộp thư đến.
@@ -187,7 +177,7 @@ export function AppShell() {
 
   // Nút "đoán trước ý định" / palette: đóng chi tiết → mở canvas AI → tự gửi lệnh
   const runAgentAction = (command: string) => {
-    withTransition(() => setOpenedId(null))
+    chuyenCanh(() => setOpenedId(null))
     setPendingCommand(command)
   }
 
@@ -259,6 +249,7 @@ export function AppShell() {
         onSelect={selectNav}
         badges={{ inbox: inboxUnread }}
         agentActive={aiOpen}
+        apLuc={apLuc}
       />
       {/* "Việc của tôi" thay chỗ danh sách thư ở cột giữa — KHÔNG mở thành một
           màn riêng chiếm cả trang. Lý do: nó là một cách nhìn khác về cùng hộp

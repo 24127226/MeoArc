@@ -65,6 +65,24 @@ Token `--background/--list/--panel/--rail/--spark/--active/--accent/--sc-base/--
 ### Panel co giãn (đã làm)
 - **Dải hộp thư** (`email-list.tsx`): kéo giãn bằng grip mép phải (pointer events + pointer capture), kẹp 300–560px, double-click reset (384px), phím ←/→ khi focus, nhớ qua `localStorage['meoarc:listWidth']`.
 - **Nav rail** (`nav-rail.tsx`): nút chevron thu (icon-only 76px) ↔ mở (sidebar có nhãn 212px), animate `transition-[width]`, nhớ qua `localStorage['meoarc:navCollapsed']`.
+  - **Ba mục chính to + thư mục thành LƯỚI Ô VUÔNG luôn hiện** (`OThuMuc`, 3 cột khi
+    mở / 1 cột khi thu). Bản trước giấu 6 thư mục sau nút "Thư mục": sửa được thứ
+    bậc nhưng để lại khoảng trống cao ~350px giữa thanh (đo trên 1440×900) và thêm
+    một cú bấm mới tới được Thư rác. Lưới vuông xoá cả hai.
+  - **Dải áp lực 7 ngày** (`DaiApLuc`) lấp phần trống còn lại bằng THÔNG TIN, không
+    phải hoạ tiết. Thang TUYỆT ĐỐI (trần 6 giờ) chứ không co theo tuần — co thang
+    thì tuần nhẹ trông y hệt tuần nặng. Tuần nhẹ cho cột thấp nên có thêm dòng số
+    bên dưới. `apLuc` do app-shell tính rồi truyền vào; không truyền thì không vẽ,
+    giữ nav rail độc lập với tầng lịch trình.
+
+### Chuyển cảnh — `src/lib/chuyen-canh.ts`
+`chuyenCanh(fn)` bọc thay đổi trạng thái trong View Transitions API. `flushSync` là
+BẮT BUỘC (React 19 gom cập nhật; thiếu nó thì trình duyệt chụp "ảnh mới" lúc DOM
+chưa đổi và không có chuyển tiếp nào). Thoái lui an toàn khi trình duyệt thiếu API,
+tôn trọng `prefers-reduced-motion`. Dùng cho: đổi trang (nav rail → `/lich`, nút quay
+lại), mở/đóng thư toàn màn, mở chat ở trang lịch. CSS `::view-transition-old/new(root)`
+thêm trượt nhẹ — mờ chồng thuần không cho biết cái cũ đi đâu, cái mới từ đâu tới.
+Đã đo: bấm "Lịch trình" → gọi 1 lần, bấm quay lại → 2 lần.
 
 ### Tính năng Agent-Native (đã thêm 2026-06-20)
 - **AI Triage Badge** (UC015): field `priority` ('action'/'waiting'/'fyi') + `tldr` trong `src/data/emails.ts`; badge "Cần xử lý/Đang đợi" trên email card (`PRIORITY` map trong email-list.tsx).
@@ -112,16 +130,39 @@ giữa ba cột là tự hạ nó xuống ngang hàng với "Thùng rác".
   + danh sách "Sắp tới" (phần tóm tắt), cột phải là lưới thẻ. Bản trước xếp dọc
   (lịch to rồi tóm tắt bên dưới) nên phải cuộn — mà cuộn trong một trang lịch là
   hỏng: người ta mở lịch để NHÌN THẤY CẢ BỨC TRANH.
-  - **Thẻ, không phải chấm.** Một hạn nộp thứ Sáu KHÔNG phải việc của thứ Sáu:
-    cần 6 tiếng thì nó là việc của cả thứ Tư và thứ Năm. `batDau` (từ `tinhBatDau`)
-    cho thẻ TRẢI DÀI qua đúng số ngày; chỉ ngày đầu mang chữ, ngày giữa/cuối là
-    thanh nối (góc cắt chỉ ở hai đầu đợt) — lặp tiêu đề mọi ngày thì mắt đọc ra
-    ba việc chứ không phải một việc kéo dài. Chặn ở 14 ngày để một ước lượng hỏng
-    không bôi kín cả lưới.
-  - **Xếp lớp khi nhiều.** Lệch 3px lúc nghỉ, xoè thành hàng khi rê chuột; ưu tiên
-    cao nhất nằm trên cùng. Vẽ đủ 4 thẻ thì ô cao gấp 4 ô khác và cả lưới méo.
-  - **Bấm thẻ → `KhungHoi`**: chọn "Xem thư gốc" hay "Hỏi trợ lý về việc này".
-    Xem thư mở `EmailDetail` toàn màn; quay lại về đúng chỗ cũ vì lịch không unmount.
+  - **Thanh, không phải chấm — và vẽ theo LỚP PHỦ, không theo ô.** Một hạn nộp
+    thứ Sáu KHÔNG phải việc của thứ Sáu: cần 6 tiếng thì nó là việc của cả thứ Tư
+    và thứ Năm. Bản đầu để mỗi ô ngày tự vẽ phần của mình rồi trông chờ các mảnh
+    cạnh nhau trông liền — chúng KHÔNG liền (khe lưới, viền, padding), nên một
+    việc ba ngày hiện ra ba viên rời và mắt đọc ra ba việc. Nay `xepDoanTheoTuan`
+    tính sẵn mỗi việc chiếm cột nào tới cột nào trên hàng tuần, và `HangTuan` vẽ
+    MỘT phần tử trải ngang qua các cột đó. Lớp thanh dùng lại đúng `grid-cols-7
+    gap-1` của lớp ô bên dưới nên tự khớp cột, không tính phần trăm tay.
+  - **Xếp làn khi nhiều.** Mỗi làn là một hàng của lưới con (`grid-rows-[repeat(3,17px)]`).
+    Tham lam: việc gấp và việc dài lên làn trên. Quá 3 làn thì không vẽ, ngày đó
+    mang số "+N" — thà nói thẳng "còn nữa" hơn vẽ tràn làm méo lưới.
+  - **Ưu tiên là TRỤC RIÊNG (`mucUuTien`), không phải `mucRuiRo`.** Thang rủi ro cố
+    ý giữ cấp 3 cực hiếm nên 13/13 việc demo đều cấp 1 — dùng nó để tô thì mọi
+    thanh giống hệt nhau. `mucUuTien` gộp `priority` với khoảng cách tới hạn, đi
+    theo hệ màu riêng (`.uu-tien-1/2/3`, biến `--ut`) để đỏ ở hai thang không lẫn
+    nghĩa. Ba mức khác nhau ở BỐN thứ cùng lúc: hình (▲◆▪), độ dày vạch trái,
+    cường độ quầng, độ đậm chữ — chỉ đổi màu là không đủ.
+  - **Lưới là BẢN ĐỒ, bảng rê chuột là CHI TIẾT.** Thanh cao 17px trong ô ngày thì
+    tiêu đề LUÔN bị cắt — giới hạn của lưới tháng, không sửa được bằng cỡ chữ.
+    `ThanhViec` (rộng 300px) mới là chỗ đọc đủ: nhãn ưu tiên, hạn, tiêu đề đầy đủ,
+    người chờ, thời lượng, rồi hai nút. Tự lật lên trên khi thẻ sát đáy màn hình.
+  - **Mở ra ở chỗ CÓ VIỆC** (`thangNenMo`): nhảy tới tháng chứa việc gần nhất thay
+    vì tháng hiện tại — nếu không, ngày 29/08 mở ra là một tháng 8 trống trơn còn
+    nội dung thật nằm ở hàng ngoài tháng và bị làm mờ. Chỉ nhảy MỘT LẦN.
+  - **Cắt hàng tuần rỗng ở đáy.** Lưới luôn 42 ô nhưng phần lớn tháng chỉ cần 5
+    hàng; giữ hàng thừa là ăn mất 1/6 chiều cao để không nói gì.
+  - **Vạch tải ở đáy mỗi ô**: `phutMoiNgay` chia đều theo số ngày việc trải qua.
+    Cộng thẳng `uocLuongPhut` cho mọi ngày (bản cũ) thì việc 6 tiếng trải 3 ngày
+    thành 18 tiếng và ngày nào cũng "quá tải" — cảnh báo luôn bật thì hết tác dụng.
+  - **`.goc-cat` đặt `position: relative` và THẮNG `fixed` của Tailwind** (CSS tự
+    viết nằm ngoài `@layer`). Mọi phần tử nổi dùng class này PHẢI ghi `position`
+    nội tuyến. Đã vấp hai lần — nút trợ lý và thanh hành động (đo được: left 2260,
+    top 1017 trên khung 1440×900, tức ngoài màn hình).
   - **Chat = nút nổi góc dưới phải.** Mở ra thì lưới tháng NHƯỜNG CHỖ cho danh
     sách — vừa mở chat là đang muốn BÀN về lịch, không phải ngắm lưới tháng.
   Dùng lại đúng `ChatPanel`; truyền `EmailActions` rỗng: trang này không thao tác thư.

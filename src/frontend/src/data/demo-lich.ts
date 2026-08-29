@@ -114,6 +114,81 @@ export const DEMO_LICH: Email[] = [
     tldr: 'Hạn đóng học phí HK1: ngày 25/9, quá hạn bị khoá kết quả.',
   },
 
+  /* ── BA VIỆC DỒN VÀO CÙNG MỘT NGÀY (10/9) ──
+     Đây là tình huống làm vỡ mọi thiết kế lịch ẩu, nên phải có trong bộ demo:
+     một ngày nhiều việc thì lưới có méo không, chữ có bị nuốt không, và người
+     dùng có đọc được cái nào quan trọng hơn không. */
+  {
+    id: 'd9', sender: 'Nguyễn Hoàng Anh', senderEmail: 'hoanganh@fit.hcmus.edu.vn',
+    senderInitial: 'H', to: TOI,
+    subject: 'Bản vẽ kiến trúc hệ thống — hạn 10/9',
+    preview: 'Nhóm nộp bản vẽ kiến trúc trước 23:59 ngày 10/9…',
+    body: [
+      'Chào nhóm 7,',
+      'Nhóm nộp bản vẽ kiến trúc hệ thống trước 23:59 ngày 10/9, gồm sơ đồ thành phần, sơ đồ tuần tự cho ba luồng chính, và bản mô tả lựa chọn công nghệ kèm lý do.',
+      'Phần mô tả lựa chọn công nghệ cần nói rõ vì sao chọn, đã cân nhắc phương án nào khác, và đánh đổi là gì. Đây là phần các nhóm hay làm sơ sài nhất.',
+    ],
+    time: '09:40', date: '04/09/2026', unread: true, starred: false,
+    category: 'sea', label: 'Học tập', folder: 'inbox',
+    priority: 'High', status: 'Todo',
+    tldr: 'Nộp bản vẽ kiến trúc hệ thống trước 23:59 ngày 10/9.',
+  },
+  {
+    id: 'd10', sender: 'CLB Học thuật', senderEmail: 'clb@fit.hcmus.edu.vn',
+    senderInitial: 'C', to: TOI,
+    subject: 'Seminar sáng 10/9 — gửi slide',
+    preview: 'Bạn trình bày lúc 9h ngày 10/9, gửi slide trước…',
+    body: [
+      'Chào bạn, bạn trình bày lúc 9h ngày 10/9 tại phòng E203. Gửi slide cho ban tổ chức trước một hôm để chiếu thử.',
+    ],
+    time: '16:10', date: '05/09/2026', unread: false, starred: false,
+    category: 'sky', label: 'Hoạt động', folder: 'inbox',
+    priority: 'Medium', status: 'Todo',
+    tldr: 'Trình bày seminar 9h ngày 10/9, gửi slide trước một hôm.',
+  },
+  {
+    id: 'd11', sender: 'Trần Minh Khoa', senderEmail: 'khoa.tran@gmail.com',
+    senderInitial: 'K', to: TOI,
+    subject: 'Kiểm thử tích hợp — cần xong trước 10/9',
+    preview: 'Mình cần bạn hoàn thành phần kiểm thử tích hợp trước ngày 10/9…',
+    body: [
+      'Bạn ơi,',
+      'Mình cần bạn hoàn thành phần kiểm thử tích hợp trước ngày 10/9 để mình còn ghép vào bản báo cáo. Phần này gồm ca kiểm thử cho luồng đăng nhập, luồng đồng bộ thư, và luồng gọi agent.',
+      'Mỗi luồng cần ít nhất một ca thuận và hai ca nghịch, kèm ảnh chụp kết quả chạy thật. Riêng luồng đồng bộ nhớ thêm ca mạng đứt giữa chừng, vì đó là chỗ hay hỏng nhất mà lại chưa ai kiểm.',
+      'Nếu kẹt phần nào thì nhắn sớm, đừng để tới sát ngày. Tuần trước mình đã mất hai hôm chỉ để dựng lại môi trường chạy test nên biết nó tốn thời gian hơn mình tưởng.',
+    ],
+    time: '21:15', date: '03/09/2026', unread: true, starred: false,
+    category: 'cherry', label: 'Công việc', folder: 'inbox',
+    priority: 'High', status: 'Todo',
+    tldr: 'Hoàn thành kiểm thử tích hợp trước ngày 10/9 để Khoa ghép báo cáo.',
+  },
+
+  /* ── MỘT VIỆC KÉO DÀI NHIỀU NGÀY ──
+     Thư dài + ưu tiên cao → ước lượng 480 phút → trải 3 ngày. Đây là thứ cuốn
+     lịch thường vẽ thành MỘT CHẤM ở ngày hạn, và cũng chính là lý do người ta
+     hay vỡ kế hoạch: nhìn thấy một chấm ở 16/9 thì tưởng đó là việc của 16/9. */
+  {
+    id: 'd12', sender: 'Giáo vụ HCMUS', senderEmail: 'giaovu@fit.hcmus.edu.vn',
+    senderInitial: 'G', to: TOI,
+    subject: 'Tài liệu SRS bản cuối — nộp trước 17:00 ngày 16/9',
+    preview: 'Các nhóm nộp tài liệu SRS bản cuối trước 17:00 ngày 16/9…',
+    body: [
+      'Chào các em,',
+      'Các nhóm nộp tài liệu SRS bản cuối trước 17:00 ngày 16/9. Đây là bản dùng để chấm, không nhận bản bổ sung sau thời hạn, nên các em kiểm tra kỹ trước khi nộp.',
+      'Tài liệu cần đầy đủ các phần sau. Phần mở đầu gồm mục đích, phạm vi, định nghĩa thuật ngữ và tài liệu tham chiếu. Phần mô tả tổng quan gồm bối cảnh sản phẩm, các chức năng chính, đặc điểm người dùng, ràng buộc thiết kế, giả định và phụ thuộc.',
+      'Phần đặc tả yêu cầu là phần nặng nhất và cũng là phần bị trừ điểm nhiều nhất. Mỗi use case phải có đủ tác nhân, tiền điều kiện, hậu điều kiện, luồng chính, luồng thay thế và luồng ngoại lệ. Luồng ngoại lệ là chỗ các nhóm hay bỏ trống, trong khi đó mới là chỗ thể hiện các em đã nghĩ tới trường hợp hỏng hay chưa.',
+      'Yêu cầu phi chức năng phải đo được. Viết "hệ thống phải nhanh" là không chấp nhận được; phải viết thành ngưỡng cụ thể, ví dụ thời gian phản hồi trung bình dưới hai giây với một trăm người dùng đồng thời. Mỗi yêu cầu phi chức năng cần nói rõ đo bằng cách nào.',
+      'Phần mô hình hoá cần sơ đồ use case tổng thể, sơ đồ lớp cho miền nghiệp vụ, và sơ đồ tuần tự cho ít nhất ba use case phức tạp nhất. Các sơ đồ phải khớp với phần đặc tả chữ; nhóm nào để sơ đồ nói một đằng chữ nói một nẻo sẽ bị trừ nặng.',
+      'Cuối cùng là phụ lục gồm bảng phân công công việc theo từng thành viên, biên bản các buổi họp nhóm, và ảnh chụp giao diện đã dựng. Bảng phân công phải ghi rõ ai làm phần nào và chiếm bao nhiêu phần trăm khối lượng.',
+      'Các em bắt đầu sớm. Kinh nghiệm các khoá trước cho thấy phần đặc tả use case tốn nhiều thời gian hơn mọi người dự tính, và dồn vào hai ngày cuối thì chất lượng rơi thấy rõ.',
+      'Trân trọng, Phòng Giáo vụ',
+    ],
+    time: '07:50', date: '06/09/2026', unread: true, starred: true,
+    category: 'moss', label: 'Học tập', folder: 'inbox',
+    priority: 'High', status: 'Todo',
+    tldr: 'Nộp SRS bản cuối trước 17:00 ngày 16/9 — bản dùng để chấm, không nhận bổ sung.',
+  },
+
   /* ── HAI THƯ KHÔNG PHẢI CAM KẾT ──
      Cả hai đều CÓ ngày tháng nhưng KHÔNG có nghĩa vụ nào. Bộ trích phải bỏ qua
      chúng, và đó chính là chỗ chứng minh nó không nhận bừa mọi thứ có con số. */

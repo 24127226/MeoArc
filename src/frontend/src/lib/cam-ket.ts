@@ -61,6 +61,9 @@ export type CamKet = {
   /** Ước lượng thô số phút cần làm — nền cho phần cảnh báo quá tải. */
   uocLuongPhut: number
   mucRuiRo: MucRuiRo
+  /** "Làm cái nào trước" — TRỤC KHÁC `mucRuiRo` ("hỏng thì mất gì").
+   *  Xem `mucUuTien()` để biết vì sao phải tách. */
+  mucUuTien: 1 | 2 | 3
 }
 
 /** Động từ báo hiệu một nghĩa vụ. Chỉ có ngày tháng thì chưa đủ — "hẹn gặp lại
@@ -163,9 +166,35 @@ export function docHan(van: string, moc = new Date()): { han: Date; suyRa: boole
     if (ngay >= 1 && ngay <= 31 && thang >= 1 && thang <= 12) {
       let nam = m[3] ? Number(m[3]) : moc.getFullYear()
       if (nam < 100) nam += 2000
-      const gio = m[4] ? Number(m[4]) : 23
-      const phut = m[5] ? Number(m[5]) : 59
-      const d = new Date(nam, thang - 1, ngay, gio, phut)
+
+      let gio = m[4] ? Number(m[4]) : null
+      let phut = m[4] ? (m[5] ? Number(m[5]) : 0) : null
+
+      // GIỜ CÓ THỂ ĐỨNG TRƯỚC NGÀY. `NGAY_TUYET_DOI` chỉ bắt giờ đi SAU ("16/9
+      // lúc 17:00"), trong khi tiếng Việt hay viết ngược lại — "trước 17:00 ngày
+      // 16/9". Thiếu nhánh này thì giờ rơi về mặc định 23:59, và giao diện hiện
+      // một con số MÂU THUẪN với chính câu chữ ngay bên cạnh nó. Đo thật trên thư
+      // demo SRS: thư ghi 17:00, thẻ lịch ghi 23:59.
+      //
+      // Một hạn sai 7 tiếng thì tệ hơn hẳn không có hạn: người dùng tin vào nó.
+      if (gio === null) {
+        const truoc = van.slice(Math.max(0, (m.index ?? 0) - 20), m.index ?? 0)
+        // Lấy lần khớp CUỐI CÙNG — gần ngày nhất mới là giờ của ngày đó.
+        const moiKhop = [...truoc.matchAll(/(\d{1,2})\s*(?::|h|giờ)\s*(\d{2})?/gi)]
+        const cuoi = moiKhop[moiKhop.length - 1]
+        if (cuoi) {
+          const g = Number(cuoi[1])
+          if (g >= 0 && g <= 23) {
+            gio = g
+            phut = cuoi[2] ? Number(cuoi[2]) : 0
+          }
+        }
+      }
+      // Vẫn không có giờ → 23:59, tức CUỐI ngày hạn. Chọn cuối ngày chứ không phải
+      // đầu ngày: "nộp trước ngày 16/9" nghĩa là hết ngày 16 vẫn còn kịp.
+      if (gio === null) { gio = 23; phut = 59 }
+
+      const d = new Date(nam, thang - 1, ngay, gio, phut ?? 0)
       // Không ghi năm mà ngày đã qua → hiểu là năm sau. "nộp trước 15/1" gửi
       // hồi tháng 12 nói về tháng 1 năm sau, không phải tháng 1 vừa rồi.
       if (!m[3] && d.getTime() < moc.getTime() - 86400000) d.setFullYear(nam + 1)
@@ -186,6 +215,30 @@ export function mucRuiRo(e: Email, han: Date | null, moc = new Date()): MucRuiRo
   // Quá hạn, hoặc còn dưới một ngày, và có người đang chờ → cấp 2.
   if (conLai < 24 * 3600 * 1000 && e.priority === 'High') return 2
   if (conLai < 0) return 2
+  return 1
+}
+
+/** Mức ƯU TIÊN — TRỤC KHÁC HẲN mức rủi ro, đừng gộp hai thứ.
+ *
+ *  `mucRuiRo` trả lời "hỏng thì mất gì" và cố ý giữ cấp 3 cực hiếm, nên ở giai
+ *  đoạn này gần như mọi cam kết đều là cấp 1. Đúng với vai trò của nó — nhưng
+ *  nghĩa là màn lịch không có gì để phân biệt việc gấp với việc thường, và mọi
+ *  thanh hiện ra y hệt nhau. Đo thật trên bộ demo: 13/13 việc đều cấp 1.
+ *
+ *  `mucUuTien` trả lời câu khác: "làm cái nào trước". Nó gộp mức ưu tiên do AI
+ *  gán với khoảng cách tới hạn — vì một việc High còn hai tuần thì không gấp
+ *  bằng một việc Medium đến hạn ngày mai.
+ *
+ *  Giữ hai thang tách rời cũng để màu không nói dối: đỏ ở thang rủi ro nghĩa là
+ *  "mất tiền", đỏ ở thang ưu tiên chỉ nghĩa là "làm ngay". Trộn vào nhau thì cả
+ *  hai đều mất nghĩa. */
+export function mucUuTien(e: Email, han: Date | null, moc = new Date()): 1 | 2 | 3 {
+  if (!han) return 1
+  const ngayConLai = (han.getTime() - moc.getTime()) / 86400000
+  const cao = e.priority === 'High'
+  if (ngayConLai < 0) return 3                    // đã trễ
+  if (cao && ngayConLai <= 3) return 3            // nặng VÀ sát
+  if (cao || ngayConLai <= 2) return 2            // nặng, HOẶC sát
   return 1
 }
 
@@ -211,7 +264,12 @@ export function tinhBatDau(han: Date, phut: number): Date | null {
  *  đoán bừa rồi cho ra một kế hoạch không ai tin thì tệ hơn không có. */
 function uocLuong(e: Email): number {
   const soChu = e.body.join(' ').trim().split(/\s+/).length
-  const nen = soChu > 220 ? 120 : soChu > 90 ? 60 : 30
+  // Bậc cao nhất TỪNG dừng ở 220 chữ, nên mọi việc lớn đều bị quy về cùng một
+  // con số 240 phút — tức là không việc nào trải quá 2 ngày, và cái thanh dài
+  // nhiều ngày (thứ màn lịch này sinh ra để cho thấy) không bao giờ xuất hiện.
+  // Một đặc tả 500 chữ rõ ràng nặng hơn một lời nhắc 230 chữ; bảng cũ không phân
+  // biệt được.
+  const nen = soChu > 400 ? 240 : soChu > 220 ? 120 : soChu > 90 ? 60 : 30
   return e.priority === 'High' ? nen * 2 : nen
 }
 
@@ -249,6 +307,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
         doTinCay: 0.9,
         uocLuongPhut: 0,
         mucRuiRo: 1,
+        mucUuTien: 1,
       })
       continue
     }
@@ -280,6 +339,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
       doTinCay,
       uocLuongPhut: uocLuong(e),
       mucRuiRo: mucRuiRo(e, han, moc),
+      mucUuTien: mucUuTien(e, han, moc),
     })
   }
 
@@ -307,12 +367,24 @@ export function apLucTheoNgay(
     d.setHours(0, 0, 0, 0)
     const het = new Date(d)
     het.setDate(het.getDate() + 1)
-    const trong = ds.filter(
-      (c) => c.han && c.trangThai !== 'xong' && c.han >= d && c.han < het,
-    )
+
+    // TÍNH THEO KHOẢNG LÀM, KHÔNG THEO NGÀY HẠN.
+    //
+    // Bản trước chỉ cộng việc ĐẾN HẠN đúng ngày đó, nên một việc 8 tiếng hạn thứ
+    // Sáu làm cho thứ Tư và thứ Năm hiện ra RỖNG — đúng cái ảo giác mà cả tính
+    // năng này sinh ra để phá. Đo thật trên bộ demo: 5/7 cột trống trơn dù tuần
+    // đó có việc dồn.
+    //
+    // Nay mỗi ngày nhận phần việc của nó (`phutMoiNgay` đã chia đều theo số ngày
+    // việc trải qua), nên "hôm nay nặng bao nhiêu" mới là con số thật.
+    const trong = ds.filter((c) => {
+      if (!c.han || c.trangThai === 'xong') return false
+      const k = khoangNgay(c)
+      return !!k && k.dau < het && k.cuoi >= d
+    })
     ra.push({
       ngay: d,
-      phut: trong.reduce((s, c) => s + c.uocLuongPhut, 0),
+      phut: trong.reduce((s, c) => s + phutMoiNgay(c), 0),
       soViec: trong.length,
     })
   }
@@ -370,6 +442,162 @@ export function viTriTrongDot(ck: CamKet, ngay: Date): 'don' | 'dau' | 'giua' | 
   if (d === khoaNgay(ck.batDau)) return 'dau'
   if (d === khoaNgay(ck.han)) return 'cuoi'
   return 'giua'
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   XẾP LÀN — biến cam kết thành các THANH nằm ngang trên từng hàng tuần
+
+   VÌ SAO CẦN. Bản trước vẽ thẻ theo TỪNG Ô NGÀY: mỗi ô tự vẽ phần của mình rồi
+   trông chờ các mảnh nằm cạnh nhau sẽ trông như một thanh liền. Chúng không liền
+   — giữa hai ô có padding, có viền, có khe lưới — nên một việc ba ngày hiện ra
+   thành ba viên rời rạc. Mắt đọc ra ba việc. Đó đúng là hiểu sai tai hại nhất mà
+   màn lịch này sinh ra, vì cả lý do tồn tại của nó là cho thấy việc DÀI tới đâu.
+
+   Cách chữa duy nhất là ngừng vẽ theo ô: tính sẵn mỗi việc chiếm từ cột nào tới
+   cột nào trên hàng tuần, rồi vẽ MỘT phần tử trải ngang qua các cột đó.
+
+   XẾP LÀN. Nhiều việc trùng ngày thì phải nằm chồng lớp, mỗi việc một làn ngang.
+   Thuật toán tham lam: xếp việc quan trọng trước, mỗi việc rơi vào làn TRỐNG thấp
+   nhất còn chỗ. Việc nào không còn làn thì không vẽ, và những ngày nó phủ qua sẽ
+   mang số "+N" — thà nói thẳng "còn nữa" hơn là vẽ tràn làm méo cả lưới.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/** Một đoạn thẻ nằm trên MỘT hàng tuần. Việc vắt qua hai tuần sinh ra hai đoạn. */
+export type DoanThe = {
+  ck: CamKet
+  /** Cột bắt đầu trong tuần: 0 = thứ Hai … 6 = Chủ nhật. */
+  cot: number
+  /** Số cột chiếm (≥ 1). */
+  rong: number
+  /** Làn thứ mấy trong hàng (0 = trên cùng). */
+  lan: number
+  /** Đoạn này có chứa ngày BẮT ĐẦU thật của việc không → bo góc trái, mang chữ. */
+  moDau: boolean
+  /** … ngày HẠN thật → bo góc phải, là chỗ đặt dấu hạn. */
+  ketThuc: boolean
+}
+
+/** Tối đa 3 làn mỗi hàng tuần. Hơn nữa thì ô cao gấp bội các ô khác và lưới méo —
+ *  mà lưới méo thì mất luôn khả năng so sánh ngày này với ngày kia bằng mắt. */
+export const SO_LAN_TOI_DA = 3
+
+/** Khoảng ngày một cam kết thật sự chiếm (đã chặn 14 ngày như `gomTheoNgay`). */
+function khoangNgay(c: CamKet): { dau: Date; cuoi: Date } | null {
+  if (!c.han) return null
+  const cuoi = new Date(c.han); cuoi.setHours(0, 0, 0, 0)
+  const dau = new Date(c.batDau ?? c.han); dau.setHours(0, 0, 0, 0)
+  const soNgay = Math.min(14, Math.max(1, Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1))
+  const dauChan = new Date(cuoi); dauChan.setDate(dauChan.getDate() - (soNgay - 1))
+  return { dau: dauChan, cuoi }
+}
+
+/** Số phút việc này chiếm TRONG MỘT NGÀY (đã chia đều cho số ngày nó trải qua).
+ *
+ *  Trước đây vạch quá tải cộng thẳng `uocLuongPhut` cho mọi ngày mà việc phủ qua,
+ *  nên một việc 6 tiếng trải 3 ngày bị tính 6 tiếng ở CẢ BA ngày — thành 18 tiếng.
+ *  Kết quả là gần như ngày nào cũng "quá tải", mà cảnh báo lúc nào cũng bật thì
+ *  chẳng còn là cảnh báo nữa. */
+export function phutMoiNgay(c: CamKet): number {
+  const k = khoangNgay(c)
+  if (!k) return 0
+  const soNgay = Math.round((k.cuoi.getTime() - k.dau.getTime()) / 86400000) + 1
+  return c.uocLuongPhut / Math.max(1, soNgay)
+}
+
+/** Xếp cam kết thành các đoạn thanh cho từng hàng tuần của lưới 42 ô.
+ *
+ *  Trả về đúng 6 phần tử (6 hàng tuần), mỗi phần tử gồm:
+ *   • `doan` — các thanh vẽ được, đã gán làn
+ *   • `du`   — Map khoáNgày → số việc KHÔNG vẽ được ở ngày đó (để hiện "+N")
+ *   • `soLan`— số làn thật sự dùng, để hàng nào ít việc thì không chừa chỗ thừa
+ */
+export function xepDoanTheoTuan(
+  ds: CamKet[], o: Date[],
+): { doan: DoanThe[]; du: Map<string, number>; soLan: number }[] {
+  const ra: { doan: DoanThe[]; du: Map<string, number>; soLan: number }[] = []
+
+  for (let w = 0; w < 6; w++) {
+    const tuan = o.slice(w * 7, w * 7 + 7)
+    if (tuan.length < 7) { ra.push({ doan: [], du: new Map(), soLan: 0 }); continue }
+    const tuanDau = new Date(tuan[0]); tuanDau.setHours(0, 0, 0, 0)
+    const tuanCuoi = new Date(tuan[6]); tuanCuoi.setHours(0, 0, 0, 0)
+
+    // Cắt mỗi cam kết theo phần giao với tuần này.
+    type UngVien = { ck: CamKet; cot: number; rong: number; moDau: boolean; ketThuc: boolean }
+    const ung: UngVien[] = []
+    for (const c of ds) {
+      const k = khoangNgay(c)
+      if (!k) continue
+      if (k.cuoi < tuanDau || k.dau > tuanCuoi) continue
+      const dau = k.dau < tuanDau ? tuanDau : k.dau
+      const cuoi = k.cuoi > tuanCuoi ? tuanCuoi : k.cuoi
+      const cot = Math.round((dau.getTime() - tuanDau.getTime()) / 86400000)
+      const rong = Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1
+      ung.push({
+        ck: c, cot, rong,
+        moDau: khoaNgay(dau) === khoaNgay(k.dau),
+        ketThuc: khoaNgay(cuoi) === khoaNgay(k.cuoi),
+      })
+    }
+
+    // Việc NẶNG và việc DÀI lên làn trên. Thanh dài nằm trên thì mắt bắt được
+    // ngay "đợt này kéo cả tuần"; nhét nó xuống dưới cùng thì nó biến thành chi
+    // tiết phụ, mà nó lại chính là thứ đáng báo động nhất.
+    // Xếp theo ƯU TIÊN, không phải rủi ro: rủi ro gần như luôn bằng 1 nên dùng nó
+    // để xếp thì thứ tự rơi hết về tiêu chí phụ, và việc gấp có thể nằm dưới cùng.
+    ung.sort((a, b) =>
+      b.ck.mucUuTien - a.ck.mucUuTien || b.rong - a.rong || a.cot - b.cot ||
+      (a.ck.id < b.ck.id ? -1 : a.ck.id > b.ck.id ? 1 : 0))
+
+    const lanDaDung: { tu: number; den: number }[][] = []
+    const doan: DoanThe[] = []
+    const du = new Map<string, number>()
+
+    for (const u of ung) {
+      const tu = u.cot, den = u.cot + u.rong - 1
+      let lan = -1
+      for (let i = 0; i < SO_LAN_TOI_DA; i++) {
+        const dang = lanDaDung[i]
+        if (!dang) { lanDaDung[i] = []; lan = i; break }
+        if (dang.every((x) => den < x.tu || tu > x.den)) { lan = i; break }
+      }
+      if (lan < 0) {
+        // Hết làn → ghi "+1" cho MỌI ngày việc này phủ qua trong tuần, vì người
+        // dùng bấm vào ngày nào cũng phải thấy nó còn ở đó.
+        for (let i = tu; i <= den; i++) {
+          const k = khoaNgay(tuan[i])
+          du.set(k, (du.get(k) ?? 0) + 1)
+        }
+        continue
+      }
+      lanDaDung[lan].push({ tu, den })
+      doan.push({ ck: u.ck, cot: u.cot, rong: u.rong, lan, moDau: u.moDau, ketThuc: u.ketThuc })
+    }
+
+    ra.push({ doan, du, soLan: lanDaDung.length })
+  }
+  return ra
+}
+
+/** Tháng NÊN mở khi vào trang: tháng chứa việc gần nhất còn hạn, không phải tháng
+ *  hiện tại. Đo thật ngày 29/08: mọi việc rơi vào tháng 9 nên mở ra thấy tháng 8
+ *  trống trơn, còn nội dung thật thì nằm ở hàng "ngoài tháng" và bị làm mờ 30% —
+ *  màn hình vừa trống vừa giấu mất thứ đáng xem. Lịch phải mở ra ở CHỖ CÓ VIỆC. */
+export function thangNenMo(ds: CamKet[], homNay = new Date()): Date {
+  const moc = new Date(homNay.getFullYear(), homNay.getMonth(), 1)
+  const conHan = ds
+    .filter((c) => c.han && c.trangThai !== 'xong')
+    .map((c) => c.han as Date)
+    .sort((a, b) => a.getTime() - b.getTime())
+  if (!conHan.length) return moc
+  // Việc trong tháng này (kể cả đã qua vài ngày) thì cứ ở tháng này.
+  const trongThang = conHan.find(
+    (d) => d.getFullYear() === homNay.getFullYear() && d.getMonth() === homNay.getMonth(),
+  )
+  if (trongThang) return moc
+  const sau = conHan.find((d) => d >= homNay)
+  const chon = sau ?? conHan[conHan.length - 1]
+  return new Date(chon.getFullYear(), chon.getMonth(), 1)
 }
 
 /** 42 ô của một lưới lịch tháng (6 tuần × 7 ngày), bắt đầu từ THỨ HAI.

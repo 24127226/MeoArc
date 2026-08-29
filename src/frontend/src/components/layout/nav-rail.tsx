@@ -12,30 +12,33 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ShieldAlert,
-  MoreHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LogoMark } from '@/components/logo'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { SettingsDialog } from '@/components/layout/settings-dialog'
 import { NotificationBell } from '@/components/layout/notification-bell'
+import { chuyenCanh } from '@/lib/chuyen-canh'
 
 type NavItem = { id: string; label: string; icon: React.ElementType; sangTrang?: string }
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   BA MỤC CHÍNH, PHẦN CÒN LẠI GIẤU SAU MỘT NÚT
+   BA MỤC CHÍNH TO, THƯ MỤC THÀNH LƯỚI Ô VUÔNG
 
-   Trước đây thanh này có tám mục ngang hàng nhau: Hộp thư, AI Agent, Lịch trình,
-   Gắn sao, Đã gửi, Nháp, Lưu trữ, Thùng rác. Xếp ngang hàng nghĩa là nói với
-   người dùng rằng "Thùng rác" quan trọng bằng "AI Agent" — mà đó là điều sai.
+   Bản đầu: tám mục ngang hàng nhau (Hộp thư, Trợ lý, Lịch trình, Gắn sao, Đã gửi,
+   Nháp, Lưu trữ, Thùng rác). Xếp ngang hàng nghĩa là nói với người dùng rằng
+   "Thùng rác" quan trọng bằng "Trợ lý" — điều đó sai.
 
-   MeoArc chỉ có ba thứ đáng gọi là trung tâm: đọc thư, nói chuyện với trợ lý, và
-   giữ lịch trình. Sáu thư mục còn lại là chỗ để TÌM LẠI một lá thư — việc người
-   ta làm vài lần một tuần, không phải vài lần một giờ. Chúng không xứng chiếm
-   chỗ ngang hàng, và để chúng ở đó thì ba mục chính cũng mất luôn sức nặng.
+   Bản hai: ba mục chính to, sáu thư mục giấu sau nút "Thư mục". Sửa được thứ bậc
+   nhưng đẻ ra hai vấn đề mới — một khoảng trống cao gần 350px ở giữa thanh (đo
+   thật trên khung 1440×900), và thêm một cú bấm mới tới được Thư rác.
 
-   Nên: ba mục chính to hơn, luôn thấy. Phần còn lại nằm sau một nút mở, và vùng
-   đó CUỘN ĐƯỢC — thêm thư mục về sau cũng không đẩy hỏng gì.
+   Bản này: ba mục chính giữ nguyên, sáu thư mục thành LƯỚI Ô VUÔNG luôn hiện.
+   Ô nhỏ, nhãn cực nhỏ nên chúng không tranh sức nặng với ba mục trên; mà vì luôn
+   hiện nên không còn cú bấm ở giữa, và đúng phần trống kia được lấp.
+
+   Phần trống còn lại lấp bằng DẢI ÁP LỰC 7 NGÀY — thông tin thật, không phải hoạ
+   tiết. Không có dữ liệu thì không vẽ: thà trống còn hơn một cái khung rỗng.
    ══════════════════════════════════════════════════════════════════════════════ */
 const CHINH: NavItem[] = [
   { id: 'inbox', label: 'Hộp thư', icon: Inbox },
@@ -57,7 +60,6 @@ const PHU: NavItem[] = [
 
 
 const COLLAPSE_KEY = 'meoarc:navCollapsed'
-const MO_RONG_KEY = 'meoarc:navMoRong'
 
 /** Ô trạng thái hệ thống — thay cho đồng hồ cơ mạ vàng ở bản trước.
  *
@@ -116,6 +118,137 @@ function MucNav({
   )
 }
 
+/** Một thư mục dưới dạng ô VUÔNG có góc cắt.
+ *
+ *  Vuông chứ không tròn: góc cắt chéo là ngôn ngữ hình đã dùng xuyên suốt app
+ *  (ô ngày trong lịch, thẻ cam kết, nút hành động). Thêm một hình tròn vào đây là
+ *  thêm một thứ tiếng thứ hai cho cùng một câu. */
+function OThuMuc({
+  item, collapsed, isActive, count, onBam,
+}: {
+  item: NavItem
+  collapsed: boolean
+  isActive: boolean
+  count?: number
+  onBam: () => void
+}) {
+  const Icon = item.icon
+  return (
+    <button
+      onClick={onBam}
+      title={item.label}
+      aria-label={item.label}
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        'goc-cat-nho goc-cat nhay-bat group relative flex flex-col items-center justify-center gap-1',
+        'transition-[box-shadow,background,color] duration-200 ease-spring',
+        collapsed ? 'h-9' : 'h-[52px]',
+        isActive
+          ? 'den-vien-chon bg-secondary text-active'
+          : 'den-vien text-muted-foreground hover:bg-secondary/40 hover:text-foreground',
+      )}
+    >
+      <span className="relative">
+        <Icon className={cn(collapsed ? 'size-[17px]' : 'size-[18px]', isActive && 'stroke-[2.2px]')} />
+        {count ? (
+          <span className="cherry-dot absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-spark text-[9px] font-semibold text-background">
+            {count}
+          </span>
+        ) : null}
+      </span>
+      {!collapsed && (
+        // Nhãn cực nhỏ, chữ hoa giãn — đủ để đọc mà không tranh sức nặng với ba
+        // mục chính ở trên. Bỏ hẳn nhãn thì thành một hàng icon đố chữ.
+        <span className="max-w-full truncate px-0.5 font-mono text-[7.5px] uppercase leading-none tracking-[0.08em]">
+          {item.label}
+        </span>
+      )}
+    </button>
+  )
+}
+
+/** Áp lực 7 ngày tới — bảy cột, cao theo số phút việc dồn vào ngày đó.
+ *
+ *  Đây là thông tin, không phải hoạ tiết lấp chỗ. Nó trả lời đúng câu người ta hỏi
+ *  khi liếc sang thanh bên — "tuần này có nặng không" — mà không phải mở trang
+ *  lịch. Cột vượt trần đổi màu, vì đó là thứ duy nhất đáng phải hành động. */
+function DaiApLuc({
+  apLuc, collapsed,
+}: {
+  apLuc: { ngay: Date; phut: number; soViec: number }[]
+  collapsed: boolean
+}) {
+  const CHU = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+  const tran = 360 // TRAN_MOI_NGAY — giữ số ở đây để nav không phải phụ thuộc cam-ket
+  // THANG TUYỆT ĐỐI, cố ý. Co thang theo tuần thì một tuần nhẹ trông y hệt một
+  // tuần nặng, và cái duy nhất người ta cần biết — "tuần này có gánh nổi không" —
+  // biến mất. Giá phải trả là tuần nhẹ cho cột thấp; bù lại bằng dòng SỐ bên dưới,
+  // vốn đọc chính xác hơn mọi cột.
+  const dinh = Math.max(tran, ...apLuc.map((x) => x.phut))
+  const bay = apLuc.slice(0, 7)
+  const tongPhut = bay.reduce((s, x) => s + x.phut, 0)
+  const tongViec = new Set(bay.flatMap((x) => (x.soViec > 0 ? [x.ngay.toDateString()] : []))).size
+  const soGio = Math.round(tongPhut / 6) / 10
+  const ngayQuaTai = bay.filter((x) => x.phut > tran).length
+
+  return (
+    <div className={cn('mt-4 shrink-0', collapsed ? 'px-2' : 'px-3')}>
+      {!collapsed && (
+        <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
+          Áp lực 7 ngày
+        </p>
+      )}
+      <div className={cn('den-vien goc-cat-nho goc-cat relative px-2 pb-1.5 pt-2')}>
+        <div className="flex items-end justify-between gap-[3px]">
+          {bay.map((x) => {
+            const ty = dinh > 0 ? x.phut / dinh : 0
+            const qua = x.phut > tran
+            return (
+              <span
+                key={x.ngay.toISOString()}
+                className="relative flex min-w-0 flex-1 flex-col items-center gap-1"
+                title={`${CHU[x.ngay.getDay()]} — ${x.soViec} việc, ${Math.round(x.phut / 6) / 10} giờ`}
+              >
+                <span className="flex h-6 w-full items-end">
+                  <span
+                    className={cn(
+                      'w-full rounded-[1px] transition-[height] duration-500 ease-soft',
+                      x.phut === 0
+                        // Ngày rảnh vẫn phải có một vạch mảnh: mất hẳn thì mắt đếm
+                        // nhầm cột và đọc lệch cả tuần.
+                        ? 'bg-foreground/10'
+                        : qua ? 'bg-[var(--ut-gap)]' : 'bg-[var(--ut-quan)]',
+                    )}
+                    style={{ height: x.phut === 0 ? 2 : `${Math.max(14, ty * 100)}%` }}
+                  />
+                </span>
+                {!collapsed && (
+                  <span className="font-mono text-[7px] uppercase leading-none text-muted-foreground/45">
+                    {CHU[x.ngay.getDay()]}
+                  </span>
+                )}
+              </span>
+            )
+          })}
+        </div>
+
+        {/* Dòng số — thứ đọc được kể cả khi cột quá thấp để so bằng mắt. */}
+        {!collapsed && (
+          <p className="mt-1.5 border-t border-border/15 pt-1 text-center font-mono text-[8px] uppercase tracking-[0.1em] text-muted-foreground/55">
+            {tongViec === 0 ? (
+              'tuần này trống'
+            ) : ngayQuaTai > 0 ? (
+              <span className="text-[var(--ut-gap)]">{ngayQuaTai} ngày quá tải · {soGio} giờ</span>
+            ) : (
+              <>{tongViec} ngày có việc · {soGio} giờ</>
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SystemStatus({ collapsed }: { collapsed: boolean }) {
   const [gio, setGio] = useState(() => new Date())
   useEffect(() => {
@@ -154,20 +287,19 @@ export function NavRail({
   onSelect,
   badges = {},
   agentActive = false,
+  apLuc,
 }: {
   activeId: string
   onSelect: (id: string) => void
   badges?: Record<string, number>
   /** Nút "AI Agent" là công tắc → sáng theo trạng thái panel chat, không theo thư mục. */
   agentActive?: boolean
+  /** Áp lực 7 ngày tới, do nơi gọi tính sẵn. Không truyền thì dải này không vẽ —
+   *  giữ nav rail KHÔNG phụ thuộc vào tầng dữ liệu lịch trình, để nó còn dùng
+   *  lại được ở màn khác. */
+  apLuc?: { ngay: Date; phut: number; soViec: number }[]
 }) {
   const navigate = useNavigate()
-  const [moRong, setMoRong] = useState(() => {
-    try { return localStorage.getItem(MO_RONG_KEY) === '1' } catch { return false }
-  })
-  useEffect(() => {
-    try { localStorage.setItem(MO_RONG_KEY, moRong ? '1' : '0') } catch { /* riêng tư */ }
-  }, [moRong])
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem(COLLAPSE_KEY) === '1',
   )
@@ -221,46 +353,52 @@ export function NavRail({
             key={item.id} item={item} collapsed={collapsed} to={true}
             isActive={item.id === 'agent' ? agentActive : activeId === item.id}
             count={badges[item.id]}
-            onBam={() => (item.sangTrang ? navigate(item.sangTrang) : onSelect(item.id))}
+            onBam={() => (item.sangTrang
+              // Đổi TRANG là cú nhảy lớn nhất trong app — không bọc chuyển cảnh thì
+              // cả màn hình thay trong đúng một khung hình và mắt mất chỗ bám.
+              ? chuyenCanh(() => navigate(item.sangTrang as string))
+              : onSelect(item.id))}
           />
         ))}
       </div>
 
-      {/* ── NÚT MỞ PHẦN CÒN LẠI ── */}
-      <button
-        onClick={() => setMoRong((v) => !v)}
-        title={moRong ? 'Thu gọn thư mục' : 'Xem thêm thư mục'}
-        aria-expanded={moRong}
-        className={cn(
-          'mx-3 mt-3 flex shrink-0 items-center rounded-xl py-2 text-muted-foreground',
-          'transition-colors hover:bg-secondary/40 hover:text-foreground',
-          collapsed ? 'justify-center' : 'gap-3 px-3',
-        )}
-      >
-        <MoreHorizontal className={cn('size-5 shrink-0 transition-transform', moRong && 'rotate-90')} />
-        {!collapsed && <span className="text-sm font-medium leading-none">Thư mục</span>}
-      </button>
+      {/* ── THƯ MỤC — LƯỚI NÚT VUÔNG, LUÔN HIỆN ──
+          Trước đây sáu thư mục nằm sau một nút "Thư mục" phải bấm mới mở. Kết quả
+          là thanh này có một khoảng trống cao gần 350px ở giữa — đo thật trên khung
+          1440×900 — và người dùng vẫn phải bấm thêm một lần mới tới được Thư rác.
+          Vừa phí chỗ vừa tốn thao tác, tức là chẳng được gì cả.
 
-      {/* ── PHẦN CÒN LẠI — CUỘN ĐƯỢC.
-          `min-h-0` ở đây là BẮT BUỘC: trong một flex-column, phần tử con mặc định
-          không co nhỏ hơn nội dung, nên thiếu nó thì vùng này đẩy cụm đáy rơi ra
-          ngoài màn hình thay vì tự cuộn. Đó đúng là lỗi đang có — đồng hồ đẩy tụt
-          và xén mất icon cá nhân. */}
-      {moRong && (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin px-3 pt-1">
+          Lưới vuông giải quyết cả hai: sáu ô icon chiếm đúng phần trống đó, và
+          không còn cú bấm nào ở giữa. Vẫn giữ nguyên thứ bậc — ô vuông nhỏ, không
+          nhãn to, nên chúng không tranh chỗ với ba mục chính ở trên. */}
+      <div className={cn('mt-4 shrink-0', collapsed ? 'px-2' : 'px-3')}>
+        {!collapsed && (
+          <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
+            Thư mục
+          </p>
+        )}
+        <div className={cn('grid gap-1.5', collapsed ? 'grid-cols-1' : 'grid-cols-3')}>
           {PHU.map((item) => (
-            <MucNav
-              key={item.id} item={item} collapsed={collapsed} to={false}
+            <OThuMuc
+              key={item.id}
+              item={item}
+              collapsed={collapsed}
               isActive={activeId === item.id}
               count={badges[item.id]}
               onBam={() => onSelect(item.id)}
             />
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Đẩy cụm đáy xuống khi phần thư mục đang đóng */}
-      {!moRong && <div className="flex-1" />}
+      {/* ── ÁP LỰC 7 NGÀY TỚI ──
+          Phần trống còn lại được lấp bằng THÔNG TIN, không phải hoạ tiết. Dải này
+          trả lời câu người dùng thật sự hỏi khi liếc sang thanh bên: "tuần này có
+          nặng không". Không có dữ liệu thì không vẽ gì — thà trống còn hơn vẽ một
+          cái khung rỗng để lấp chỗ. */}
+      {apLuc && apLuc.length > 0 && <DaiApLuc apLuc={apLuc} collapsed={collapsed} />}
+
+      <div className="min-h-2 flex-1" />
 
       {/* ── ĐÁY CỐ ĐỊNH: đồng hồ + ba nút. `shrink-0` để KHÔNG BAO GIỜ bị xén. ── */}
       <div className="shrink-0 border-t border-border/10 bg-secondary/5 px-3 pb-3 pt-3">

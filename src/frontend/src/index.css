@@ -1371,6 +1371,30 @@
   animation-timing-function: var(--ease-soft);
 }
 
+/* ── CHUYỂN CẢNH TOÀN TRANG ───────────────────────────────────────────────────
+   Mặc định của trình duyệt là mờ chồng 0.25s — đúng kỹ thuật nhưng quá nhạt, nên
+   người dùng vẫn thấy màn hình "hiện ra một cái". Thêm một chút TRƯỢT vào: chuyển
+   động có hướng thì mắt biết được cái cũ đi đâu và cái mới từ đâu tới, còn mờ
+   chồng thuần thì không cho biết gì cả.
+
+   Cái cũ trượt ra CHẬM HƠN cái mới trượt vào (0.34s so với 0.28s) và hai đường
+   cong lệch pha nhau — nếu để bằng nhau thì hai lớp chồng khít, ảnh nhoè thành
+   một mảng xám ở giữa. */
+::view-transition-old(root) {
+  animation: canh-cu 0.34s var(--ease-soft) both;
+}
+::view-transition-new(root) {
+  animation: canh-moi 0.28s var(--ease-soft) both;
+}
+@keyframes canh-cu {
+  from { opacity: 1; transform: none }
+  to   { opacity: 0; transform: translateY(-8px) scale(0.994) }
+}
+@keyframes canh-moi {
+  from { opacity: 0; transform: translateY(10px) scale(1.006) }
+  to   { opacity: 1; transform: none }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panel-flash {
     animation: none;
@@ -3028,6 +3052,48 @@
 :root:not(.dark) .rui-ro-1 { box-shadow: 0 1px 2px color-mix(in srgb, var(--rr) 16%, transparent) }
 :root:not(.dark) .rui-ro-2 { box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--rr) 34%, transparent) }
 :root:not(.dark) .rui-ro-3 { box-shadow: 0 3px 18px -4px color-mix(in srgb, var(--rr) 48%, transparent) }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   THANG ƯU TIÊN — TRỤC KHÁC HẲN THANG RỦI RO Ở TRÊN
+
+   Thang rủi ro trả lời "hỏng thì mất gì" và cố ý giữ cấp 3 cực hiếm. Đúng với vai
+   trò của nó — nhưng nghĩa là ở màn lịch gần như MỌI việc đều cấp 1, nên mọi thanh
+   hiện ra y hệt nhau và không đọc được cái nào cần làm trước. Đo thật trên bộ demo:
+   13/13 việc đều rủi ro cấp 1.
+
+   Thang này trả lời câu khác: "làm cái nào trước". Nó được phép dùng thường xuyên
+   — cấp 3 ở đây chỉ nghĩa là "sát hạn", chuyện xảy ra hằng tuần, không phải biến cố.
+
+   TÁCH MÀU LÀ BẮT BUỘC. Nếu dùng chung dải màu với thang rủi ro thì đỏ mất nghĩa:
+   người dùng không biết đỏ đang nói "mất tiền" hay "làm ngay". Nên thang này đi
+   theo hệ màu thương hiệu (lam → tím → hổ phách) chứ không mượn đỏ/hồng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --ut-thuong: #5B7FA6;  /* còn xa, cứ để đó */
+  --ut-quan:   #6D4BC7;  /* nặng, hoặc đang tới gần */
+  --ut-gap:    #E07A0C;  /* sát hạn hoặc đã trễ */
+}
+.dark {
+  --ut-thuong: #7FA6C9;
+  --ut-quan:   #A98BFF;
+  --ut-gap:    #FFB13D;
+}
+
+/* Cấp 1 — chưa gấp. Gần như không phát sáng: cả tháng phần lớn là cấp này, làm
+   nó nổi bật thì lưới thành một biển sáng và mắt hết chỗ nghỉ. */
+.uu-tien-1 { --ut: var(--ut-thuong) }
+/* Cấp 2 — nặng, hoặc đang tới gần. */
+.uu-tien-2 { --ut: var(--ut-quan) }
+/* Cấp 3 — sát hạn hoặc đã trễ. Sáng nhất trong ba, và có nhịp thở nhẹ để bắt mắt
+   ngay cả khi người dùng đang nhìn chỗ khác trên lưới. */
+.uu-tien-3 { --ut: var(--ut-gap) }
+
+@keyframes tho-gap {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--ut), 0 0 12px -4px var(--ut) }
+  50%      { box-shadow: inset 0 0 0 1px var(--ut), 0 0 20px -2px var(--ut) }
+}
+.tho-gap { animation: tho-gap 2.6s ease-in-out infinite }
+@media (prefers-reduced-motion: reduce) { .tho-gap { animation: none } }
 
 /* Chấm chỉ mức rủi ro — dùng trong danh sách từng bước */
 .cham-rr { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--rr); }
