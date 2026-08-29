@@ -46,6 +46,7 @@ def _build_raw(
     bcc: list[str] | None = None,
     extra_headers: dict[str, str] | None = None,
     attachments: list[dict] | None = None,
+    from_addr: str | None = None,
 ) -> str:
     """Dựng bức thư MIME rồi mã hoá base64url (đúng thứ Gmail field "raw" cần).
 
@@ -54,9 +55,18 @@ def _build_raw(
 
     attachments: danh sách {name, content(bytes), mime}. Khi có, EmailMessage tự chuyển
     bức thư thành 'multipart/mixed' (1 phần chữ + mỗi tệp 1 phần) đúng chuẩn.
+
+    from_addr: đặt header "From" (dạng `"Tên hiển thị" <dia@chi>`). Bỏ trống thì Gmail
+      tự điền địa chỉ tài khoản đang đăng nhập — đúng cho mọi luồng thật.
+      ĐỊA CHỈ vẫn phải là tài khoản đang đăng nhập hoặc một alias đã xác minh; Gmail
+      TỪ CHỐI gửi hộ địa chỉ lạ. Cái đổi được chỉ là TÊN HIỂN THỊ. Đây không phải kẽ
+      hở để mạo danh người khác, mà để bộ thư demo hiện đúng tên người gửi thay vì
+      tám thẻ cùng đề tên chủ tài khoản.
     """
     msg = EmailMessage()
     msg["To"] = to
+    if from_addr:
+        msg["From"] = from_addr
     if cc:
         msg["Cc"] = ", ".join(cc)        # nhiều người Cc → nối bằng dấu phẩy theo chuẩn
     if bcc:
@@ -104,9 +114,14 @@ def send_email(
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
     attachments: list[dict] | None = None,
+    from_addr: str | None = None,
 ) -> dict:
-    """GỬI một thư MỚI (kèm tệp nếu có). Trả dict Gmail ({id, threadId,...}) để FE biết đã gửi."""
-    raw = _build_raw(to, subject, body, cc=cc, bcc=bcc, attachments=attachments)
+    """GỬI một thư MỚI (kèm tệp nếu có). Trả dict Gmail ({id, threadId,...}) để FE biết đã gửi.
+
+    from_addr: xem `_build_raw` — chỉ đổi được TÊN HIỂN THỊ, địa chỉ vẫn là tài khoản
+      đang đăng nhập. Dùng cho kịch bản dựng bộ thư demo."""
+    raw = _build_raw(to, subject, body, cc=cc, bcc=bcc, attachments=attachments,
+                     from_addr=from_addr)
     return _post_send(access_token, raw)
 
 
