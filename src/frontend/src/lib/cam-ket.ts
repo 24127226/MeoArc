@@ -64,6 +64,9 @@ export type CamKet = {
   /** "Làm cái nào trước" — TRỤC KHÁC `mucRuiRo` ("hỏng thì mất gì").
    *  Xem `mucUuTien()` để biết vì sao phải tách. */
   mucUuTien: 1 | 2 | 3
+  /** Khoảng làm được thư NÓI THẲNG ("từ 7/9 đến 25/9"), không phải suy ra từ ước
+   *  lượng thời lượng. Quyết định trần số ngày được phép trải — xem `khoangNgay`. */
+  khoangRoRang: boolean
 }
 
 /** Động từ báo hiệu một nghĩa vụ. Chỉ có ngày tháng thì chưa đủ — "hẹn gặp lại
@@ -80,6 +83,19 @@ const NGAY_TUYET_DOI = /(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?(?:[
 
 /** "trong vòng N ngày (làm việc)" — hạn phải TÍNH RA, không có sẵn trong thư. */
 const TRONG_VONG = /trong\s+vòng\s+(\d+)\s*ngày(\s*làm\s*việc)?/i
+
+/** Khoảng ngày nói THẲNG trong thư: "từ ngày 7/9 đến ngày 25/9", "từ 1/9 tới 20/9".
+ *
+ *  Đây là loại việc mà mọi thứ khác trong tệp này KHÔNG xử lý được: một đợt kéo
+ *  dài nhiều tuần. Bộ trích chỉ đọc được HẠN rồi suy ngược ngày bắt đầu từ ước
+ *  lượng thời lượng — mà ước lượng cao nhất là 480 phút, tức nhiều nhất 3 ngày.
+ *  Nên trước khi có nhánh này, một đồ án ba tuần vẫn hiện ra thành một thanh 3
+ *  ngày, và cái lưới tháng chưa bao giờ phải vẽ một đợt vắt qua nhiều hàng.
+ *
+ *  Khoảng nói thẳng thì KHÔNG phải phỏng đoán, nên nó được nới trần dài hơn hẳn
+ *  khoảng suy ra (xem `TRAN_NGAY_SUY_RA` / `TRAN_NGAY_RO_RANG`). */
+const KHOANG_NGAY =
+  /từ\s+(?:ngày\s+)?(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?\s*(?:đến|tới|-|–)\s*(?:hết\s+)?(?:ngày\s+)?(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?/i
 
 /** Thứ trong tuần, kèm "tuần này / tuần sau" nếu có.
  *  Đây là dạng nói PHỔ BIẾN NHẤT trong thư tiếng Việt — "trước 23:59 thứ Sáu
@@ -120,6 +136,37 @@ export function congNgay(tu: Date, soNgay: number, chiNgayLamViec: boolean): Dat
     con--
   }
   return d
+}
+
+/** Đọc KHOẢNG ngày nói thẳng: "từ 7/9 đến 25/9". Trả null nếu không có.
+ *
+ *  Tách riêng khỏi `docHan` vì nó trả về HAI mốc chứ không phải một, và vì chỉ
+ *  khoảng nói thẳng mới được phép trải dài nhiều tuần — khoảng suy ra từ ước
+ *  lượng thời lượng thì không đáng tin tới mức đó. */
+export function docKhoang(
+  van: string, moc = new Date(),
+): { batDau: Date; han: Date } | null {
+  const m = van.match(KHOANG_NGAY)
+  if (!m) return null
+
+  const dung = (ngay: number, thang: number) =>
+    ngay >= 1 && ngay <= 31 && thang >= 1 && thang <= 12
+  const d1 = Number(m[1]), t1 = Number(m[2])
+  const d2 = Number(m[4]), t2 = Number(m[5])
+  if (!dung(d1, t1) || !dung(d2, t2)) return null
+
+  const nam = (raw: string | undefined) => {
+    if (!raw) return moc.getFullYear()
+    const n = Number(raw)
+    return n < 100 ? n + 2000 : n
+  }
+  const batDau = new Date(nam(m[3]), t1 - 1, d1, 0, 0, 0, 0)
+  const han = new Date(nam(m[6]), t2 - 1, d2, 23, 59, 0, 0)
+
+  // Mốc cuối trước mốc đầu = đợt vắt qua năm mới ("từ 20/12 đến 5/1"). Không xử
+  // lý thì ra một khoảng ÂM và mọi phép tính phía sau đều hỏng lặng lẽ.
+  if (han < batDau) han.setFullYear(han.getFullYear() + 1)
+  return { batDau, han }
 }
 
 /** Đọc mốc thời gian trong một đoạn văn. Trả null nếu không đọc ra. */
@@ -308,6 +355,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
         uocLuongPhut: 0,
         mucRuiRo: 1,
         mucUuTien: 1,
+        khoangRoRang: false,
       })
       continue
     }
@@ -320,7 +368,11 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
     // chỉ có động từ thì không biết bao giờ ("nhớ trả lời anh nhé").
     if (!coDongTu || !coThoiGian) continue
 
-    const doc = docHan(van, moc)
+    // Khoảng nói thẳng ĐƯỢC ƯU TIÊN hơn hạn đơn lẻ: "từ 7/9 đến 25/9" vừa cho
+    // hạn vừa cho ngày bắt đầu THẬT, chính xác hơn hẳn ngày bắt đầu suy ra từ
+    // ước lượng thời lượng.
+    const khoang = docKhoang(van, moc)
+    const doc = khoang ? { han: khoang.han, suyRa: false } : docHan(van, moc)
     const han = doc?.han ?? null
 
     // Độ tin cậy: đọc được hạn tuyệt đối thì chắc; suy ra thì kém chắc hơn;
@@ -331,7 +383,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
       id: `ck-${e.id}`,
       noiDung: rutNoiDung(e),
       han,
-      batDau: han ? tinhBatDau(han, uocLuong(e)) : null,
+      batDau: khoang ? khoang.batDau : han ? tinhBatDau(han, uocLuong(e)) : null,
       hanSuyRa: doc?.suyRa ?? false,
       trangThai: e.status === 'Done' ? 'xong' : e.status === 'Waiting' ? 'dang_doi' : 'chua_lam',
       nguoiCho: e.sender,
@@ -340,6 +392,7 @@ export function trichCamKet(emails: Email[], moc = new Date()): CamKet[] {
       uocLuongPhut: uocLuong(e),
       mucRuiRo: mucRuiRo(e, han, moc),
       mucUuTien: mucUuTien(e, han, moc),
+      khoangRoRang: Boolean(khoang),
     })
   }
 
@@ -417,9 +470,10 @@ export function gomTheoNgay(ds: CamKet[]): Map<string, CamKet[]> {
     //
     // Chặn ở 14 ngày: một ước lượng hỏng (hoặc thư nói "trong vòng 90 ngày") mà
     // không chặn thì nó bôi kín cả lưới tháng và xoá sạch mọi thứ khác.
-    const cuoi = new Date(c.han); cuoi.setHours(0, 0, 0, 0)
-    const dau = new Date(c.batDau ?? c.han); dau.setHours(0, 0, 0, 0)
-    const soNgay = Math.min(14, Math.max(1, Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1))
+    const k = khoangNgay(c)
+    if (!k) continue
+    const dau = k.dau
+    const soNgay = Math.round((k.cuoi.getTime() - k.dau.getTime()) / 86400000) + 1
     for (let i = 0; i < soNgay; i++) {
       const d = new Date(dau)
       d.setDate(d.getDate() + i)
@@ -481,12 +535,23 @@ export type DoanThe = {
  *  mà lưới méo thì mất luôn khả năng so sánh ngày này với ngày kia bằng mắt. */
 export const SO_LAN_TOI_DA = 3
 
-/** Khoảng ngày một cam kết thật sự chiếm (đã chặn 14 ngày như `gomTheoNgay`). */
+/** Trần số ngày một việc được phép trải trên lưới.
+ *
+ *  Hai con số khác nhau vì hai mức đáng tin khác nhau. Khoảng SUY RA đến từ ước
+ *  lượng thời lượng — một phỏng đoán thô; đoán hỏng mà không chặn thì nó bôi kín
+ *  cả lưới tháng và xoá sạch mọi thứ khác. Khoảng thư NÓI THẲNG ("từ 7/9 đến
+ *  25/9") thì không phải phỏng đoán, chặn nó ở 14 ngày là tự bóp méo dữ liệu
+ *  thật — một đồ án ba tuần phải hiện ra đúng ba tuần. */
+export const TRAN_NGAY_SUY_RA = 14
+export const TRAN_NGAY_RO_RANG = 70
+
+/** Khoảng ngày một cam kết thật sự chiếm, đã áp trần theo mức đáng tin. */
 function khoangNgay(c: CamKet): { dau: Date; cuoi: Date } | null {
   if (!c.han) return null
+  const tran = c.khoangRoRang ? TRAN_NGAY_RO_RANG : TRAN_NGAY_SUY_RA
   const cuoi = new Date(c.han); cuoi.setHours(0, 0, 0, 0)
   const dau = new Date(c.batDau ?? c.han); dau.setHours(0, 0, 0, 0)
-  const soNgay = Math.min(14, Math.max(1, Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1))
+  const soNgay = Math.min(tran, Math.max(1, Math.round((cuoi.getTime() - dau.getTime()) / 86400000) + 1))
   const dauChan = new Date(cuoi); dauChan.setDate(dauChan.getDate() - (soNgay - 1))
   return { dau: dauChan, cuoi }
 }

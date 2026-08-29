@@ -371,34 +371,53 @@ export function NavRail({
           Lưới vuông giải quyết cả hai: sáu ô icon chiếm đúng phần trống đó, và
           không còn cú bấm nào ở giữa. Vẫn giữ nguyên thứ bậc — ô vuông nhỏ, không
           nhãn to, nên chúng không tranh chỗ với ba mục chính ở trên. */}
-      <div className={cn('mt-4 shrink-0', collapsed ? 'px-2' : 'px-3')}>
-        {!collapsed && (
-          <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
-            Thư mục
-          </p>
-        )}
-        <div className={cn('grid gap-1.5', collapsed ? 'grid-cols-1' : 'grid-cols-3')}>
-          {PHU.map((item) => (
-            <OThuMuc
-              key={item.id}
-              item={item}
-              collapsed={collapsed}
-              isActive={activeId === item.id}
-              count={badges[item.id]}
-              onBam={() => onSelect(item.id)}
-            />
-          ))}
+      {/* PHẦN GIỮA PHẢI CUỘN ĐƯỢC.
+          `min-h-0` là bắt buộc: trong flex-column, con mặc định KHÔNG co nhỏ hơn
+          nội dung của nó, nên thiếu nó thì phần này đẩy cụm đáy rơi khỏi màn hình
+          thay vì tự cuộn. Đó đúng là lỗi vừa đo được ở chế độ thu gọn — nội dung
+          cao 820px trong khung 804px, và nút hồ sơ cá nhân có đáy ở 808px, tức
+          nằm ngoài màn hình. Cụm đáy chứa hồ sơ, cài đặt, thông báo: ba thứ KHÔNG
+          bao giờ được phép biến mất. */}
+      <div className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin',
+        collapsed ? 'px-2' : 'px-3',
+      )}>
+        <div className="mt-4 shrink-0">
+          {!collapsed && (
+            <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
+              Thư mục
+            </p>
+          )}
+          <div className={cn('grid gap-1.5', collapsed ? 'grid-cols-1' : 'grid-cols-3')}>
+            {PHU.map((item) => (
+              <OThuMuc
+                key={item.id}
+                item={item}
+                collapsed={collapsed}
+                isActive={activeId === item.id}
+                count={badges[item.id]}
+                onBam={() => onSelect(item.id)}
+              />
+            ))}
+          </div>
         </div>
+
+        {/* ── ÁP LỰC 7 NGÀY TỚI ──
+            Phần trống được lấp bằng THÔNG TIN, không phải hoạ tiết. Dải này trả
+            lời câu người dùng thật sự hỏi khi liếc sang thanh bên: "tuần này có
+            nặng không".
+
+            CHỈ VẼ KHI ĐANG MỞ. Thu gọn còn 76px thì bảy cột chỉ còn ~7px mỗi cột,
+            không nhãn, không số — không đọc được gì mà vẫn ăn 64px chiều cao,
+            đúng phần đã đẩy nút hồ sơ ra khỏi màn hình. Thu gọn nghĩa là người
+            dùng đang muốn dồn chỗ cho nội dung; nhồi thêm biểu đồ vào đó là đi
+            ngược lại điều họ vừa yêu cầu. */}
+        {!collapsed && apLuc && apLuc.length > 0 && (
+          <DaiApLuc apLuc={apLuc} collapsed={false} />
+        )}
+
+        <div className="min-h-2 flex-1" />
       </div>
-
-      {/* ── ÁP LỰC 7 NGÀY TỚI ──
-          Phần trống còn lại được lấp bằng THÔNG TIN, không phải hoạ tiết. Dải này
-          trả lời câu người dùng thật sự hỏi khi liếc sang thanh bên: "tuần này có
-          nặng không". Không có dữ liệu thì không vẽ gì — thà trống còn hơn vẽ một
-          cái khung rỗng để lấp chỗ. */}
-      {apLuc && apLuc.length > 0 && <DaiApLuc apLuc={apLuc} collapsed={collapsed} />}
-
-      <div className="min-h-2 flex-1" />
 
       {/* ── ĐÁY CỐ ĐỊNH: đồng hồ + ba nút. `shrink-0` để KHÔNG BAO GIỜ bị xén. ── */}
       <div className="shrink-0 border-t border-border/10 bg-secondary/5 px-3 pb-3 pt-3">

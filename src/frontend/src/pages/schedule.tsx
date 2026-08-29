@@ -56,6 +56,8 @@ export function SchedulePage() {
   const [dangHoi, setDangHoi] = useState<{ ck: CamKet; hcn: DOMRect } | null>(null)
   /** Thư đang mở toàn màn — bấm quay lại là về đúng lịch, không mất chỗ. */
   const [thuMo, setThuMo] = useState<string | null>(null)
+  /** Ngày đang mở bảng liệt kê đầy đủ — lối thoát cho các việc không đủ làn. */
+  const [ngayMo, setNgayMo] = useState<{ ngay: Date; hcn: DOMRect } | null>(null)
 
   useEffect(() => {
     if (!apiBaseUrlDaCauHinh) return
@@ -199,7 +201,8 @@ export function SchedulePage() {
 
         {/* Chat mở → lịch NHỎ LẠI và ưu tiên danh sách. Người dùng vừa mở chat là
             họ đang muốn BÀN về lịch, không phải ngắm lưới tháng. */}
-        <LuoiThe o={o} thang={thang} homNay={homNay} theoNgay={theoNgay} camKet={camKet} onBamThe={setDangHoi} />
+        <LuoiThe o={o} thang={thang} homNay={homNay} theoNgay={theoNgay} camKet={camKet}
+          onBamThe={setDangHoi} onMoNgay={setNgayMo} />
       </main>
       )}
 
@@ -239,7 +242,145 @@ export function SchedulePage() {
           onHoiAI={() => hoiAI(dangHoi.ck)}
         />
       )}
+
+      {/* ══ BẢNG NGÀY — lối thoát cho các việc không đủ làn trong ô ══ */}
+      {ngayMo && (
+        <BangNgay
+          ngay={ngayMo.ngay}
+          hcn={ngayMo.hcn}
+          viec={theoNgay.get(khoaNgay(ngayMo.ngay)) ?? []}
+          onDong={() => setNgayMo(null)}
+          onXemThu={(ck) => chuyenCanh(() => { setThuMo(ck.emailId); setNgayMo(null) })}
+          onHoiAI={(ck) => { setNgayMo(null); hoiAI(ck) }}
+        />
+      )}
     </div>
+  )
+}
+
+/* ── BẢNG MỘT NGÀY ────────────────────────────────────────────────────────────
+   VÌ SAO CẦN. Ô ngày chỉ vẽ được 3 làn. Một ngày 7 việc thì 4 cái còn lại chỉ
+   hiện thành chữ "+4" — mà chữ đó trước đây là chữ CHẾT: người dùng biết có thứ
+   đang bị giấu nhưng không có cách nào xem. Thế còn tệ hơn không hiện gì.
+
+   VÌ SAO KHÔNG NỚI SỐ LÀN. Cho ô cao thêm để chứa đủ 7 việc thì hàng tuần đó cao
+   gấp đôi các hàng khác, lưới méo, và mất luôn khả năng so ngày này với ngày kia
+   bằng mắt — thứ mà một cuốn lịch tồn tại để làm. Ô ngày phải giữ kích thước cố
+   định; phần tràn cần một MẶT PHẲNG KHÁC, không phải nhiều chỗ hơn trên cùng mặt.
+
+   Nên: lưới nói "ngày này nặng" (3 thanh + số +N + vạch tải), bảng này nói "nặng
+   những gì". Cùng nguyên tắc đã dùng cho bảng chi tiết khi rê chuột. */
+function BangNgay({
+  ngay, hcn, viec, onDong, onXemThu, onHoiAI,
+}: {
+  ngay: Date
+  hcn: DOMRect
+  viec: CamKet[]
+  onDong: () => void
+  onXemThu: (ck: CamKet) => void
+  onHoiAI: (ck: CamKet) => void
+}) {
+  const W = 320
+  const xep = useMemo(
+    () => [...viec].sort((a, b) =>
+      b.mucUuTien - a.mucUuTien ||
+      (a.han?.getTime() ?? 0) - (b.han?.getTime() ?? 0)),
+    [viec],
+  )
+  const phut = viec.reduce((s, c) => s + phutMoiNgay(c), 0)
+  const quaTai = phut > TRAN_MOI_NGAY
+
+  // Kẹp trong màn hình theo CẢ HAI trục. Ô ngày ở cột Chủ nhật hay ở hàng cuối
+  // đều đẩy bảng ra ngoài nếu chỉ căn theo ô.
+  const left = Math.min(Math.max(8, hcn.left - 8), window.innerWidth - W - 8)
+  const CAO_TOI_DA = Math.min(360, window.innerHeight - 24)
+  const duoi = hcn.bottom + 6
+  const lat = duoi + CAO_TOI_DA > window.innerHeight - 8
+  const top = lat
+    ? Math.max(12, Math.min(hcn.top - 6 - CAO_TOI_DA, window.innerHeight - CAO_TOI_DA - 12))
+    : duoi
+
+  return (
+    <>
+      {/* Nền bắt cú bấm ra ngoài. Bảng này mở bằng CÚ BẤM (khác bảng rê chuột),
+          nên phải đóng bằng cú bấm — rời chuột là đóng thì không đọc kịp. */}
+      <div className="fixed inset-0 z-40" onClick={onDong} aria-hidden />
+      <div
+        role="dialog"
+        aria-label={`Việc ngày ${ngay.getDate()}/${ngay.getMonth() + 1}`}
+        // `position` NỘI TUYẾN — `.goc-cat` đặt position:relative và thắng `fixed`
+        // của Tailwind. Cái bẫy này đã dính hai lần trong file này.
+        style={{ position: 'fixed', left, top, width: W, maxHeight: CAO_TOI_DA }}
+        className="goc-cat goc-cat-nho den-vien-chon z-50 flex flex-col
+                   bg-[var(--nen-2,var(--elevated))]/97 backdrop-blur-md
+                   shadow-[0_14px_40px_-10px_rgba(0,0,0,0.65)]"
+      >
+        <div className="flex shrink-0 items-baseline gap-2 border-b border-border/20 px-3 py-2.5">
+          <span className="font-mono text-[15px] font-bold tabular-nums text-foreground">
+            {ngay.getDate()}/{ngay.getMonth() + 1}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {THU[ngay.getDay()]} · {viec.length} việc
+          </span>
+          <span className={cn(
+            'ml-auto font-mono text-[9.5px] tabular-nums',
+            quaTai ? 'font-bold text-[var(--ut-gap)]' : 'text-muted-foreground',
+          )}>
+            {Math.round(phut / 6) / 10} giờ{quaTai ? ' · quá tải' : ''}
+          </span>
+        </div>
+
+        {/* Cuộn được: bảng này KHÔNG có trần số việc, khác hẳn ô ngày. Đây là chỗ
+            duy nhất trong màn lịch được phép cuộn, vì nó là mặt phẳng phụ chứ
+            không phải bức tranh tổng thể. */}
+        {/* `fade-y` làm mờ dần hai mép vùng cuộn. Không có nó thì dòng cuối bị cắt
+            ngang thân chữ trông như lỗi render, chứ không đọc ra là "còn nữa". */}
+        <div className="fade-y min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+          {xep.map((c) => (
+            <div key={c.id} className="border-b border-border/10 px-3 py-2 last:border-b-0">
+              <div className="flex items-start gap-2">
+                <span
+                  className={cn(
+                    'mt-1 h-3 w-[3px] shrink-0',
+                    c.mucUuTien === 3 ? 'uu-tien-3' : c.mucUuTien === 2 ? 'uu-tien-2' : 'uu-tien-1',
+                  )}
+                  style={{ background: 'var(--ut)' }}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  {/* Tiêu đề ĐẦY ĐỦ, không cắt — đúng lý do bảng này tồn tại. */}
+                  <p className="text-[12px] font-medium leading-snug text-foreground">
+                    {c.noiDung}
+                  </p>
+                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    {c.nguoiCho}
+                    {c.han ? ` · hạn ${gioPhut(c.han)}` : ''}
+                    {c.batDau && khoaNgay(c.batDau) !== khoaNgay(c.han ?? c.batDau)
+                      ? ' · đợt nhiều ngày' : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-0.5">
+                  <button
+                    onClick={() => onXemThu(c)}
+                    title="Xem thư gốc"
+                    className="o-icon size-6"
+                  >
+                    <Mail className="size-3" />
+                  </button>
+                  <button
+                    onClick={() => onHoiAI(c)}
+                    title="Hỏi trợ lý về việc này"
+                    className="o-icon size-6"
+                  >
+                    <MessageSquare className="size-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -302,7 +443,7 @@ function LichNho({
 
 /* ── Lưới tháng với THẺ ──────────────────────────────────────────────────── */
 function LuoiThe({
-  o, thang, homNay, theoNgay, camKet, onBamThe,
+  o, thang, homNay, theoNgay, camKet, onBamThe, onMoNgay,
 }: {
   o: Date[]
   thang: Date
@@ -310,6 +451,7 @@ function LuoiThe({
   theoNgay: Map<string, CamKet[]>
   camKet: CamKet[]
   onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
+  onMoNgay: (v: { ngay: Date; hcn: DOMRect }) => void
 }) {
   const tuan = useMemo(() => xepDoanTheoTuan(camKet, o), [camKet, o])
 
@@ -344,6 +486,7 @@ function LuoiThe({
           doan={tt.doan}
           du={tt.du}
           onBamThe={onBamThe}
+          onMoNgay={onMoNgay}
         />
       ))}
     </div>
@@ -363,7 +506,7 @@ function LuoiThe({
    Mỗi làn là MỘT HÀNG của lưới con (`grid-rows-[repeat(3,17px)]`), nên hai việc
    trùng ngày nằm đúng hai làn mà không cần cộng trừ vị trí. */
 function HangTuan({
-  ngay, thang, homNay, theoNgay, doan, du, onBamThe,
+  ngay, thang, homNay, theoNgay, doan, du, onBamThe, onMoNgay,
 }: {
   ngay: Date[]
   thang: Date
@@ -372,6 +515,7 @@ function HangTuan({
   doan: DoanThe[]
   du: Map<string, number>
   onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
+  onMoNgay: (v: { ngay: Date; hcn: DOMRect }) => void
 }) {
   return (
     <div className="relative min-h-0 flex-1">
@@ -384,6 +528,7 @@ function HangTuan({
             laHomNay={khoaNgay(d) === khoaNgay(homNay)}
             viec={theoNgay.get(khoaNgay(d)) ?? []}
             con={du.get(khoaNgay(d)) ?? 0}
+            onMoNgay={(hcn) => onMoNgay({ ngay: d, hcn })}
           />
         ))}
       </div>
@@ -407,13 +552,14 @@ function HangTuan({
 /** Ô một ngày — giờ chỉ còn NỀN: số ngày, vạch tải, và "+N" khi hết làn.
  *  Việc vẽ thẻ đã chuyển hẳn lên lớp thanh của `HangTuan`. */
 function ONgay({
-  ngay, trongThang, laHomNay, viec, con,
+  ngay, trongThang, laHomNay, viec, con, onMoNgay,
 }: {
   ngay: Date
   trongThang: boolean
   laHomNay: boolean
   viec: CamKet[]
   con: number
+  onMoNgay: (hcn: DOMRect) => void
 }) {
   // Chia đều phút theo số ngày việc trải qua. Cộng thẳng `uocLuongPhut` cho mọi
   // ngày như bản trước thì một việc 6 tiếng trải 3 ngày bị tính thành 18 tiếng,
@@ -432,15 +578,43 @@ function ONgay({
         !trongThang && 'opacity-55',
       )}
     >
+      {/* Số ngày là NÚT khi ngày đó có việc. Bấm vào mở bảng liệt kê đầy đủ.
+          Bấm vào con số của ngày là thao tác người ta làm theo bản năng ở mọi
+          cuốn lịch, nên gắn hành động vào đó không phải học gì thêm. */}
       <span className="flex shrink-0 items-center justify-between">
-        <span className={cn(
-          'font-mono text-[11px] tabular-nums',
-          laHomNay ? 'font-bold text-[var(--spark)]' : 'text-foreground/70',
-        )}>
-          {ngay.getDate()}
-        </span>
+        {viec.length > 0 ? (
+          <button
+            onClick={(e) => onMoNgay(e.currentTarget.getBoundingClientRect())}
+            title={`${viec.length} việc ngày ${ngay.getDate()}/${ngay.getMonth() + 1}`}
+            className={cn(
+              'nhay-bat -mx-0.5 rounded px-0.5 font-mono text-[11px] tabular-nums',
+              'transition-colors hover:bg-foreground/10',
+              laHomNay ? 'font-bold text-[var(--spark)]' : 'text-foreground/70',
+            )}
+          >
+            {ngay.getDate()}
+          </button>
+        ) : (
+          <span className={cn(
+            'font-mono text-[11px] tabular-nums',
+            laHomNay ? 'font-bold text-[var(--spark)]' : 'text-foreground/70',
+          )}>
+            {ngay.getDate()}
+          </span>
+        )}
+
+        {/* "+N" PHẢI BẤM ĐƯỢC. Trước đây nó là một dòng chữ chết: người dùng biết
+            còn 4 việc nữa mà không có cách nào xem chúng — tệ hơn cả không hiện
+            gì, vì nó nói rằng có thứ đang bị giấu rồi bỏ mặc ở đó. */}
         {con > 0 && (
-          <span className="font-mono text-[9px] font-semibold text-muted-foreground">+{con}</span>
+          <button
+            onClick={(e) => onMoNgay(e.currentTarget.getBoundingClientRect())}
+            title={`Xem ${con} việc còn lại`}
+            className="nhay-bat rounded px-1 font-mono text-[9px] font-semibold
+                       text-[var(--ut-gap)] transition-colors hover:bg-foreground/10"
+          >
+            +{con}
+          </button>
         )}
       </span>
 

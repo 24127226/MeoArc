@@ -189,6 +189,80 @@ export const DEMO_LICH: Email[] = [
     tldr: 'Nộp SRS bản cuối trước 17:00 ngày 16/9 — bản dùng để chấm, không nhận bổ sung.',
   },
 
+  /* ── MỘT ĐỢT KÉO DÀI NHIỀU TUẦN ──
+     Khoảng ngày thư NÓI THẲNG ("từ ngày 7/9 đến ngày 25/9"), không phải suy ra từ
+     ước lượng thời lượng. Đây là tình huống lưới tháng phải vẽ một đợt VẮT QUA BA
+     HÀNG TUẦN: hàng đầu có góc bo trái và mang chữ, hai hàng sau mở bằng dấu "‹"
+     và không bo trái, hàng cuối bo phải và mang giờ hạn. */
+  {
+    id: 'd13', sender: 'Phòng Quan hệ Doanh nghiệp', senderEmail: 'qhdn@fit.hcmus.edu.vn',
+    senderInitial: 'Q', to: TOI,
+    subject: 'Đợt thực tập doanh nghiệp 7/9 – 25/9',
+    preview: 'Đợt thực tập diễn ra từ ngày 7/9 đến ngày 25/9…',
+    body: [
+      'Chào các em,',
+      'Đợt thực tập doanh nghiệp diễn ra từ ngày 7/9 đến ngày 25/9. Các em có mặt tại đơn vị theo lịch đã đăng ký và nộp nhật ký thực tập hằng tuần cho giảng viên hướng dẫn.',
+      'Cuối đợt nộp báo cáo thực tập có xác nhận của đơn vị tiếp nhận.',
+    ],
+    time: '08:30', date: '01/09/2026', unread: true, starred: true,
+    category: 'sea', label: 'Học tập', folder: 'inbox',
+    priority: 'High', status: 'Todo',
+    tldr: 'Thực tập doanh nghiệp từ 7/9 đến 25/9, nộp nhật ký hằng tuần.',
+  },
+
+  /* ── MỘT NGÀY QUÁ TẢI (10/9) ──
+     Bốn việc nữa dồn vào đúng ngày đã có ba việc, thành BẢY. Lưới chỉ vẽ được ba
+     làn nên bốn cái còn lại phải đi đâu đó — đó chính là chỗ "+4" và bảng ngày
+     tồn tại. Không có tình huống này trong bộ demo thì phần xử lý tràn không bao
+     giờ được nhìn thấy, và cũng không ai kiểm được nó có đúng không. */
+  {
+    id: 'd14', sender: 'Thư viện HCMUS', senderEmail: 'thuvien@hcmus.edu.vn',
+    senderInitial: 'T', to: TOI,
+    subject: 'Trả sách mượn quá hạn',
+    preview: 'Bạn hoàn tất trả sách trước ngày 10/9…',
+    body: ['Bạn hoàn tất trả sách mượn trước ngày 10/9 để tránh phí phạt quá hạn.'],
+    time: '08:05', date: '06/09/2026', unread: true, starred: false,
+    category: 'terra', label: 'Hành chính', folder: 'inbox',
+    priority: 'Low', status: 'Todo',
+    tldr: 'Trả sách thư viện trước ngày 10/9.',
+  },
+  {
+    id: 'd15', sender: 'Đoàn khoa CNTT', senderEmail: 'doankhoa@fit.hcmus.edu.vn',
+    senderInitial: 'Đ', to: TOI,
+    subject: 'Đăng ký hiến máu đợt tháng 9',
+    preview: 'Đăng ký trước ngày 10/9 nếu tham gia…',
+    body: ['Bạn đăng ký tham gia hiến máu trước ngày 10/9 qua biểu mẫu của Đoàn khoa.'],
+    time: '14:20', date: '06/09/2026', unread: false, starred: false,
+    category: 'cherry', label: 'Hoạt động', folder: 'inbox',
+    priority: 'Low', status: 'Todo',
+    tldr: 'Đăng ký hiến máu trước ngày 10/9.',
+  },
+  {
+    id: 'd16', sender: 'Nguyễn Hoàng Anh', senderEmail: 'hoanganh@fit.hcmus.edu.vn',
+    senderInitial: 'H', to: TOI,
+    subject: 'Phản hồi bản nháp chương 3',
+    preview: 'Gửi lại phản hồi cho mình trước 10/9…',
+    body: [
+      'Mình đã đọc bản nháp chương 3. Bạn gửi lại phản hồi cho mình trước ngày 10/9 để kịp gộp vào bản chung.',
+      'Mấy chỗ mình đánh dấu vàng là chỗ cần bạn xác nhận lại số liệu.',
+    ],
+    time: '19:45', date: '07/09/2026', unread: true, starred: false,
+    category: 'sea', label: 'Công việc', folder: 'inbox',
+    priority: 'Medium', status: 'Todo',
+    tldr: 'Gửi phản hồi bản nháp chương 3 trước ngày 10/9.',
+  },
+  {
+    id: 'd17', sender: 'Phòng Công tác Sinh viên', senderEmail: 'ctsv@hcmus.edu.vn',
+    senderInitial: 'C', to: TOI,
+    subject: 'Nộp đơn xin xác nhận sinh viên',
+    preview: 'Nộp đơn trước ngày 10/9 để kịp xử lý…',
+    body: ['Sinh viên nộp đơn xin xác nhận trước ngày 10/9 để phòng kịp xử lý trong tuần.'],
+    time: '10:00', date: '07/09/2026', unread: false, starred: false,
+    category: 'moss', label: 'Hành chính', folder: 'inbox',
+    priority: 'Low', status: 'Todo',
+    tldr: 'Nộp đơn xin xác nhận sinh viên trước ngày 10/9.',
+  },
+
   /* ── HAI THƯ KHÔNG PHẢI CAM KẾT ──
      Cả hai đều CÓ ngày tháng nhưng KHÔNG có nghĩa vụ nào. Bộ trích phải bỏ qua
      chúng, và đó chính là chỗ chứng minh nó không nhận bừa mọi thứ có con số. */

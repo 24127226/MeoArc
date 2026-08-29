@@ -75,6 +75,18 @@ Token `--background/--list/--panel/--rail/--spark/--active/--accent/--sc-base/--
     bên dưới. `apLuc` do app-shell tính rồi truyền vào; không truyền thì không vẽ,
     giữ nav rail độc lập với tầng lịch trình.
 
+### Hai bẫy bố cục đã sửa (đo được, dễ tái phát)
+- **`DialogContent` thiếu trần chiều cao.** Chỉ có `top-1/2 -translate-y-1/2` mà
+  không `max-height`/`overflow`, nên hộp thoại cao hơn màn hình tràn CẢ HAI đầu và
+  không cuộn được — mất luôn phần trên lẫn dưới. Đo ở tab "Cá nhân hoá": nội dung
+  816px trong khung 804px. Đã đặt `max-h-[calc(100dvh-2rem)] overflow-y-auto` ở
+  `ui/dialog.tsx` (áp cho MỌI hộp thoại, không riêng màn Cài đặt). `dvh` chứ không
+  `vh` vì thanh địa chỉ di động co giãn.
+- **Nav thu gọn đẩy cụm đáy ra ngoài màn hình.** Phần giữa thiếu `min-h-0 flex-1
+  overflow-y-auto` nên nó không co được và đẩy hồ sơ/cài đặt/thông báo ra ngoài —
+  đo được: nội dung 820px trong khung 804px, nút hồ sơ đáy ở 808px. Dải áp lực
+  cũng chỉ vẽ khi ĐANG MỞ: ở 76px nó không đọc được mà vẫn ăn 64px chiều cao.
+
 ### Chuyển cảnh — `src/lib/chuyen-canh.ts`
 `chuyenCanh(fn)` bọc thay đổi trạng thái trong View Transitions API. `flushSync` là
 BẮT BUỘC (React 19 gom cập nhật; thiếu nó thì trình duyệt chụp "ảnh mới" lúc DOM
@@ -159,6 +171,18 @@ giữa ba cột là tự hạ nó xuống ngang hàng với "Thùng rác".
   - **Vạch tải ở đáy mỗi ô**: `phutMoiNgay` chia đều theo số ngày việc trải qua.
     Cộng thẳng `uocLuongPhut` cho mọi ngày (bản cũ) thì việc 6 tiếng trải 3 ngày
     thành 18 tiếng và ngày nào cũng "quá tải" — cảnh báo luôn bật thì hết tác dụng.
+  - **Tràn quá 3 làn → BẢNG NGÀY (`BangNgay`), không nới số làn.** Cho ô cao thêm
+    để chứa 7 việc thì hàng tuần đó cao gấp đôi hàng khác, lưới méo, và mất khả
+    năng so ngày này với ngày kia bằng mắt — thứ cuốn lịch tồn tại để làm. Phần
+    tràn cần một MẶT PHẲNG KHÁC. Số ngày và chip "+N" đều là nút mở bảng; bảng
+    liệt kê đủ, cuộn được, không có trần số việc. Trước đó "+N" là chữ chết: nói
+    có thứ bị giấu rồi bỏ mặc — tệ hơn không hiện gì.
+  - **Đợt nhiều tuần**: `docKhoang` đọc "từ 7/9 đến 25/9". Trước đó `batDau` chỉ suy
+    ra từ ước lượng thời lượng (tối đa 480 phút = 3 ngày) nên KHÔNG đợt nào vắt quá
+    một tuần. Khoảng nói thẳng dùng `TRAN_NGAY_RO_RANG` (70) thay vì
+    `TRAN_NGAY_SUY_RA` (14) — chặn dữ liệu thật ở 14 ngày là tự bóp méo nó.
+    Đã đo: đợt 7/9–25/9 ra 3 đoạn ở 3 hàng tuần, đoạn đầu mang chữ, hai đoạn sau
+    mở bằng "‹".
   - **`.goc-cat` đặt `position: relative` và THẮNG `fixed` của Tailwind** (CSS tự
     viết nằm ngoài `@layer`). Mọi phần tử nổi dùng class này PHẢI ghi `position`
     nội tuyến. Đã vấp hai lần — nút trợ lý và thanh hành động (đo được: left 2260,
