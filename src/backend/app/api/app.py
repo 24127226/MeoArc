@@ -28,6 +28,7 @@ from app.models.conversation import Conversation  # noqa: F401 — UC011: tạo 
 from app.models.audit import AuditLog  # noqa: F401 — tạo bảng audit_logs (accountability)
 from app.models.notification import Notification  # noqa: F401 — tạo bảng notifications
 from app.models.subscription import Subscription  # noqa: F401 — tạo bảng subscriptions (quota token)
+from app.models.dat_cho import DonDatCho  # noqa: F401 — Giai đoạn 3: bảng don_dat_cho (chống trùng)
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
 from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
