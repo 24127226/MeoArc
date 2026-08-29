@@ -10,7 +10,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 from app.services import gmail_service, gmail_actions, gmail_send, mail  # noqa: F401 (gmail_* giữ cho test monkeypatch)
 from app.schemas.email import Email
@@ -29,9 +29,12 @@ from app.tools.schemas import (
     LietKeCamKetInput, LietKeCamKetOutput, CamKetItem,
     ApLucLichTrinhInput, ApLucLichTrinhOutput,
     DeXuatDiLaiInput, DeXuatDiLaiOutput,
+    TimChuyenBayInput, TimChuyenBayOutput,
+    TimKhachSanInput, TimKhachSanOutput,
 )
 from app.core import labeling
 from app.core import cam_ket as _cam_ket
+from app.services import dat_cho as _dat_cho
 from app.core.scope import cutoff_iso, scope_note
 
 _SYSTEM_LABELS = {"UNREAD", "STARRED", "INBOX", "IMPORTANT", "SPAM", "TRASH"}
@@ -372,4 +375,73 @@ async def de_xuat_di_lai(inp: DeXuatDiLaiInput, ctx: RequestContext) -> DeXuatDi
         message=(f"Có {len(y_dinh)} việc cần đi xa trong {inp.so_ngay_toi} ngày tới."
                  if y_dinh else "Không có việc nào cần đi xa."),
         data=[y.to_dict() for y in y_dinh],
+    )
+
+
+# ── GIAI ĐOẠN 2: TRA CỨU (vẫn CHỈ ĐỌC, chưa tiêu tiền) ───────────────────────
+
+def _doc_ngay_vn(s: str) -> date:
+    """Đọc 'dd/mm/yyyy'. Sai định dạng thì NÉM LỖI chứ không đoán — đoán nhầm ngày
+    bay là loại nhầm mà người dùng chỉ phát hiện ở sân bay."""
+    return datetime.strptime(s.strip(), "%d/%m/%Y").date()
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=TimChuyenBayInput)
+async def tim_chuyen_bay(inp: TimChuyenBayInput, ctx: RequestContext) -> TimChuyenBayOutput:
+    """TRA CỨU chuyến bay theo chặng và ngày. Trả danh sách lựa chọn kèm giá, giờ, số
+    điểm dừng.
+
+    CHỈ TRA CỨU — tool này KHÔNG giữ chỗ, KHÔNG đặt, KHÔNG thanh toán. Mỗi kết quả mang
+    trường `nguon`: "mo_phong" nghĩa là SỐ MÔ PHỎNG, phải nói rõ cho người dùng biết,
+    tuyệt đối không trình bày như giá thật."""
+    ncc = _dat_cho.lay_nha_cung_cap()
+    try:
+        ngay = _doc_ngay_vn(inp.ngay)
+    except ValueError:
+        return TimChuyenBayOutput(
+            success=False, message=f"Ngày '{inp.ngay}' không đúng dạng dd/mm/yyyy.", data=[],
+        )
+    ds = await asyncio.to_thread(
+        ncc.tim_chuyen_bay, inp.tu.upper(), inp.den.upper(), ngay, inp.so_ket_qua
+    )
+    mo_phong = bool(ds) and ds[0].nguon == "mo_phong"
+    return TimChuyenBayOutput(
+        success=True,
+        message=(f"Có {len(ds)} chuyến {inp.tu.upper()}→{inp.den.upper()} ngày {inp.ngay}."
+                 + (" ĐÂY LÀ SỐ MÔ PHỎNG, không phải giá thật." if mo_phong else "")),
+        data=[c.to_dict() for c in ds],
+    )
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=TimKhachSanInput)
+async def tim_khach_san(inp: TimKhachSanInput, ctx: RequestContext) -> TimKhachSanOutput:
+    """TRA CỨU khách sạn theo thành phố và ngày. Trả lựa chọn kèm giá mỗi đêm, tổng
+    tiền, số sao, khoảng cách trung tâm, có huỷ miễn phí không.
+
+    CHỈ TRA CỨU — không giữ chỗ, không đặt, không thanh toán. Xem trường `nguon` như
+    `tim_chuyen_bay`."""
+    ncc = _dat_cho.lay_nha_cung_cap()
+    try:
+        nhan, tra = _doc_ngay_vn(inp.nhan_phong), _doc_ngay_vn(inp.tra_phong)
+    except ValueError:
+        return TimKhachSanOutput(
+            success=False, message="Ngày không đúng dạng dd/mm/yyyy.", data=[],
+        )
+    if tra <= nhan:
+        return TimKhachSanOutput(
+            success=False, message="Ngày trả phòng phải sau ngày nhận phòng.", data=[],
+        )
+    try:
+        ds = await asyncio.to_thread(
+            ncc.tim_khach_san, inp.thanh_pho, nhan, tra, inp.so_ket_qua
+        )
+    except NotImplementedError as e:
+        return TimKhachSanOutput(success=False, message=str(e), data=[])
+
+    mo_phong = bool(ds) and ds[0].nguon == "mo_phong"
+    return TimKhachSanOutput(
+        success=True,
+        message=(f"Có {len(ds)} khách sạn ở {inp.thanh_pho}."
+                 + (" ĐÂY LÀ SỐ MÔ PHỎNG, không phải giá thật." if mo_phong else "")),
+        data=[k.to_dict() for k in ds],
     )

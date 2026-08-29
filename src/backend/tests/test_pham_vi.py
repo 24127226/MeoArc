@@ -48,8 +48,29 @@ def test_tu_choi_KHONG_can_xac_nhan():
 
 def test_prompt_liet_ke_viec_KHONG_lam_duoc():
     p = agent_node._SYSTEM_BASE
-    for viec in ("vé máy bay", "khách sạn", "gọi xe", "thanh toán", "Calendar"):
+    for viec in ("gọi được xe", "thanh toán hoá đơn", "mua hàng", "Calendar"):
         assert viec in p, f"prompt chưa nói rõ là không làm được: {viec}"
+
+
+def test_prompt_PHAN_BIET_tra_cuu_voi_dat_cho():
+    """Ranh giới đã DỊCH sau Giai đoạn 2: agent TRA CỨU được chuyến bay nhưng vẫn KHÔNG
+    đặt được. Đây là chỗ dễ hỏng theo cả hai chiều — nói không được gì cả thì hai tool
+    tra cứu thành vô dụng, còn nói làm được hết thì nó hứa đặt vé mà không đặt nổi.
+
+    Ranh giới thật nằm ở chỗ TIÊU TIỀN, và prompt phải nói đúng chữ đó."""
+    p = agent_node._SYSTEM_BASE
+    assert "tim_chuyen_bay" in p, "prompt phải cho phép TRA CỨU"
+    assert "TIÊU TIỀN" in p, "prompt phải nêu ranh giới thật nằm ở đâu"
+    # Vẫn phải từ chối việc ĐẶT
+    i_dat = p.index("'ĐẶT vé'")
+    assert "tu_choi_ngoai_pham_vi" in p[i_dat:i_dat + 400]
+
+
+def test_prompt_canh_bao_gia_MO_PHONG():
+    """Số mô phỏng lọt ra ngoài dưới dạng giá thật là chỗ hỏng nặng nhất của Giai đoạn 2:
+    người dùng ra quyết định tiền bạc dựa trên con số không tồn tại."""
+    p = agent_node._SYSTEM_BASE
+    assert "mo_phong" in p and "không đưa ra như giá thật" in p
 
 
 def test_phan_pham_vi_dung_TRUOC_luat_luon_search():

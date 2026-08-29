@@ -618,3 +618,41 @@ class DeXuatDiLaiInput(BaseModel):
 
 class DeXuatDiLaiOutput(ToolResult):
     data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =        TRA CỨU CHUYẾN BAY / PHÒNG (Giai đoạn 2)       =
+# =========================================================
+
+class TimChuyenBayInput(BaseModel):
+    """Tham số cho `tim_chuyen_bay`. CHỈ TRA CỨU — không đặt."""
+
+    tu: Annotated[str, Field(
+        description="Mã sân bay đi, 3 chữ in hoa. VD: SGN (TP.HCM), HAN (Hà Nội).",
+        min_length=3, max_length=3,
+    )]
+    den: Annotated[str, Field(
+        description="Mã sân bay đến, 3 chữ in hoa. VD: DAD (Đà Nẵng).",
+        min_length=3, max_length=3,
+    )]
+    ngay: Annotated[str, Field(
+        description="Ngày bay dạng dd/mm/yyyy. VD: 16/09/2026.",
+    )]
+    so_ket_qua: Annotated[int, Field(default=3, ge=1, le=10)]
+
+
+class TimChuyenBayOutput(ToolResult):
+    data: list[dict[str, Any]] = []
+
+
+class TimKhachSanInput(BaseModel):
+    """Tham số cho `tim_khach_san`. CHỈ TRA CỨU — không đặt."""
+
+    thanh_pho: Annotated[str, Field(description="Tên thành phố. VD: Đà Nẵng.")]
+    nhan_phong: Annotated[str, Field(description="Ngày nhận phòng dd/mm/yyyy.")]
+    tra_phong: Annotated[str, Field(description="Ngày trả phòng dd/mm/yyyy.")]
+    so_ket_qua: Annotated[int, Field(default=3, ge=1, le=10)]
+
+
+class TimKhachSanOutput(ToolResult):
+    data: list[dict[str, Any]] = []

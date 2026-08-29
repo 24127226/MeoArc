@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
     #     Để trống = không dự phòng.
     model_fallbacks: str = "gemini-2.5-flash"
+
+    # ── Tra cứu chuyến bay / khách sạn (Giai đoạn 2) ──
+    # amadeus_key / amadeus_secret ← AMADEUS_KEY / AMADEUS_SECRET : khoá môi trường TEST
+    #   của Amadeus Self-Service (miễn phí, dữ liệu chuyến bay thật). ĐỂ TRỐNG thì hệ
+    #   thống dùng nhà cung cấp MÔ PHỎNG — chạy được ngay, kết quả tất định, và mọi kết
+    #   quả đều mang nhãn nguồn "mo_phong" để không ai nhầm giá giả thành giá thật.
+    amadeus_key: str = ""
+    amadeus_secret: str = ""
     #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
     #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
     #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.
