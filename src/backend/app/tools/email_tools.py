@@ -31,10 +31,12 @@ from app.tools.schemas import (
     DeXuatDiLaiInput, DeXuatDiLaiOutput,
     TimChuyenBayInput, TimChuyenBayOutput,
     TimKhachSanInput, TimKhachSanOutput,
+    DatChoMoPhongInput, DatChoMoPhongOutput,
 )
 from app.core import labeling
 from app.core import cam_ket as _cam_ket
 from app.services import dat_cho as _dat_cho
+from app.services import dat_cho_gia_lap as _gia_lap
 from app.core.scope import cutoff_iso, scope_note
 
 _SYSTEM_LABELS = {"UNREAD", "STARRED", "INBOX", "IMPORTANT", "SPAM", "TRASH"}
@@ -445,3 +447,62 @@ async def tim_khach_san(inp: TimKhachSanInput, ctx: RequestContext) -> TimKhachS
                  + (" ĐÂY LÀ SỐ MÔ PHỎNG, không phải giá thật." if mo_phong else "")),
         data=[k.to_dict() for k in ds],
     )
+
+
+# ── GIAI ĐOẠN 3: ĐẶT CHỖ MÔ PHỎNG, đi qua CỔNG XÁC NHẬN + CỔNG TIỀN ──────────
+@tool_registry.register(category=ToolCategory.WRITE_DESTRUCTIVE,
+                        input_schema=DatChoMoPhongInput)
+async def dat_cho_mo_phong(inp: DatChoMoPhongInput, ctx: RequestContext) -> DatChoMoPhongOutput:
+    """ĐẶT CHỖ MÔ PHỎNG một chuyến bay hoặc khách sạn đã tra cứu được.
+
+    KHÔNG PHẢI ĐẶT THẬT: không có vé, không có phòng, không đồng nào được thanh toán.
+    MeoArc chưa nối với hệ thống đặt chỗ nào. Tool này tồn tại để trình bày cơ chế
+    duyệt-trước-khi-tiêu-tiền, và người dùng PHẢI được nói rõ điều đó.
+
+    Gọi tool này thì hệ thống TỰ CHẶN lại thành thẻ chờ duyệt — đừng nói 'đã đặt xong'."""
+    # Tên hàm mang chữ "mo_phong" là CÓ CHỦ Ý: agent đọc danh sách tool sẽ thấy ngay,
+    # và nó không thể vô tình trình bày đây như đặt thật.
+    if _gia_lap.co_nha_cung_cap_that():
+        # Có khoá Amadeus mà vẫn chạy mô phỏng là kiểu nhầm tệ nhất: người vận hành
+        # tưởng hệ thống đã đặt thật. Thà từ chối.
+        return DatChoMoPhongOutput(
+            success=False,
+            message="Hệ thống đang cấu hình nhà cung cấp THẬT, mà phần đặt chỗ thật "
+                    "chưa nối. Không chạy mô phỏng trong tình huống này.",
+            data=None,
+        )
+
+    from app.core.db import SessionLocal
+    from app.services import cong_tien
+
+    chi_tiet = {
+        "loai": inp.loai, "ma_lua_chon": inp.ma_lua_chon,
+        "ngay": inp.ngay, "hoan_duoc": inp.hoan_duoc,
+    }
+    db = SessionLocal()
+    try:
+        try:
+            don = cong_tien.tao_du_dinh(
+                db, user_id=int(ctx.user_id), loai=inp.loai, mo_ta=inp.mo_ta,
+                so_tien_vnd=inp.so_tien_vnd, chi_tiet=chi_tiet,
+            )
+        except cong_tien.CongTienTuChoi as e:
+            # Vượt trần chi tiêu → nói thẳng lý do, đừng nuốt thành lỗi chung chung.
+            return DatChoMoPhongOutput(success=False, message=str(e), data=None)
+
+        don = await asyncio.to_thread(
+            cong_tien.thuc_thi, db,
+            don=don,
+            # Tới được đây nghĩa là người dùng ĐÃ bấm duyệt trên giao diện — endpoint
+            # /confirmations/{id}/approve mới gọi tool này.
+            nguoi_duyet=f"user:{ctx.user_id}",
+            chay=lambda: _gia_lap.dat_cho_mo_phong(inp.loai, chi_tiet),
+        )
+        return DatChoMoPhongOutput(
+            success=True,
+            message=f"Đã tạo đặt chỗ MÔ PHỎNG {don.ket_qua.get('ma_dat_cho')}. "
+                    "Đây không phải vé thật.",
+            data={"don_id": don.id, "trang_thai": don.trang_thai, **(don.ket_qua or {})},
+        )
+    finally:
+        db.close()

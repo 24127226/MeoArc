@@ -239,3 +239,4 @@ def lay_nha_cung_cap():
     if khoa and bi_mat:
         return NhaCungCapAmadeus(khoa, bi_mat)
     return NhaCungCapMoPhong()
+

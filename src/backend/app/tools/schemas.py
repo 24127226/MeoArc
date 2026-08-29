@@ -656,3 +656,38 @@ class TimKhachSanInput(BaseModel):
 
 class TimKhachSanOutput(ToolResult):
     data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =      ĐẶT CHỖ MÔ PHỎNG — đi qua CỔNG TIỀN (GĐ 3)       =
+# =========================================================
+
+class DatChoMoPhongInput(BaseModel):
+    """Tham số cho `dat_cho_mo_phong`. Đi qua cổng xác nhận và cổng tiền."""
+
+    loai: Annotated[str, Field(
+        description="'chuyen_bay' hoặc 'khach_san'.",
+    )]
+    mo_ta: Annotated[str, Field(
+        description="Một câu người đọc hiểu, đủ để duyệt mà không cần mở gì khác. "
+                    "VD: 'VN123 SGN→DAD 16/09 06:20, 1 khách'.",
+    )]
+    so_tien_vnd: Annotated[int, Field(
+        ge=1,
+        description="Tổng tiền, đồng. Vượt trần thì cổng tiền từ chối.",
+    )]
+    ma_lua_chon: Annotated[str, Field(
+        description="Mã chuyến bay / mã khách sạn lấy từ kết quả tra cứu. "
+                    "Đây là thứ phân biệt đơn này với đơn khác, nên PHẢI chính xác.",
+    )]
+    ngay: Annotated[str, Field(description="Ngày dd/mm/yyyy.")]
+    hoan_duoc: Annotated[bool, Field(
+        default=False,
+        description="Lựa chọn này có hoàn/huỷ miễn phí không. Không chắc thì để False — "
+                    "nói 'hoàn được' mà thật ra không hoàn là dẫn người dùng tới quyết "
+                    "định tiền bạc dựa trên thông tin bịa.",
+    )]
+
+
+class DatChoMoPhongOutput(ToolResult):
+    data: dict[str, Any] | None = None

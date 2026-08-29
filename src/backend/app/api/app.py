@@ -1300,6 +1300,41 @@ def _confirm_card(messages: list) -> dict | None:
                 card["_tool"] = "bulk_action"
                 card["_args"] = dict(args)
                 return card
+
+        if name == "dat_cho_mo_phong":
+            # THẺ DỰ ĐỊNH — dựng TẤT ĐỊNH từ args, không nhờ LLM viết lại. Đây là chỗ
+            # người dùng nhìn vào để quyết định tiêu tiền, nên nội dung thẻ phải CHÍNH
+            # LÀ thứ sẽ chạy; để mô hình diễn đạt lại thì thẻ và hành động có thể lệch
+            # nhau, và người dùng duyệt một thứ khác với thứ xảy ra.
+            tien = int(args.get("so_tien_vnd") or 0)
+            hoan = bool(args.get("hoan_duoc"))
+            la_bay = str(args.get("loai") or "") == "chuyen_bay"
+            return {
+                "kind": "dudinh",
+                "intro": "Mình đã tra và chọn sẵn. Đây là DỰ ĐỊNH — bạn duyệt thì mình mới làm.",
+                "title": args.get("mo_ta") or "Dự định đặt chỗ",
+                "buoc": [
+                    {
+                        "mo_ta": args.get("mo_ta") or "",
+                        # Nói hậu quả bằng lời người dùng hiểu, không bằng thuật ngữ.
+                        "hau_qua": ("huỷ/hoàn miễn phí" if hoan
+                                    else "không đổi, không hoàn"),
+                        # Cấp 3 = mất tiền thật. Đây đúng là chỗ thang rủi ro cấp 3
+                        # được dành sẵn cho — và là lần đầu nó được dùng.
+                        "mucRuiRo": 3 if not hoan else 2,
+                        "tien": tien,
+                    },
+                ],
+                # NÓI RÕ ĐÂY LÀ MÔ PHỎNG, ngay trên thẻ duyệt. Một xác nhận đặt chỗ
+                # trông như thật mà thực ra là giả là thứ nguy hiểm nhất ở đây: người
+                # dùng có thể ra sân bay với nó.
+                "cho_doan": ("ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán "
+                             f"{'vé' if la_bay else 'phòng'} nào. Không có khoản tiền nào "
+                             "được thanh toán, và bạn sẽ không nhận được "
+                             f"{'vé' if la_bay else 'xác nhận phòng'} thật."),
+                "_tool": "dat_cho_mo_phong", "_args": dict(args),
+            }
+
         return None  # tool destructive khác: chưa có thẻ riêng → giữ câu trả lời của agent
     return None
 
