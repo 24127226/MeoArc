@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     #     20 lượt/ngày, trong khi gemini-2.5-flash còn nguyên hạn mức riêng. Xâu chuỗi thì
     #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
     #     Để trống = không dự phòng.
-    model_fallbacks: str = "gemini-2.5-flash"
+    model_fallbacks: str = "gemini-3.6-flash"
 
     # ── Tra cứu chuyến bay / khách sạn (Giai đoạn 2) ──
     # amadeus_key / amadeus_secret ← AMADEUS_KEY / AMADEUS_SECRET : khoá môi trường TEST

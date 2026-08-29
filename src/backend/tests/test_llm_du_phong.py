@@ -1,9 +1,15 @@
 """Dự phòng nhiều model — cứu buổi trình bày khỏi chết vì hết hạn mức.
 
 ── SỐ ĐO GỐC (29/08/2026) ──
-Gemini free tính hạn mức RIÊNG TỪNG MODEL. `gemini-2.5-flash-lite` trần **20 lượt/ngày**
-(đã chạm trần khi đang đo agent), trong khi `gemini-2.5-flash` vẫn còn nguyên hạn mức.
-20 lượt/ngày là khoảng 10–15 lượt chat — đủ để chết giữa buổi bảo vệ.
+Gemini free tính hạn mức RIÊNG TỪNG MODEL, mỗi model **20 lượt/ngày** — khoảng 10–15
+lượt chat. Đủ để chết giữa buổi bảo vệ.
+
+Đo ngày 29/08/2026 còn lộ thêm hai chuyện mà một chuỗi dự phòng "viết cho có" sẽ bỏ sót:
+  • Đích dự phòng có thể BIẾN MẤT. `gemini-2.5-flash` bị Google gỡ ("no longer available
+    to new users") ngay trong ngày — chuỗi rơi đúng, nhưng rơi vào một model 404. Chuỗi
+    dự phòng phải được kiểm định kỳ, không phải đặt một lần rồi quên.
+  • Hai model trong chuỗi = 40 lượt/ngày, KHÔNG phải vô hạn. Kịch bản đo tốn 2-3 lượt mỗi
+    câu hỏi nên tự nó đốt sạch cả hai model trước khi chạy xong.
 
 Điều quan trọng nhất được khoá ở đây KHÔNG phải "có rơi sang model khác không", mà là
 "CÓ RƠI NHẦM KHÔNG": rơi sang model sau vì một lỗi thật (schema tool sai, khoá hỏng) thì
