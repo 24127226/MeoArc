@@ -70,7 +70,14 @@ export default {
       )
     }
 
-    if (!DUONG_HOP_LE.some((p) => url.pathname.startsWith(p))) {
+    // Đo XEM DURABLE OBJECT THẬT SỰ NẰM Ở ĐÂU. Đây là câu hỏi sống còn của cả bản
+    // sửa mà lại không nhìn thấy được từ bên ngoài: gọi từ một nước không bị chặn
+    // thì Google phục vụ dù đối tượng nằm ở đâu, nên "chạy được" KHÔNG chứng minh
+    // được gì. Phải hỏi từ BÊN TRONG đối tượng mới biết.
+    //
+    // Chú ý: đường này PHẢI đi qua Durable Object. Đo ở tầng Worker thì ra vị trí
+    // của Worker (gần người gọi) — tức là đo nhầm đúng cái ta đang muốn tránh.
+    if (url.pathname !== '/__vitri' && !DUONG_HOP_LE.some((p) => url.pathname.startsWith(p))) {
       return loi(404, `Đường dẫn không thuộc Gemini API: ${url.pathname}`)
     }
 
@@ -106,6 +113,36 @@ export class ChuyenTiep {
 
   async fetch(request) {
     const vao = new URL(request.url)
+
+    // Chạy TRONG đối tượng nên `trace` trả về đúng trung tâm dữ liệu đang chứa nó.
+    // `colo` là mã sân bay: SJC/LAX/SEA… = Bắc Mỹ (đúng ý), HKG = Hong Kong (hỏng,
+    // vì đó chính là vùng đang bị chặn).
+    if (vao.pathname === '/__vitri') {
+      const ket = {}
+      // Nguồn 1 — Cloudflare tự nói. `colo` (mã sân bay) cho biết trung tâm dữ liệu
+      // đang chứa đối tượng này: SJC/LAX/DEN/SEA = Bắc Mỹ (đúng ý), HKG = Hong Kong
+      // (hỏng, vì đó chính là vùng bị chặn).
+      try {
+        const tho = await (await fetch('https://www.cloudflare.com/cdn-cgi/trace')).text()
+        const doc = (k) => (tho.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1] ?? null
+        ket.cloudflare = { colo: doc('colo'), loc: doc('loc'), ip: doc('ip') }
+      } catch (e) {
+        ket.cloudflare = { loi: String(e) }
+      }
+      // Nguồn 2 — MỘT BÊN NGOÀI CLOUDFLARE. Đây mới là số đo có giá trị: nó cho biết
+      // một máy chủ bất kỳ trên Internet (như Google) nhìn thấy lời gọi đến từ đâu.
+      // Hỏi Cloudflare về chính Cloudflare thì không phân biệt được "đối tượng nằm ở
+      // Mỹ" với "Cloudflare đang thuật lại quốc gia của người gọi gốc".
+      try {
+        ket.ben_ngoai = await (await fetch('https://ipinfo.io/json')).json()
+      } catch (e) {
+        ket.ben_ngoai = { loi: String(e) }
+      }
+      return new Response(JSON.stringify(ket), {
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
     const ra = new URL(DICH + vao.pathname + vao.search)
 
     const headers = new Headers()

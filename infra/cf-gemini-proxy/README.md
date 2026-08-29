@@ -77,6 +77,26 @@ curl https://meoarc-gemini-proxy.YOUR-SUBDOMAIN.workers.dev/__suckhoe
 
 Phải thấy `{"ok":true,"vung":"wnam",...}`. Chưa thấy thì dừng ở đây, chưa đi tiếp.
 
+Rồi kiểm tra **điều quan trọng nhất** — Durable Object có thật sự nằm ngoài Hong Kong
+không (`locationHint` chỉ là *gợi ý* best-effort, không phải cam kết):
+
+```bash
+curl https://meoarc-gemini-proxy.YOUR-SUBDOMAIN.workers.dev/__vitri
+```
+
+Đọc ở khối **`ben_ngoai`**, không phải khối `cloudflare`. Khối `ben_ngoai` là một máy
+chủ ngoài Cloudflare nói cho biết nó nhìn thấy lời gọi đến từ đâu — chính là thứ
+Google nhìn thấy. `"country": "US"` là đạt.
+
+Khối `cloudflare` chỉ để tham khảo và **dễ đọc nhầm**: trường `loc` ở đó thường báo
+quốc gia của *người gọi gốc* chứ không phải nơi đối tượng đang chạy. Đo thật đã gặp
+`colo: DEN` (Denver) mà `loc: VN` cùng lúc — nhìn khối đó một mình thì tưởng hỏng.
+Trường đáng tin trong khối này là `colo` (mã sân bay): `DEN`/`SJC`/`LAX`/`SEA` là Bắc
+Mỹ, `HKG` là hỏng.
+
+Số đo thật ngày 29/08/2026: `colo: DEN`, và bên ngoài thấy `172.68.35.102 · Denver ·
+Colorado · US`.
+
 **4. Đặt bí mật dùng chung** (nên làm — nếu không, ai biết URL cũng mượn được hạn
 mức Cloudflare của bạn; khoá Gemini thì không lộ vì proxy không giữ khoá)
 
