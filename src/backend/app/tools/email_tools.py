@@ -28,6 +28,7 @@ from app.tools.schemas import (
     NgoaiPhamViInput, NgoaiPhamViOutput,
     LietKeCamKetInput, LietKeCamKetOutput, CamKetItem,
     ApLucLichTrinhInput, ApLucLichTrinhOutput,
+    DeXuatDiLaiInput, DeXuatDiLaiOutput,
 )
 from app.core import labeling
 from app.core import cam_ket as _cam_ket
@@ -339,4 +340,36 @@ async def ap_luc_lich_trinh(inp: ApLucLichTrinhInput, ctx: RequestContext) -> Ap
         message=(f"{so_qua_tai} ngày quá tải trong {inp.so_ngay} ngày tới."
                  if so_qua_tai else f"Không ngày nào quá tải trong {inp.so_ngay} ngày tới."),
         data=bang,
+    )
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=DeXuatDiLaiInput)
+async def de_xuat_di_lai(inp: DeXuatDiLaiInput, ctx: RequestContext) -> DeXuatDiLaiOutput:
+    """Tìm những việc trong hộp thư NGỤ Ý PHẢI ĐI XA (buổi bảo vệ, chung kết, phỏng vấn
+    ở thành phố khác) và ĐỀ XUẤT ngày nên có mặt.
+
+    CHỈ ĐỀ XUẤT — tool này KHÔNG đặt vé, KHÔNG đặt phòng, không gọi ra ngoài. Người
+    dùng hỏi thẳng "đặt vé giúp mình" thì vẫn phải gọi `tu_choi_ngoai_pham_vi`."""
+    thu, _ = await asyncio.to_thread(
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+    )
+    moc = datetime.now()
+    ds = _cam_ket.trich_cam_ket(thu, moc)
+
+    han_chot = moc + timedelta(days=inp.so_ngay_toi)
+    ds = [c for c in ds if c.han and moc <= c.han <= han_chot]
+
+    # Địa điểm nằm trong THÂN THƯ, mà CamKet chỉ giữ một câu tóm tắt — nên phải dựng
+    # bản đồ id → toàn văn rồi truyền vào.
+    van = {}
+    for e in thu:
+        body = getattr(e, "body", None) or []
+        van[str(getattr(e, "id", ""))] = f"{getattr(e, 'subject', '')} {' '.join(body)}"
+
+    y_dinh = _cam_ket.suy_y_dinh_di_lai(ds, van, inp.tu_thanh_pho)
+    return DeXuatDiLaiOutput(
+        success=True,
+        message=(f"Có {len(y_dinh)} việc cần đi xa trong {inp.so_ngay_toi} ngày tới."
+                 if y_dinh else "Không có việc nào cần đi xa."),
+        data=[y.to_dict() for y in y_dinh],
     )

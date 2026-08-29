@@ -596,3 +596,25 @@ class ApLucLichTrinhInput(BaseModel):
 
 class ApLucLichTrinhOutput(ToolResult):
     data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =            Ý ĐỊNH ĐI LẠI (Giai đoạn 1)                =
+# =========================================================
+
+class DeXuatDiLaiInput(BaseModel):
+    """Tham số cho `de_xuat_di_lai`."""
+
+    so_ngay_toi: Annotated[int, Field(
+        default=30, ge=1, le=90,
+        description="Chỉ xét việc có hạn trong bao nhiêu ngày tới. Mặc định 30.",
+    )]
+
+    tu_thanh_pho: Annotated[str, Field(
+        default="SGN",
+        description="Mã sân bay nơi người dùng khởi hành. Mặc định SGN (TP.HCM).",
+    )]
+
+
+class DeXuatDiLaiOutput(ToolResult):
+    data: list[dict[str, Any]] = []

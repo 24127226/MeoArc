@@ -26,13 +26,13 @@ nộp bị đọc sai ngày còn tệ hơn hẳn không có hạn nào.
 ── GIỮ ĐỒNG BỘ VỚI BẢN TS ──
 Hai bản tồn tại vì hai đích: bản TS chạy ở chế độ mock (không có backend), bản này là
 NGUỒN SỰ THẬT cho agent và cho bản chạy thật. Chống lệch bằng bộ ca kiểm thử dùng
-CHUNG: `tests/du_lieu/ca_cam_ket.json` — cả hai bản đều phải chạy qua nó.
+CHUNG: `src/shared/ca-cam-ket.json` — cả hai bản đều phải chạy qua nó.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 # ── Nhận diện ────────────────────────────────────────────────────────────────
@@ -430,4 +430,144 @@ def ap_luc_theo_ngay(ds: list[CamKet], so_ngay: int = 7,
             "so_viec": len(trong),
             "qua_tai": sum(phut_moi_ngay(c) for c in trong) > TRAN_MOI_NGAY,
         })
+    return ra
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GIAI ĐOẠN 1 — NHẬN RA Ý ĐỊNH ĐI LẠI
+#
+# Từ cam kết đã trích, nhận ra cái nào NGỤ Ý PHẢI DI CHUYỂN. Chỉ ĐỀ XUẤT, không
+# đặt gì cả, không gọi API ngoài nào.
+#
+# Chỗ dễ sai nhất là nhận nhầm họp trực tuyến thành phải bay. Một đề xuất "cần bay
+# đi Đà Nẵng" cho một buổi họp Zoom không chỉ vô ích — nó làm người dùng thôi tin
+# vào mọi đề xuất sau đó. Nên danh sách chặn trực tuyến được xét TRƯỚC, và thắng.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Thành phố nhận diện được, kèm mã sân bay để giai đoạn sau tra chuyến bay.
+# Cố ý NGẮN: nhận nhầm một địa danh còn tệ hơn bỏ sót nó, vì bỏ sót thì người dùng
+# tự làm như cũ, còn nhận nhầm thì họ phải đi sửa hậu quả.
+THANH_PHO: dict[str, str] = {
+    "hà nội": "HAN", "hanoi": "HAN",
+    "đà nẵng": "DAD", "da nang": "DAD",
+    "hồ chí minh": "SGN", "tp.hcm": "SGN", "tphcm": "SGN", "sài gòn": "SGN",
+    "hải phòng": "HPH", "huế": "HUI", "nha trang": "CXR", "cam ranh": "CXR",
+    "đà lạt": "DLI", "cần thơ": "VCA", "phú quốc": "PQC", "quy nhơn": "UIH",
+    "vinh": "VII", "buôn ma thuột": "BMV", "pleiku": "PXU", "côn đảo": "VCS",
+}
+
+# Dấu hiệu buổi đó diễn ra TRỰC TUYẾN → KHÔNG phải đi đâu cả.
+TRUC_TUYEN = re.compile(
+    r"(trực\s*tuyến|online|zoom|google\s*meet|ms\s*teams|microsoft\s*teams"
+    r"|link\s*họp|đường\s*link|webinar|từ\s*xa|remote)",
+    re.IGNORECASE,
+)
+
+# Động từ ngụ ý PHẢI CÓ MẶT. Khác hẳn động từ cam kết chung: "nộp báo cáo" thì nộp
+# online được, còn "bảo vệ đồ án" thì phải đến.
+DONG_TU_CO_MAT = re.compile(
+    r"(bảo\s*vệ|trình\s*bày|thuyết\s*trình|tham\s*dự|có\s*mặt|dự\s*(lễ|hội|thi)"
+    r"|phỏng\s*vấn|gặp\s*mặt|hội\s*thảo|chung\s*kết|khai\s*mạc|lễ\s*trao)",
+    re.IGNORECASE,
+)
+
+# Nơi người dùng thường trú — điểm khởi hành mặc định.
+NOI_O_MAC_DINH = "SGN"
+
+
+@dataclass
+class YDinhDiLai:
+    """Một cam kết ngụ ý phải di chuyển. Đây là ĐỀ XUẤT, chưa phải đặt chỗ."""
+    cam_ket_id: str
+    email_id: str
+    noi_dung: str
+    thanh_pho: str
+    ma_san_bay: str
+    tu_san_bay: str
+    han: datetime | None
+    #  Đề xuất bay TRƯỚC buổi đó bao lâu, tính bằng ngày.
+    nen_den_truoc_ngay: int
+    do_tin_cay: float
+    ly_do: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "cam_ket_id": self.cam_ket_id,
+            "email_id": self.email_id,
+            "noi_dung": self.noi_dung,
+            "thanh_pho": self.thanh_pho,
+            "ma_san_bay": self.ma_san_bay,
+            "tu_san_bay": self.tu_san_bay,
+            "han": self.han.strftime("%d/%m/%Y %H:%M") if self.han else None,
+            "nen_den_truoc_ngay": self.nen_den_truoc_ngay,
+            "do_tin_cay": round(self.do_tin_cay, 2),
+            "ly_do": self.ly_do,
+        }
+
+
+def doc_thanh_pho(van: str, tru_ma: str = NOI_O_MAC_DINH) -> tuple[str, str] | None:
+    """Tìm thành phố ĐÍCH trong đoạn văn. Trả (tên, mã sân bay) hoặc None.
+
+    Bỏ qua thành phố trùng với nơi ở: một buổi họp "tại TP.HCM" với người đang ở
+    TP.HCM thì không phải chuyến đi."""
+    thap = van.lower()
+    tim_thay: list[tuple[int, str, str]] = []
+    for ten, ma in THANH_PHO.items():
+        vi_tri = thap.find(ten)
+        if vi_tri >= 0 and ma != tru_ma:
+            tim_thay.append((vi_tri, ten, ma))
+    if not tim_thay:
+        return None
+    # Lấy cái xuất hiện SỚM NHẤT: thư thường nêu nơi diễn ra trước, rồi mới nhắc
+    # các địa danh phụ (nơi gửi, chi nhánh…) ở phần cuối.
+    tim_thay.sort()
+    _, ten, ma = tim_thay[0]
+    return ten, ma
+
+
+def suy_y_dinh_di_lai(
+    ds: list[CamKet],
+    van_theo_email: dict[str, str],
+    tu_san_bay: str = NOI_O_MAC_DINH,
+) -> list[YDinhDiLai]:
+    """Lọc ra những cam kết ngụ ý phải di chuyển.
+
+    `van_theo_email` là bản đồ email_id → toàn văn thư, vì `CamKet` chỉ giữ một câu
+    tóm tắt còn địa điểm thường nằm trong thân thư.
+
+    BỐN điều kiện, thiếu một là bỏ:
+      1. có hạn (không biết ngày thì không đề xuất chuyến bay được)
+      2. có thành phố đích khác nơi ở
+      3. KHÔNG có dấu hiệu trực tuyến
+      4. có động từ ngụ ý phải có mặt
+    """
+    ra: list[YDinhDiLai] = []
+    for c in ds:
+        if not c.han or c.trang_thai == "xong":
+            continue
+        van = van_theo_email.get(c.email_id, "") or c.noi_dung
+
+        # Xét TRỰC TUYẾN trước và cho nó thắng. Nhận nhầm một buổi Zoom thành chuyến
+        # bay không chỉ vô ích — nó làm người dùng thôi tin vào mọi đề xuất sau đó.
+        if TRUC_TUYEN.search(van):
+            continue
+        if not DONG_TU_CO_MAT.search(van):
+            continue
+        tp = doc_thanh_pho(van, tu_san_bay)
+        if not tp:
+            continue
+
+        ten, ma = tp
+        # Buổi sáng (trước 12h) thì nên tới từ hôm trước — bay sáng cùng ngày là
+        # đặt cược vào việc không có chuyến nào trễ.
+        truoc = 1 if c.han.hour < 12 else 0
+        ra.append(YDinhDiLai(
+            cam_ket_id=c.id, email_id=c.email_id, noi_dung=c.noi_dung,
+            thanh_pho=ten.title(), ma_san_bay=ma, tu_san_bay=tu_san_bay,
+            han=c.han, nen_den_truoc_ngay=truoc,
+            # Độ tin cậy KHÔNG BAO GIỜ cao hơn độ tin cậy của chính cái hạn: suy ra
+            # một chuyến bay từ một cái hạn đoán mò thì cả hai đều đoán mò.
+            do_tin_cay=min(c.do_tin_cay, 0.85),
+            ly_do=f"{'Buổi sáng' if truoc else 'Buổi chiều'} tại {ten.title()}",
+        ))
     return ra
