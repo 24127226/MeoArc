@@ -10,7 +10,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from app.services import gmail_service, gmail_actions, gmail_send, mail  # noqa: F401 (gmail_* giữ cho test monkeypatch)
 from app.schemas.email import Email
@@ -26,8 +26,11 @@ from app.tools.schemas import (
     BulkActionInput, BulkActionOutput, BulkAction,
     ListLabelsInput, ListLabelsOutput,
     NgoaiPhamViInput, NgoaiPhamViOutput,
+    LietKeCamKetInput, LietKeCamKetOutput, CamKetItem,
+    ApLucLichTrinhInput, ApLucLichTrinhOutput,
 )
 from app.core import labeling
+from app.core import cam_ket as _cam_ket
 from app.core.scope import cutoff_iso, scope_note
 
 _SYSTEM_LABELS = {"UNREAD", "STARRED", "INBOX", "IMPORTANT", "SPAM", "TRASH"}
@@ -255,4 +258,85 @@ async def tu_choi_ngoai_pham_vi(inp: NgoaiPhamViInput, ctx: RequestContext) -> N
             "ly_do": inp.vi_sao_khong_lam_duoc,
             "thay_the": inp.viec_gan_nhat_lam_duoc,
         },
+    )
+
+
+# ── LỊCH TRÌNH ────────────────────────────────────────────────────────────────
+# Trước đây bộ trích cam kết CHỈ chạy trong trình duyệt (frontend/src/lib/cam-ket.ts),
+# nên agent hoàn toàn mù trước lịch trình: hỏi "tuần sau deadline nào nặng nhất" thì nó
+# chỉ có thể đọc lại thư từ đầu rồi đoán. Đo thật 29/08/2026: grep `app/tools/` ra 0
+# công cụ nào liên quan cam kết. Hai tool dưới đây lấp đúng khoảng đó.
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=LietKeCamKetInput)
+async def liet_ke_cam_ket(inp: LietKeCamKetInput, ctx: RequestContext) -> LietKeCamKetOutput:
+    """Liệt kê VIỆC PHẢI LÀM (cam kết, deadline, hạn nộp) trích từ hộp thư, kèm hạn và
+    người đang chờ. DÙNG TOOL NÀY cho mọi câu hỏi về deadline / lịch trình / việc sắp
+    tới / "tuần sau có gì" — đừng tự đọc từng thư rồi đoán."""
+    # `list_messages` trả về TUPLE (danh_sách, thông_tin_phân_trang) và chỉ nhận
+    # tham số theo TÊN — truyền "inbox" ở vị trí thứ ba là nhét vào `provider` của
+    # hàm bọc, sai kiểu im lặng. Quét rộng hơn mặc định vì lịch trình cần nhìn cả
+    # tháng, không chỉ vài thư mới nhất.
+    thu, _ = await asyncio.to_thread(
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+    )
+    moc = datetime.now()
+    ds = _cam_ket.trich_cam_ket(thu, moc)
+
+    han_chot = moc + timedelta(days=inp.so_ngay_toi)
+    loc = []
+    for c in ds:
+        if inp.chi_con_han:
+            if c.trang_thai == "xong":
+                continue
+            # Việc không có hạn (vd thư đã gửi đang chờ hồi âm) VẪN giữ: nó là việc
+            # hay bị quên nhất, mà lọc theo hạn thì nó rụng đầu tiên.
+            if c.han and (c.han < moc or c.han > han_chot):
+                continue
+        loc.append(c)
+
+    loc.sort(key=lambda c: (-c.muc_uu_tien, c.han or datetime.max))
+    return LietKeCamKetOutput(
+        success=True,
+        message=f"Có {len(loc)} việc trong {inp.so_ngay_toi} ngày tới.",
+        data=[
+            CamKetItem(
+                noi_dung=c.noi_dung,
+                han=c.han.strftime("%d/%m/%Y %H:%M") if c.han else None,
+                bat_dau=c.bat_dau.strftime("%d/%m/%Y") if c.bat_dau else None,
+                han_suy_ra=c.han_suy_ra,
+                nguoi_cho=c.nguoi_cho,
+                email_id=c.email_id,
+                uoc_luong_phut=c.uoc_luong_phut,
+                muc_uu_tien=c.muc_uu_tien,
+                do_tin_cay=c.do_tin_cay,
+            )
+            for c in loc
+        ],
+    )
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=ApLucLichTrinhInput)
+async def ap_luc_lich_trinh(inp: ApLucLichTrinhInput, ctx: RequestContext) -> ApLucLichTrinhOutput:
+    """Tải công việc MỖI NGÀY trong những ngày tới: bao nhiêu việc, bao nhiêu phút, có
+    quá tải không. DÙNG khi người dùng hỏi "tuần này có nặng không", "ngày nào rảnh",
+    "mình có kham nổi không".
+
+    Tính theo KHOẢNG LÀM chứ không theo ngày hạn: một việc 8 tiếng hạn thứ Sáu thì thứ
+    Tư và thứ Năm cũng có tải."""
+    # `list_messages` trả về TUPLE (danh_sách, thông_tin_phân_trang) và chỉ nhận
+    # tham số theo TÊN — truyền "inbox" ở vị trí thứ ba là nhét vào `provider` của
+    # hàm bọc, sai kiểu im lặng. Quét rộng hơn mặc định vì lịch trình cần nhìn cả
+    # tháng, không chỉ vài thư mới nhất.
+    thu, _ = await asyncio.to_thread(
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+    )
+    moc = datetime.now()
+    ds = _cam_ket.trich_cam_ket(thu, moc)
+    bang = _cam_ket.ap_luc_theo_ngay(ds, inp.so_ngay, moc)
+    so_qua_tai = sum(1 for x in bang if x["qua_tai"])
+    return ApLucLichTrinhOutput(
+        success=True,
+        message=(f"{so_qua_tai} ngày quá tải trong {inp.so_ngay} ngày tới."
+                 if so_qua_tai else f"Không ngày nào quá tải trong {inp.so_ngay} ngày tới."),
+        data=bang,
     )

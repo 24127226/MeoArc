@@ -547,3 +547,52 @@ class NgoaiPhamViInput(BaseModel):
 
 class NgoaiPhamViOutput(ToolResult):
     data: dict[str, Any] | None = None
+
+
+# =========================================================
+# =              LỊCH TRÌNH / CAM KẾT (Chặn 02)           =
+# =========================================================
+
+class LietKeCamKetInput(BaseModel):
+    """Tham số cho `liet_ke_cam_ket`."""
+
+    so_ngay_toi: Annotated[int, Field(
+        default=14,
+        ge=1, le=90,
+        description="Chỉ lấy việc có hạn trong bao nhiêu ngày tới. Mặc định 14.",
+    )]
+
+    chi_con_han: Annotated[bool, Field(
+        default=True,
+        description="True = bỏ qua việc đã xong và việc đã quá hạn. "
+                    "False = lấy hết, kể cả việc đã trễ.",
+    )]
+
+
+class CamKetItem(BaseModel):
+    noi_dung: str
+    han: str | None = None
+    bat_dau: str | None = None
+    han_suy_ra: bool = False
+    nguoi_cho: str = ""
+    email_id: str = ""
+    uoc_luong_phut: int = 0
+    muc_uu_tien: int = 1
+    do_tin_cay: float = 0.9
+
+
+class LietKeCamKetOutput(ToolResult):
+    data: list[CamKetItem] = []
+
+
+class ApLucLichTrinhInput(BaseModel):
+    """Tham số cho `ap_luc_lich_trinh`."""
+
+    so_ngay: Annotated[int, Field(
+        default=7, ge=1, le=30,
+        description="Xem tải của bao nhiêu ngày tới. Mặc định 7.",
+    )]
+
+
+class ApLucLichTrinhOutput(ToolResult):
+    data: list[dict[str, Any]] = []

@@ -1,0 +1,177 @@
+{
+  "_doc": [
+    "BỘ CA KIỂM THỬ DÙNG CHUNG cho bộ trích cam kết.",
+    "",
+    "Có HAI bản cài đặt cùng một logic: src/frontend/src/lib/cam-ket.ts (chạy ở chế độ",
+    "mock, không có backend) và src/backend/app/core/cam_ket.py (nguồn sự thật cho agent",
+    "và bản chạy thật). Hai bản thì chắc chắn sẽ lệch nhau theo thời gian — chú thích",
+    "'nhớ sửa cả hai bên' không phải là ràng buộc, nó chỉ là lời nhắc mà người ta quên.",
+    "",
+    "File này LÀ ràng buộc: cả hai bản đều phải chạy qua đúng bộ ca này. Lệch một bên là",
+    "test bên đó đỏ ngay, chứ không phải đợi tới lúc demo mới lộ.",
+    "",
+    "'moc' là thời điểm giả định lúc đọc thư — mọi mốc tương đối ('thứ Sáu', 'ngày mai')",
+    "đều tính từ đó. 29/08/2026 là thứ Bảy."
+  ],
+
+  "moc": "2026-08-29T10:00:00",
+
+  "doc_han": [
+    {
+      "ten": "ngày tuyệt đối + giờ đứng SAU",
+      "van": "Hạn nộp 16/9 lúc 9:30 nhé",
+      "han": "2026-09-16T09:30",
+      "suy_ra": false
+    },
+    {
+      "ten": "giờ đứng TRƯỚC ngày — dạng tiếng Việt hay viết",
+      "van": "Các nhóm nộp trước 17:00 ngày 16/9",
+      "han": "2026-09-16T17:00",
+      "suy_ra": false
+    },
+    {
+      "ten": "giờ dạng 17h đứng trước ngày",
+      "van": "nộp trước 17h ngày 16/9",
+      "han": "2026-09-16T17:00",
+      "suy_ra": false
+    },
+    {
+      "ten": "giờ dạng chữ 'giờ'",
+      "van": "nộp trước 17 giờ ngày 16/9",
+      "han": "2026-09-16T17:00",
+      "suy_ra": false
+    },
+    {
+      "ten": "không có giờ thì lấy CUỐI ngày hạn",
+      "van": "Sinh viên nộp trước ngày 16/9",
+      "han": "2026-09-16T23:59",
+      "suy_ra": false
+    },
+    {
+      "ten": "23:59 đứng trước ngày",
+      "van": "nộp báo cáo trước 23:59 ngày 18/9",
+      "han": "2026-09-18T23:59",
+      "suy_ra": false
+    },
+    {
+      "ten": "giờ ở quá xa KHÔNG bị vơ vét vào",
+      "van": "họp 8:00 sáng, còn hạn nộp thì xem thông báo cũ về ngày 20/9",
+      "han": "2026-09-20T23:59",
+      "suy_ra": false
+    },
+    {
+      "ten": "trong vòng N ngày làm việc — hạn phải TÍNH RA",
+      "van": "xác nhận trong vòng 3 ngày làm việc kể từ khi nhận thư",
+      "han": "2026-09-02T10:00",
+      "suy_ra": true
+    },
+    {
+      "ten": "trong vòng N ngày thường",
+      "van": "phản hồi trong vòng 2 ngày",
+      "han": "2026-08-31T10:00",
+      "suy_ra": true
+    },
+    {
+      "ten": "thứ trong tuần + giờ rõ ràng → KHÔNG phải suy ra",
+      "van": "nộp trước 23:59 thứ Sáu",
+      "han": "2026-09-04T23:59",
+      "suy_ra": false
+    },
+    {
+      "ten": "thứ trong tuần SUÔNG → là suy ra",
+      "van": "gửi lại đặc tả trước thứ Năm",
+      "han": "2026-09-03T23:59",
+      "suy_ra": true
+    },
+    {
+      "ten": "thứ Ba TUẦN SAU",
+      "van": "bảo vệ lúc 8h thứ Ba tuần sau",
+      "han": "2026-09-08T08:00",
+      "suy_ra": false
+    },
+    {
+      "ten": "ngày mai",
+      "van": "gửi cho mình ngày mai nhé",
+      "han": "2026-08-30T23:59",
+      "suy_ra": true
+    },
+    {
+      "ten": "không có mốc nào → null",
+      "van": "nhớ trả lời anh nhé",
+      "han": null,
+      "suy_ra": false
+    }
+  ],
+
+  "doc_khoang": [
+    {
+      "ten": "từ ngày X đến ngày Y",
+      "van": "Đợt thực tập diễn ra từ ngày 7/9 đến ngày 25/9 tại doanh nghiệp",
+      "bat_dau": "2026-09-07T00:00",
+      "han": "2026-09-25T23:59"
+    },
+    {
+      "ten": "từ X tới Y (không có chữ 'ngày')",
+      "van": "chạy từ 1/9 tới 20/9",
+      "bat_dau": "2026-09-01T00:00",
+      "han": "2026-09-20T23:59"
+    },
+    {
+      "ten": "vắt qua năm mới → mốc cuối sang năm sau",
+      "van": "từ 20/12 đến 5/1",
+      "bat_dau": "2026-12-20T00:00",
+      "han": "2027-01-05T23:59"
+    },
+    {
+      "ten": "ngày vô lý → null",
+      "van": "từ 45/9 đến 60/9",
+      "bat_dau": null,
+      "han": null
+    },
+    {
+      "ten": "không phải khoảng → null",
+      "van": "nộp trước 23:59 ngày 18/9",
+      "bat_dau": null,
+      "han": null
+    }
+  ],
+
+  "trich": [
+    {
+      "ten": "có động từ + có mốc → NHẬN",
+      "subject": "Nhắc nộp báo cáo",
+      "body": ["Các nhóm nộp báo cáo trước 23:59 ngày 18/9."],
+      "priority": "High",
+      "nhan": true
+    },
+    {
+      "ten": "có mốc nhưng KHÔNG có nghĩa vụ → BỎ",
+      "subject": "Sale 9.9 giảm đến 50%",
+      "body": ["Đừng bỏ lỡ ngày hội mua sắm 9/9 với hàng ngàn ưu đãi."],
+      "priority": null,
+      "nhan": false
+    },
+    {
+      "ten": "lời mời sinh nhật có ngày → BỎ",
+      "subject": "Sinh nhật mình 15/9 nhé",
+      "body": ["Mình tổ chức nhỏ ở nhà, hẹn gặp lại mọi người ngày 15/9 nha."],
+      "priority": null,
+      "nhan": false
+    },
+    {
+      "ten": "có nghĩa vụ nhưng KHÔNG có mốc → BỎ",
+      "subject": "Nhớ gửi lại giúp mình",
+      "body": ["Bạn gửi lại bản nháp cho mình nhé, cảm ơn."],
+      "priority": null,
+      "nhan": false
+    },
+    {
+      "ten": "khoảng nói thẳng → nhận và đánh dấu khoang_ro_rang",
+      "subject": "Đợt thực tập doanh nghiệp",
+      "body": ["Sinh viên nộp báo cáo, đợt diễn ra từ ngày 7/9 đến ngày 25/9."],
+      "priority": "High",
+      "nhan": true,
+      "khoang_ro_rang": true
+    }
+  ]
+}
