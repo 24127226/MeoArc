@@ -200,6 +200,11 @@ Thao tác này hoàn tác được nên **có thể không cần duyệt** — �
 
 Đây là đường tra cứu gọi thẳng, không qua AI. Mở bằng URL trên trình duyệt.
 
+> ✅ **D1–D3 đã kiểm trên bản deploy ngày 30/08/2026 — đạt.**
+> Nguồn trả `aerodatabox`, chặng SGN–DAD ra 5 chuyến thật (VJ1630, VN106, VN110,
+> 9G956, VJ628), khách sạn lui về `mo_phong` đúng như thiết kế.
+> Còn lại **D5 (trên giao diện)** chưa ai xem tận mắt — nó nằm sau đăng nhập.
+
 ### D1. Đang dùng nguồn nào
 ```
 /tra-cuu/trang-thai

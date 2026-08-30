@@ -32,12 +32,25 @@ Nói sai một lần là mọi câu sau đều bị nghi ngờ.
   [MOCK]  Gói đăng ký / bảng giá / đồng hồ token
           -> Giao diện có, KHÔNG nối cổng thanh toán. Đừng demo phần này.
 
-  [THẬT khi có khoá]  Tra cứu chuyến bay
-          -> Có AERODATABOX_KEY thì đây là LỊCH BAY THẬT: hãng thật, số hiệu
-             thật, giờ thật, loại máy bay, nhà ga. Thầy tra số hiệu là ra.
+  [THẬT — ĐÃ CHẠY TRÊN BẢN DEPLOY]  Tra cứu chuyến bay
+          -> LỊCH BAY THẬT: hãng thật, số hiệu thật, giờ thật, loại máy bay,
+             nhà ga. Thầy tra số hiệu là ra.
              KHÔNG có giá vé — nguồn này không bán vé, và nhóm không bịa giá.
-             Chưa có khoá thì lui về mô phỏng, tự dán nhãn "MÔ PHỎNG".
              Nhãn do MÁY CHỦ quyết định, không phải do giao diện gõ vào.
+
+             Đã kiểm trên bản deploy ngày 30/08/2026, chặng SGN-DAD 05/09/2026:
+                VJ1630  Vietjet Air        05:00  Airbus A321      ga 1
+                VN106   Vietnam Airlines   05:45  Airbus A321      ga 3
+                VN110   Vietnam Airlines   06:45  Airbus A321      ga 3
+                9G956   9G Rail            07:05  Airbus A320 NEO  ga 3
+                VJ628   Vietjet Air        07:05  Airbus A321      ga 1
+
+             Mục "9G Rail" nghe như tuyến nối đường sắt. GIỮ NGUYÊN có chủ ý —
+             lọc theo chuỗi tên là cách mong manh, bỏ nhầm hãng thật thì người
+             dùng mất chuyến bay CÓ THẬT mà không biết. Thầy có hỏi thì đó là
+             câu trả lời: "đây là dữ liệu thật, em không lọc bớt cho đẹp."
+
+             Không có khoá thì lui về mô phỏng, tự dán nhãn "MÔ PHỎNG".
 
   [MÔ PHỎNG CÓ NHÃN]  Tra cứu khách sạn
           -> Nguồn bay không có dữ liệu khách sạn nên phần này luôn mô phỏng.
