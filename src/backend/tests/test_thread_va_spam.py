@@ -90,3 +90,48 @@ def test_suy_thu_muc_tu_nhan_SPAM():
 def test_spam_la_the_folder_hop_le():
     """Thiếu trong `_VALID_TAGS` thì mọi thư rác bị gắn nhãn 'inbox' khi trả về."""
     assert "spam" in gmail_service._VALID_TAGS
+
+
+# ── LỖI 3: hai danh sách "thư mục hợp lệ" ở hai nơi, và chúng LỆCH NHAU ──────
+
+def test_moi_thu_muc_dich_vu_tra_ve_deu_DUNG_KIEU():
+    """Bấm "Thư rác" báo "Không nạp được thư từ máy chủ" — nghe như lỗi mạng, thật ra
+    là lỗi KIỂM TRA KIỂU: `Folder` trong schema thiếu 'spam', nên tầng dịch vụ lấy thư
+    về đúng rồi vỡ ở bước dựng đối tượng `Email`.
+
+    Hai chỗ cùng định nghĩa "thư mục nào hợp lệ" mà không ai buộc chúng khớp nhau:
+    `gmail_service._FOLDER_LABEL` (dịch vụ biết lấy) và `schemas.email.Folder` (schema
+    cho phép trả về). Lệch một giá trị là hỏng cả một thư mục.
+
+    Phép kiểm này buộc chúng khớp — nếu thêm thư mục mới mà quên một bên thì đỏ ngay.
+    """
+    from typing import get_args
+    from app.schemas.email import Folder
+
+    cho_phep = set(get_args(Folder))
+    # 'starred' là BỘ LỌC (nhãn STARRED), không phải thư mục lưu trữ — thư gắn sao
+    # vẫn nằm ở inbox. Nên nó có trong `_FOLDER_LABEL` mà không cần trong `Folder`.
+    lay_duoc = set(gmail_service._FOLDER_LABEL) - {"starred"}
+    thieu = lay_duoc - cho_phep
+    assert not thieu, (
+        f"dịch vụ lấy được {sorted(thieu)} nhưng schema Email không cho phép — "
+        "mọi thư ở thư mục đó sẽ làm vỡ lời gọi API"
+    )
+
+
+def test_dung_duoc_Email_cho_MOI_thu_muc():
+    """Chặn đúng cách lỗi đã xảy ra: dựng thật một `Email` cho từng thư mục.
+
+    Lỗi cũ CHỈ nổ khi hộp thư THẬT SỰ CÓ thư ở thư mục đó — hộp rỗng thì không đối
+    tượng nào được dựng, không lỗi nào được ném, và mọi phép thử đều xanh. Đó là lý do
+    nó lọt qua: tài khoản đem ra thử không có thư rác."""
+    from typing import get_args
+    from app.schemas.email import Folder
+
+    for tm in get_args(Folder):
+        e = Email(
+            id="1", sender="A", senderEmail="a@b.com", senderInitial="A", to="me",
+            subject="x", preview="", body=[], time="", date="",
+            unread=False, starred=False, category="sea", folder=tm,
+        )
+        assert e.folder == tm
