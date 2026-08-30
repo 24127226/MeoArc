@@ -50,11 +50,18 @@ class Settings(BaseSettings):
     #   • ai_api_key          ← AI_API_KEY        : KHOÁ Gemini (lấy free ở aistudio.google.com).
     #                            ĐỂ TRỐNG = chưa cấu hình → /agent/chat tự lùi về câu trả lời mẫu
     #                            (app KHÔNG sập, vẫn chạy mọi tính năng khác).
-    #   • model_name          ← MODEL_NAME        : tên model, mặc định gemini-2.0-flash (nhanh, rẻ).
+    #   • model_name          ← MODEL_NAME        : tên model.
+    #
+    #     KHÔNG ĐỂ gemini-2.0-flash. Đo thật: model đó có hạn mức GÓI FREE = 0, nên MỌI
+    #     lời gọi hỏng ngay vì hết quota rồi mới rơi xuống model dự phòng. Hậu quả không
+    #     phải "chậm hơn một chút" mà là ĐỐT MỘT LƯỢT GỌI VÔ ÍCH CHO MỖI CÂU HỎI, và
+    #     người dùng chỉ còn hạn mức của MỘT model thay vì hai.
+    #     Triệu chứng nhìn từ ngoài: "vừa thay khoá mới mà đã hết quota" — nên rất dễ
+    #     đổ cho khoá hỏng và đi thay khoá lần nữa, trong khi khoá không hề có lỗi.
     #   • model_provider      ← MODEL_PROVIDER    : nhà cung cấp; "google_genai" cho Gemini.
     #   • local_model_base_url← LOCAL_MODEL_BASE_URL : nếu chạy model LOCAL (Ollama…) thay vì cloud.
     ai_api_key: str = ""
-    model_name: str = "gemini-2.0-flash"
+    model_name: str = "gemini-2.5-flash-lite"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
     #   • ai_base_url ← AI_BASE_URL : ĐỔI NƠI GỬI lời gọi Gemini (mặc định trống = gọi

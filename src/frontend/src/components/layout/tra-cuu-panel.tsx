@@ -44,8 +44,11 @@ const HOM_NAY_CONG = (n: number) => {
 
 export function TraCuuPanel({ onDong }: { onDong: () => void }) {
   const [loai, setLoai] = useState<'bay' | 'phong'>('bay')
-  const [tu, setTu] = useState('SGN')
-  const [den, setDen] = useState('DAD')
+  // Mở ra đã có sẵn một chặng CHẠY ĐƯỢC: người xem bấm "Tra cứu" là thấy kết quả ngay,
+  // không phải nghĩ xem gõ gì trước. Điền tên thành phố chứ không phải mã, để lần đầu
+  // nhìn vào là biết ô này nhận tên — không ai đọc placeholder trước khi gõ.
+  const [tu, setTu] = useState('TP HCM')
+  const [den, setDen] = useState('Đà Nẵng')
   const [thanhPho, setThanhPho] = useState('Đà Nẵng')
   const [ngay, setNgay] = useState(HOM_NAY_CONG(14))
   const [tra, setTra] = useState(HOM_NAY_CONG(16))
@@ -154,8 +157,11 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
 
           {loai === 'bay' ? (
             <>
-              <O nhan="Từ" giaTri={tu} datGiaTri={(v) => setTu(v.toUpperCase().slice(0, 3))} rong="w-[68px]" />
-              <O nhan="Đến" giaTri={den} datGiaTri={(v) => setDen(v.toUpperCase().slice(0, 3))} rong="w-[68px]" />
+              <GoiYSanBay />
+              <O nhan="Từ" giaTri={tu} datGiaTri={setTu} rong="w-[132px]"
+                 goiY="meoarc-san-bay" chuThich="TP HCM" />
+              <O nhan="Đến" giaTri={den} datGiaTri={setDen} rong="w-[132px]"
+                 goiY="meoarc-san-bay" chuThich="Đà Nẵng" />
               <O nhan="Ngày bay" giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
             </>
           ) : (
@@ -245,8 +251,21 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
   )
 }
 
-function O({ nhan, giaTri, datGiaTri, rong }: {
+/** Danh sách sân bay để gợi ý. Nhúng thẳng vào giao diện thay vì gọi máy chủ:
+ *  ô gợi ý phải hiện NGAY lúc người dùng gõ chữ đầu tiên, mà chờ một vòng mạng thì
+ *  danh sách bật lên sau khi họ đã gõ xong — tức là vô dụng. Bảng đầy đủ vẫn nằm ở
+ *  máy chủ (`/tra-cuu/san-bay`) và nó mới là nơi quyết định mã cuối cùng. */
+const SAN_BAY_GOI_Y = [
+  ['SGN', 'TP HCM'], ['HAN', 'Hà Nội'], ['DAD', 'Đà Nẵng'], ['CXR', 'Nha Trang'],
+  ['PQC', 'Phú Quốc'], ['HPH', 'Hải Phòng'], ['HUI', 'Huế'], ['DLI', 'Đà Lạt'],
+  ['VCA', 'Cần Thơ'], ['UIH', 'Quy Nhơn'], ['VII', 'Vinh'], ['VDO', 'Vân Đồn'],
+  ['BMV', 'Buôn Ma Thuột'], ['THD', 'Thanh Hoá'], ['VDH', 'Đồng Hới'],
+  ['BKK', 'Bangkok'], ['SIN', 'Singapore'], ['ICN', 'Seoul'], ['NRT', 'Tokyo'],
+] as const
+
+function O({ nhan, giaTri, datGiaTri, rong, goiY, chuThich }: {
   nhan: string; giaTri: string; datGiaTri: (v: string) => void; rong: string
+  goiY?: string; chuThich?: string
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -256,10 +275,27 @@ function O({ nhan, giaTri, datGiaTri, rong }: {
       <input
         value={giaTri}
         onChange={(e) => datGiaTri(e.target.value)}
+        list={goiY}
+        placeholder={chuThich}
         className={cn('rounded-lg border border-border/40 bg-background/50 px-2.5 py-1.5',
           'text-[12.5px] outline-none focus:border-[var(--spark)]', rong)}
       />
     </label>
+  )
+}
+
+/** Gợi ý sân bay dùng chung cho ô "Từ" và "Đến".
+ *
+ *  Người dùng gõ TÊN THÀNH PHỐ, máy chủ đổi sang mã. Bản trước ép ô nhập thành 3 ký
+ *  tự viết hoa, tức là bắt họ tự biết "Nội Bài là HAN" — phải mở Google tra mã rồi
+ *  quay lại gõ, nên công cụ chưa tiết kiệm được gì cho họ. */
+function GoiYSanBay() {
+  return (
+    <datalist id="meoarc-san-bay">
+      {SAN_BAY_GOI_Y.map(([ma, ten]) => (
+        <option key={ma} value={ten}>{`${ten} · ${ma}`}</option>
+      ))}
+    </datalist>
   )
 }
 

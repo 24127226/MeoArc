@@ -403,8 +403,19 @@ async def tim_chuyen_bay(inp: TimChuyenBayInput, ctx: RequestContext) -> TimChuy
         return TimChuyenBayOutput(
             success=False, message=f"Ngày '{inp.ngay}' không đúng dạng dd/mm/yyyy.", data=[],
         )
+    # Người dùng nói "từ Hà Nội đi Đà Nẵng", không nói "HAN đi DAD". Đổi ở đây thay vì
+    # bắt mô hình tự nhớ mã IATA: mô hình nhớ sai mã là đưa ra chặng bay hoàn toàn khác
+    # mà nhìn vẫn hợp lý — hỏng âm thầm, đúng loại lỗi nguy hiểm nhất ở đây.
+    ma_tu, ma_den = _dat_cho.ma_san_bay(inp.tu), _dat_cho.ma_san_bay(inp.den)
+    if not ma_tu or not ma_den:
+        khong_ra = inp.tu if not ma_tu else inp.den
+        return TimChuyenBayOutput(
+            success=False, data=[],
+            message=(f"Chưa nhận ra sân bay '{khong_ra}'. Bạn nói rõ tên thành phố giúp mình "
+                     "(ví dụ: Hà Nội, Đà Nẵng, TP HCM, Nha Trang)."),
+        )
     ds = await asyncio.to_thread(
-        ncc.tim_chuyen_bay, inp.tu.upper(), inp.den.upper(), ngay, inp.so_ket_qua
+        ncc.tim_chuyen_bay, ma_tu, ma_den, ngay, inp.so_ket_qua
     )
     mo_phong = bool(ds) and ds[0].nguon == "mo_phong"
     return TimChuyenBayOutput(

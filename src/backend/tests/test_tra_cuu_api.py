@@ -139,12 +139,40 @@ def test_tra_phong_truoc_nhan_phong_bi_tu_choi(monkeypatch):
     assert r.status_code == 400
 
 
-@pytest.mark.parametrize("ma", ["SG", "SGNN"])
-def test_ma_san_bay_sai_do_dai_bi_tu_choi(monkeypatch, ma):
+@pytest.mark.parametrize("goi", ["Hà Nội", "ha noi", "HAN", "Nội Bài", "sân bay Hà Nội"])
+def test_GO_TEN_THANH_PHO_cung_ra_dung_chang(monkeypatch, goi):
+    """Bản trước ép đúng 3 ký tự, tức là bắt người dùng TỰ BIẾT "Nội Bài là HAN" —
+    họ phải mở Google tra mã rồi mới quay lại gõ, nên công cụ chưa tiết kiệm được gì."""
     _mo_phong(monkeypatch)
     r = c.get("/tra-cuu/chuyen-bay",
-              params={"tu": ma, "den": "DAD", "ngay": "16/09/2026"})
-    assert r.status_code == 422
+              params={"tu": goi, "den": "Đà Nẵng", "ngay": "16/09/2026"})
+    assert r.status_code == 200, r.text
+    assert all(k["tu"] == "HAN" and k["den"] == "DAD" for k in r.json()["ket_qua"])
+
+
+def test_khong_nhan_ra_thi_BAO_CACH_SUA_chu_khong_doan(monkeypatch):
+    """Đoán nhầm thành phố là gửi người ta tới sai đầu đất nước, và họ chỉ phát hiện
+    ở sân bay. Nên dừng lại kèm ví dụ, không đoán."""
+    _mo_phong(monkeypatch)
+    r = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "Xyzzy", "den": "DAD", "ngay": "16/09/2026"})
+    assert r.status_code == 400
+    assert "điểm đi" in r.text and "Hà Nội" in r.text, "phải kèm ví dụ để người dùng sửa được"
+
+
+def test_di_va_den_TRUNG_NHAU_bi_tu_choi(monkeypatch):
+    _mo_phong(monkeypatch)
+    r = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "Hà Nội", "den": "HAN", "ngay": "16/09/2026"})
+    assert r.status_code == 400
+
+
+def test_endpoint_san_bay_de_giao_dien_goi_y():
+    d = c.get("/tra-cuu/san-bay").json()
+    ma_list = [x["ma"] for x in d["ket_qua"]]
+    for bat_buoc in ("SGN", "HAN", "DAD", "CXR", "PQC"):
+        assert bat_buoc in ma_list, f"thiếu sân bay phổ biến {bat_buoc}"
+    assert d["pho_bien"] and all({"ma", "ten"} <= set(x) for x in d["pho_bien"])
 
 
 # ── Ranh giới: CHỈ tra cứu ───────────────────────────────────────────────────

@@ -169,10 +169,18 @@ def _folder_from_labels(labels: list[str]) -> str:
         return "trash"
     if "DRAFT" in labels:
         return "drafts"
-    if "SENT" in labels:
-        return "sent"
+    # ── INBOX PHẢI ĐỨNG TRƯỚC SENT ──
+    # Một thư TỰ GỬI CHO CHÍNH MÌNH mang CẢ HAI nhãn INBOX và SENT. Gmail xếp nó vào
+    # Hộp thư đến, nên ta cũng phải vậy.
+    # Khi SENT đứng trước, lỗi hiện ra theo cách khó lần nhất: danh sách gắn "inbox"
+    # (đúng, vì hỏi Gmail theo thư mục) nhưng mở chi tiết lại suy ra "sent" — thư BIẾN
+    # MẤT khỏi hộp thư ngay khi bấm vào, và chỉ xảy ra với thư tự gửi. Đúng loại thư
+    # dùng để tạo dữ liệu demo, nên nó chỉ đập vào mặt lúc trình bày.
+    # SPAM/TRASH/DRAFT vẫn đứng trước vì chúng thật sự gỡ thư khỏi INBOX.
     if "INBOX" in labels:
         return "inbox"
+    if "SENT" in labels:
+        return "sent"
     return "archive"  # không còn ở inbox/trash/spam/draft → coi như đã lưu trữ
 
 

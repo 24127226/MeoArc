@@ -254,8 +254,12 @@ def test_KHONG_doan_chinh_sach_hoan_ve(monkeypatch):
 def test_nguon_that_co_link_chi_tiet_theo_so_hieu(monkeypatch):
     _gia_lap(monkeypatch, [_mot_chuyen()])
     d = dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)[0].to_dict()
-    assert "VN123" in d["lien_ket_chi_tiet"]
     assert d["lien_ket_chi_tiet"].startswith("https://www.google.com/search")
+    # Mã hãng TÁCH khỏi số hiệu bằng dấu cách ("VN+123"): đó là dạng Google dùng để
+    # nhận diện số hiệu chuyến bay, nên khả năng ra THẺ chuyến bay cao hơn là ra một
+    # trang kết quả tìm kiếm thường.
+    assert "VN+123" in d["lien_ket_chi_tiet"], d["lien_ket_chi_tiet"]
+    assert d["ma"] == "VN123", "mã hiển thị vẫn liền, chỉ link mới tách"
 
 
 def test_nguon_MO_PHONG_KHONG_duoc_gan_link_chi_tiet():

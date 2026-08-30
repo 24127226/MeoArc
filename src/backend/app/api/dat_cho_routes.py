@@ -84,18 +84,51 @@ def trang_thai():
     }
 
 
+def _ma_hoac_loi(gia_tri: str, nhan: str) -> str:
+    """Đổi tên thành phố sang mã sân bay, hoặc BÁO LỖI kèm cách sửa.
+
+    Trước đây tham số bị ép đúng 3 ký tự, tức là người dùng PHẢI tự biết "Nội Bài là
+    HAN" — họ phải mở Google tra mã rồi mới quay lại gõ, nên công cụ chưa tiết kiệm
+    được gì. Nay nhận cả tên thành phố.
+
+    Không tra ra thì DỪNG kèm gợi ý, không đoán: đoán nhầm là gửi người ta tới sai đầu
+    đất nước và họ chỉ phát hiện ở sân bay."""
+    ma = dat_cho.ma_san_bay(gia_tri)
+    if not ma:
+        vd = ", ".join(f"{g['ten']} ({g['ma']})" for g in dat_cho.goi_y_san_bay(4))
+        raise HTTPException(
+            400, f"Không nhận ra {nhan} '{gia_tri}'. Gõ tên thành phố hoặc mã sân bay — ví dụ: {vd}."
+        )
+    return ma
+
+
+@router.get("/san-bay")
+def danh_sach_san_bay():
+    """Danh sách sân bay để giao diện gợi ý — người dùng CHỌN chứ không phải nhớ mã."""
+    return {
+        "ket_qua": [
+            {"ma": ma, "ten": tens[0], "cach_goi": list(tens)}
+            for ma, tens in sorted(dat_cho.SAN_BAY.items())
+        ],
+        "pho_bien": dat_cho.goi_y_san_bay(10),
+    }
+
+
 @router.get("/chuyen-bay")
 def tim_chuyen_bay(
-    tu: str = Query(..., min_length=3, max_length=3, description="Mã sân bay đi, vd SGN"),
-    den: str = Query(..., min_length=3, max_length=3, description="Mã sân bay đến, vd DAD"),
+    tu: str = Query(..., min_length=2, description="Tên thành phố hoặc mã sân bay, vd 'Hà Nội' hay HAN"),
+    den: str = Query(..., min_length=2, description="Tên thành phố hoặc mã sân bay, vd 'Đà Nẵng' hay DAD"),
     ngay: str = Query(..., description="Ngày bay dd/mm/yyyy"),
     so_ket_qua: int = Query(5, ge=1, le=10),
 ):
     """TRA CỨU chuyến bay. Không giữ chỗ, không đặt, không thanh toán."""
     ncc = dat_cho.lay_nha_cung_cap()
     d = _doc_ngay(ngay).date()
+    ma_tu, ma_den = _ma_hoac_loi(tu, "điểm đi"), _ma_hoac_loi(den, "điểm đến")
+    if ma_tu == ma_den:
+        raise HTTPException(400, "Điểm đi và điểm đến đang là cùng một sân bay.")
     try:
-        ds = ncc.tim_chuyen_bay(tu.upper(), den.upper(), d, so_ket_qua)
+        ds = ncc.tim_chuyen_bay(ma_tu, ma_den, d, so_ket_qua)
     except RuntimeError as exc:
         # Lỗi nhà cung cấp đã được DIỄN GIẢI SẴN thành câu người dùng làm được gì đó
         # (vd chạm trần tốc độ → chờ vài giây). Giữ nguyên, đừng bọc thêm tên lớp

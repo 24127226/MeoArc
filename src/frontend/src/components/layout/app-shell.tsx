@@ -146,7 +146,14 @@ export function AppShell() {
           // đã có thì trộn nội dung đầy đủ. Nhờ vậy bấm mở thư từ kết quả AI luôn hiện chi tiết.
           setEmails((prev) =>
             prev.some((e) => e.id === id)
-              ? prev.map((e) => (e.id === id ? { ...e, ...full, unread: false } : e))
+              ? prev.map((e) =>
+                  // GIỮ NGUYÊN `folder` CŨ. Bản chi tiết suy thư mục từ nhãn Gmail, còn
+                  // bản trong danh sách mang thư mục ĐANG XEM — hai cách suy có thể lệch
+                  // nhau (thư tự gửi cho mình mang cả INBOX lẫn SENT). Để `...full` đè
+                  // lên thì bấm vào thư là nó rơi khỏi bộ lọc và BIẾN MẤT trước mắt.
+                  // Thư mục là thuộc tính của KHUNG ĐANG XEM, không phải của lần tải chi tiết.
+                  e.id === id ? { ...e, ...full, folder: e.folder, unread: false } : e,
+                )
               : [{ ...full, unread: false }, ...prev],
           )
         })

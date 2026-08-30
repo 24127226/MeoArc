@@ -46,6 +46,106 @@ TEN_HANG: dict[str, str] = {
 }
 
 
+# ── TÊN THÀNH PHỐ → MÃ SÂN BAY ───────────────────────────────────────────────
+# Bắt người dùng tự biết "Nội Bài là HAN" là bắt họ làm việc của máy: họ phải mở
+# Google tra mã, rồi mới quay lại gõ vào đây — tức công cụ chưa tiết kiệm được gì.
+# Bảng phủ toàn bộ sân bay dân dụng Việt Nam + các điểm đến quốc tế phổ biến.
+# Mỗi mã kèm NHIỀU CÁCH GỌI. PHẦN TỬ ĐẦU là TÊN HIỂN THỊ (có dấu, viết hoa đúng) —
+# nó được đem ra gợi ý cho người dùng, nên không được là chuỗi không dấu dùng để so
+# khớp nội bộ. Các phần tử sau chỉ để nhận dạng; `_bo_dau` chuẩn hoá hết khi dựng bảng
+# tra ngược nên viết có dấu hay không đều khớp được.
+SAN_BAY: dict[str, tuple[str, ...]] = {
+    "SGN": ("TP HCM", "tphcm", "ho chi minh", "thanh pho ho chi minh", "sai gon",
+            "saigon", "tan son nhat", "hcm"),
+    "HAN": ("Hà Nội", "hanoi", "noi bai"),
+    "DAD": ("Đà Nẵng", "danang"),
+    "CXR": ("Nha Trang", "cam ranh", "khanh hoa"),
+    "PQC": ("Phú Quốc", "kien giang"),
+    "HPH": ("Hải Phòng", "cat bi"),
+    "VCA": ("Cần Thơ", "tra noc"),
+    "HUI": ("Huế", "phu bai", "thua thien hue"),
+    "DLI": ("Đà Lạt", "dalat", "lien khuong", "lam dong"),
+    "VII": ("Vinh", "nghe an"),
+    "UIH": ("Quy Nhơn", "phu cat", "binh dinh"),
+    "THD": ("Thanh Hoá", "tho xuan"),
+    "BMV": ("Buôn Ma Thuột", "dak lak", "daklak"),
+    "PXU": ("Pleiku", "gia lai"),
+    "TBB": ("Tuy Hoà", "phu yen"),
+    "VDO": ("Vân Đồn", "quang ninh", "ha long"),
+    "VCL": ("Chu Lai", "tam ky", "quang nam"),
+    "CAH": ("Cà Mau",),
+    "VKG": ("Rạch Giá",),
+    "DIN": ("Điện Biên", "dien bien phu"),
+    "VDH": ("Đồng Hới", "quang binh"),
+    "BKK": ("Bangkok", "thai lan", "suvarnabhumi"),
+    "SIN": ("Singapore", "changi"),
+    "KUL": ("Kuala Lumpur", "malaysia"),
+    "HKG": ("Hong Kong", "hongkong"),
+    "ICN": ("Seoul", "han quoc", "incheon"),
+    "NRT": ("Tokyo", "narita", "nhat ban"),
+    "TPE": ("Đài Bắc", "taipei", "dai loan"),
+    "PVG": ("Thượng Hải", "shanghai"),
+    "PEK": ("Bắc Kinh", "beijing"),
+    "CDG": ("Paris", "phap"),
+    "LHR": ("London", "anh"),
+    "SYD": ("Sydney", "uc"),
+    "MEL": ("Melbourne",),
+    "LAX": ("Los Angeles", "la"),
+    "SFO": ("San Francisco",),
+    "DXB": ("Dubai",),
+    "DOH": ("Doha", "qatar"),
+}
+
+
+def _bo_dau(s: str) -> str:
+    """Bỏ dấu tiếng Việt để so khớp. "Đà Nẵng" và "da nang" phải ra cùng một chỗ —
+    không ai gõ đúng dấu khi đang vội, và bắt gõ đúng dấu cũng là một rào cản."""
+    import unicodedata
+    s = (s or "").strip().lower().replace("đ", "d")
+    return "".join(c for c in unicodedata.normalize("NFD", s)
+                   if unicodedata.category(c) != "Mn")
+
+
+# Dựng sẵn bảng tra ngược một lần, thay vì quét lại mỗi lời gọi.
+_TRA_NGUOC: dict[str, str] = {
+    _bo_dau(ten): ma for ma, tens in SAN_BAY.items() for ten in tens
+}
+
+
+def ma_san_bay(text: str) -> str | None:
+    """Đổi thứ người dùng gõ thành mã IATA. Trả None nếu không nhận ra.
+
+    Nhận: mã sẵn ("HAN", "han"), tên thành phố ("Hà Nội", "ha noi"), tên sân bay
+    ("Nội Bài"), và khớp một phần ("sân bay Đà Nẵng" → DAD).
+
+    KHÔNG đoán bừa khi không chắc: trả None để tầng trên hỏi lại. Đoán nhầm thành phố
+    là gửi người ta tới sai đầu đất nước, và họ chỉ phát hiện ở sân bay.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    # Đã là mã IATA thì dùng luôn — người biết mã không phải đi đường vòng.
+    if len(raw) == 3 and raw.isalpha() and raw.upper() in SAN_BAY:
+        return raw.upper()
+
+    goi = _bo_dau(raw)
+    if goi in _TRA_NGUOC:
+        return _TRA_NGUOC[goi]
+
+    # Khớp một phần: "sân bay đà nẵng", "bay đi Nha Trang". Chọn tên KHỚP DÀI NHẤT để
+    # "tp hcm" không bị "hcm" giành mất, và tránh khớp bừa vào tên ngắn.
+    ung_vien = [(ten, ma) for ten, ma in _TRA_NGUOC.items() if ten in goi]
+    if ung_vien:
+        return max(ung_vien, key=lambda x: len(x[0]))[1]
+    return None
+
+
+def goi_y_san_bay(so: int = 8) -> list[dict]:
+    """Vài sân bay phổ biến để giao diện gợi ý sẵn — người dùng bấm chứ không phải gõ."""
+    pho_bien = ["SGN", "HAN", "DAD", "CXR", "PQC", "HPH", "HUI", "DLI", "VCA", "UIH"]
+    return [{"ma": m, "ten": SAN_BAY[m][0]} for m in pho_bien[:so]]
+
+
 def ten_hang(ma: str) -> str:
     """Đổi mã IATA sang tên hãng. Không biết thì GIỮ NGUYÊN MÃ — bịa một cái tên
     còn tệ hơn hiện hai chữ cái, vì người dùng sẽ tin cái tên đó."""
@@ -83,9 +183,19 @@ def lien_ket_chi_tiet_chuyen_bay(so_hieu: str, ngay: date) -> str:
     băm sinh ra, tra Google sẽ không ra gì — nên `to_dict` chỉ gắn link này khi nguồn
     tự khai là thật. Một đường dẫn dẫn tới trang trống còn tệ hơn không có đường dẫn:
     người dùng kết luận công cụ hỏng, chứ không kết luận dữ liệu là giả.
+
+    ── GIỚI HẠN CÒN LẠI ──
+    Google KHÔNG có đường dẫn công khai trỏ thẳng vào một chuyến bay cụ thể; ta chỉ gửi
+    được một truy vấn tìm kiếm và để Google tự quyết có hiện thẻ chuyến bay hay không.
+    Nên đôi khi nó hiện thẻ đúng chuyến, đôi khi ra danh sách kết quả. Cách tăng khả
+    năng ra thẻ: TÁCH mã hãng khỏi số hiệu bằng dấu cách ("VN 106", không phải "VN106")
+    — đó là dạng Google dùng để nhận diện số hiệu chuyến bay.
     """
+    import re
+    # "VN106" → "VN 106". Không khớp mẫu thì giữ nguyên, đừng cắt bừa.
+    dep = re.sub(r"^([A-Z0-9]{2})(\d{1,4})$", r"\1 \2", so_hieu.upper())
     return "https://www.google.com/search?q=" + quote_plus(
-        f"{so_hieu} {ngay.strftime('%d/%m/%Y')}"
+        f"{dep} {ngay.strftime('%d/%m/%Y')}"
     )
 
 
