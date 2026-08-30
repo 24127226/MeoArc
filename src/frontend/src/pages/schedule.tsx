@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Clock, Mail,
-  MessageSquare, Sparkles,
+  MessageSquare, Sparkles, Plane,
 } from 'lucide-react'
 import { emails as seedEmails, type Email } from '@/data/emails'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
@@ -17,6 +17,7 @@ import { AlertOverlay } from '@/components/layout/alert-overlay'
 import { LogoMark } from '@/components/logo'
 import { cn } from '@/lib/utils'
 import { chuyenCanh } from '@/lib/chuyen-canh'
+import { TraCuuPanel } from '@/components/layout/tra-cuu-panel'
 
 /**
  * SchedulePage — trang lịch trình.
@@ -58,6 +59,8 @@ export function SchedulePage() {
   const [thuMo, setThuMo] = useState<string | null>(null)
   /** Ngày đang mở bảng liệt kê đầy đủ — lối thoát cho các việc không đủ làn. */
   const [ngayMo, setNgayMo] = useState<{ ngay: Date; hcn: DOMRect } | null>(null)
+  /** Khung tra cứu chỗ đi lại — gọi thẳng backend, không qua trợ lý (xem TraCuuPanel). */
+  const [traCuuMo, setTraCuuMo] = useState(false)
 
   useEffect(() => {
     if (!apiBaseUrlDaCauHinh) return
@@ -273,6 +276,12 @@ export function SchedulePage() {
               className="o-icon size-8" aria-label="Tháng trước"><ChevronLeft className="size-4" /></button>
             <button onClick={() => setThang(new Date(homNay.getFullYear(), homNay.getMonth(), 1))}
               className="nut-ky-thuat px-3 py-1.5 text-[11.5px] font-medium">Hôm nay</button>
+            {/* Đặt cạnh điều hướng tháng vì nó thuộc cùng câu chuyện: nhìn lịch thấy
+                phải đi đâu đó, rồi tra ngay chỗ đi lại. */}
+            <button onClick={() => setTraCuuMo(true)}
+              className="nut-ky-thuat flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-medium">
+              <Plane className="size-3.5" /> Tra cứu đi lại
+            </button>
             <button onClick={() => setThang((t) => new Date(t.getFullYear(), t.getMonth() + 1, 1))}
               className="o-icon size-8" aria-label="Tháng sau"><ChevronRight className="size-4" /></button>
           </div>
@@ -323,6 +332,8 @@ export function SchedulePage() {
           onHoiAI={() => hoiAI(dangHoi.ck)}
         />
       )}
+
+      {traCuuMo && <TraCuuPanel onDong={() => setTraCuuMo(false)} />}
 
       {/* ══ BẢNG NGÀY — lối thoát cho các việc không đủ làn trong ô ══ */}
       {ngayMo && (

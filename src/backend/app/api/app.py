@@ -1724,6 +1724,12 @@ def dev_list_users(db: Session = Depends(get_db)):
 app.include_router(auth_routes.router)  # thêm /auth/google/start, /callback, /auth/logout
 app.include_router(avatar_routes.router)  # /avatars/{ten_mien} — biểu tượng người gửi (có cache)
 
+# /tra-cuu/* — tra cứu chuyến bay & phòng, gọi THẲNG không qua mô hình. Tách khỏi
+# đường agent để phần trình bày không phụ thuộc hạn mức Gemini (20 lượt/ngày cho mỗi
+# model) — một buổi bảo vệ chết vì hết lượt thì không cứu được tại chỗ.
+from app.api import dat_cho_routes  # noqa: E402
+app.include_router(dat_cho_routes.router)
+
 
 @app.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
