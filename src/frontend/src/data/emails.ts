@@ -243,6 +243,73 @@ const EMAILS_GOC: Email[] = [
     folder: 'drafts',
   },
 
+  /* ----- Thư rác -----
+     THIẾU HẲN ở bản trước: `folder: 'spam'` không xuất hiện lần nào trong toàn bộ
+     dữ liệu mẫu, nên bấm "Thư rác" ra một danh sách rỗng và trông như tính năng
+     hỏng. Nút có mà bấm vào không có gì thì tệ hơn là không có nút.
+     Ba lá đủ để thấy bộ lọc chạy: một lừa đảo trắng trợn, một giả danh ngân hàng,
+     một quảng cáo. Lá giả danh ngân hàng CÓ CHỦ Ý — đó là loại thư người dùng
+     phải tự nhận ra, và là lý do thư mục này đáng được nhìn tới. */
+  {
+    id: 'sp1',
+    sender: 'Trúng thưởng Quốc tế',
+    senderEmail: 'winner@lottery-intl.top',
+    senderInitial: 'T',
+    to: ME,
+    subject: 'CHÚC MỪNG! Bạn đã trúng 500.000.000đ',
+    preview: 'Bạn là người may mắn được chọn. Gửi thông tin tài khoản để nhận...',
+    body: [
+      'CHÚC MỪNG QUÝ KHÁCH!',
+      'Bạn là người may mắn được chọn trong đợt quay số quốc tế. Giải thưởng 500.000.000đ đang chờ.',
+      'Vui lòng gửi số tài khoản ngân hàng và ảnh CCCD để chúng tôi chuyển tiền ngay hôm nay.',
+    ],
+    time: '03:14',
+    date: 'Hôm nay, 03:14',
+    unread: true,
+    starred: false,
+    category: 'terra',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+  {
+    id: 'sp2',
+    sender: 'Vietcombank Security',
+    senderEmail: 'security@vietcombank-verify.info',
+    senderInitial: 'V',
+    to: ME,
+    subject: 'Tài khoản của bạn sẽ bị khoá trong 24 giờ',
+    preview: 'Xác minh ngay để tránh bị khoá. Nhấn vào liên kết bên dưới...',
+    body: [
+      'Kính gửi Quý khách,',
+      'Hệ thống ghi nhận hoạt động bất thường. Tài khoản sẽ bị khoá trong 24 giờ nếu không xác minh.',
+      'Nhấn vào liên kết bên dưới và đăng nhập để xác minh danh tính.',
+    ],
+    time: '01:52',
+    date: 'Hôm nay, 01:52',
+    unread: true,
+    starred: false,
+    category: 'wine',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+  {
+    id: 'sp3',
+    sender: 'Khoá học online',
+    senderEmail: 'promo@edu-deals.biz',
+    senderInitial: 'K',
+    to: ME,
+    subject: 'Giảm 90% toàn bộ khoá học — chỉ hôm nay',
+    preview: 'Cơ hội cuối cùng! Đăng ký ngay kẻo lỡ...',
+    body: ['Cơ hội cuối cùng! Giảm 90% toàn bộ khoá học lập trình. Đăng ký ngay kẻo lỡ.'],
+    time: 'Hôm qua',
+    date: 'Hôm qua, 22:40',
+    unread: false,
+    starred: false,
+    category: 'sun',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+
   /* ----- Thùng rác ----- */
   {
     id: 't1',

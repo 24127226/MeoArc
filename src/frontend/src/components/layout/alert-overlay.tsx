@@ -38,6 +38,14 @@ type Tin = {
 
 const KHOA_DA_BAO = 'meoarc:daBao'
 
+/* Giữ tối đa bấy nhiêu id đã báo. Không có trần thì danh sách phình mãi trong
+   localStorage — vài tháng dùng thật là vài nghìn id, và mỗi lần đọc/ghi đều tốn.
+   Cắt phần CŨ NHẤT: thư cũ thì cũng chẳng còn khả năng quay lại làm ứng viên. */
+const TRAN_NHO = 500
+
+/** Thông báo ở trên cùng tự tắt sau bấy nhiêu giây, có thanh chạy đếm ngược. */
+const GIAY_HIEN = 4
+
 /* ── VÌ SAO CÁC BIẾN NÀY Ở CẤP MÔ-ĐUN, KHÔNG PHẢI useRef ──
    `AlertOverlay` được gắn ở HAI nơi: hộp thư (app-shell) và trang lịch. Nếu mỗi
    bản giữ một tập riêng trong bộ nhớ thì đổi trang là mất trí nhớ, và cùng một
@@ -48,16 +56,22 @@ const KHOA_DA_BAO = 'meoarc:daBao'
 let _daBao: Set<string> | null = null
 let _daThay: Set<string> | null = null
 
+/* ── VÌ SAO localStorage, KHÔNG PHẢI sessionStorage ──
+   sessionStorage chết theo tab. Đóng trình duyệt rồi mở lại là mọi thứ được báo
+   LẠI TỪ ĐẦU — kể cả những thư đã đọc từ hôm qua. Người dùng yêu cầu đúng điều
+   ngược lại: mỗi thông báo chỉ hiện ĐÚNG MỘT LẦN, tính từ lúc nó xuất hiện cho
+   tới những lần quay lại sau. Đó là localStorage. */
 function docDaBao(): Set<string> {
   try {
-    return new Set(JSON.parse(sessionStorage.getItem(KHOA_DA_BAO) ?? '[]') as string[])
+    return new Set(JSON.parse(localStorage.getItem(KHOA_DA_BAO) ?? '[]') as string[])
   } catch {
     return new Set()
   }
 }
 function ghiDaBao(s: Set<string>) {
   try {
-    sessionStorage.setItem(KHOA_DA_BAO, JSON.stringify([...s]))
+    const ds = [...s]
+    localStorage.setItem(KHOA_DA_BAO, JSON.stringify(ds.slice(-TRAN_NHO)))
   } catch {
     // Cửa sổ riêng tư / bộ nhớ bị chặn → chấp nhận báo lại sau khi tải lại trang.
     // Thà lặp một lần còn hơn vỡ cả giao diện vì một chỗ lưu tuỳ chọn.
@@ -82,12 +96,22 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
      app lên là dội một loạt thông báo cho những lá thư đã nằm đó từ hôm qua,
      và người dùng sẽ tắt tính năng này trong ngày đầu tiên. */
 
+  /* CHỈ XÉT HỘP THƯ ĐẾN.
+     `emails` là thư của THƯ MỤC ĐANG XEM. Bấm sang "Thư rác" là cả danh sách đổi
+     thành một tập id chưa từng thấy, nên mọi lá đều bị coi là "thư mới" và dội một
+     loạt thông báo — đúng triệu chứng người dùng báo. Cùng lý do đó, hạn trích từ
+     thư rác cũng không nên báo: thứ nằm trong thư rác không phải việc phải làm. */
+  const hopThuDen = useMemo(
+    () => emails.filter((e) => (e.folder ?? 'inbox') === 'inbox'),
+    [emails],
+  )
+
   // Danh sách tin ĐÁNG báo, tính lại mỗi khi hộp thư đổi.
   const ungVien = useMemo<Tin[]>(() => {
     const ra: Tin[] = []
     const gio = Date.now()
 
-    for (const c of trichCamKet(emails)) {
+    for (const c of trichCamKet(hopThuDen)) {
       if (!c.han || c.trangThai === 'xong') continue
       const conLai = c.han.getTime() - gio
       // Quy tắc 3: quá hạn rồi thì báo cũng vô ích.
@@ -104,9 +128,9 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
 
     // Lần đầu: chỉ ghi nhận, không báo.
     if (_daThay === null) {
-      _daThay = new Set(emails.map((e) => e.id))
+      _daThay = new Set(hopThuDen.map((e) => e.id))
     } else {
-      for (const e of emails) {
+      for (const e of hopThuDen) {
         if (_daThay.has(e.id)) continue
         _daThay.add(e.id)
         if (!e.unread) continue // thư mình vừa gửi cũng là "mới" nhưng không cần báo
@@ -125,7 +149,7 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
     // Hạn lên trước thư: một trạng thái đang xấu đi quan trọng hơn một sự kiện
     // vừa xảy ra.
     return ra.sort((a, b) => (a.loai === b.loai ? 0 : a.loai === 'han' ? -1 : 1))
-  }, [emails])
+  }, [hopThuDen])
 
   useEffect(() => {
     const chuaBao = ungVien.filter((t) => !_daBao!.has(t.id))
@@ -146,10 +170,14 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
     setHien((cu) => [...chuaBao.slice(0, 2), ...cu].slice(0, 2))
     const moi = chuaBao.slice(0, 2)
 
-    // Thư mới tự tắt; HẠN thì ở lại cho tới khi người dùng đóng.
-    const hens = moi
-      .filter((t) => t.loai === 'thu')
-      .map((t) => window.setTimeout(() => setHien((cu) => cu.filter((x) => x.id !== t.id)), 9000))
+    /* CẢ HAI LOẠI đều tự tắt sau 4 giây, và có THANH CHẠY cho thấy còn bao lâu.
+       Bản trước để hạn ở lại vĩnh viễn cho tới khi bấm đóng — lập luận là "đó là
+       thứ họ cần thấy". Nhưng một tấm chắn không tự đi thì người dùng học được
+       cách phớt lờ nó, và nó thành đúng thứ nó cố tránh: nhiễu.
+       Hạn không mất đi đâu cả — nó vẫn nằm ở trang Lịch trình, chỗ dành cho nó. */
+    const hens = moi.map((t) =>
+      window.setTimeout(() => setHien((cu) => cu.filter((x) => x.id !== t.id)), GIAY_HIEN * 1000),
+    )
     return () => hens.forEach(clearTimeout)
   }, [ungVien])
 
@@ -166,7 +194,10 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
         <div
           key={t.id}
           className={cn(
-            'nhay-bat goc-cat pointer-events-auto flex w-[min(560px,94vw)] items-center gap-3',
+            // `relative` để thanh chạy bám mép dưới thẻ. `overflow-hidden` để nó
+            // không tràn ra ngoài góc cắt của `.goc-cat`.
+            'nhay-bat goc-cat pointer-events-auto relative overflow-hidden',
+            'flex w-[min(560px,94vw)] items-center gap-3',
             'bg-[var(--elevated)]/94 px-4 py-3 backdrop-blur-md',
             t.mucRuiRo === 2 ? 'rui-ro-2' : 'rui-ro-1',
           )}
@@ -200,6 +231,20 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
           >
             <X className="size-3.5" />
           </button>
+
+          {/* THANH CHẠY — cho thấy thông báo còn ở lại bao lâu.
+              Không có nó thì thông báo biến mất đột ngột và người dùng không biết
+              mình còn bao nhiêu thời gian để đọc; có nó thì họ tự quyết định đọc
+              nhanh hay bấm giữ lại. `scaleX` (không phải `width`) để chạy trên
+              GPU, không bắt trình duyệt tính lại bố cục 60 lần mỗi giây. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] origin-left"
+            style={{
+              background: 'var(--rr)',
+              animation: `toast-bar ${GIAY_HIEN}s linear forwards`,
+            }}
+          />
         </div>
       ))}
     </div>

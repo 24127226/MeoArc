@@ -94,7 +94,17 @@ export function AppShell() {
       return
     }
     setActiveNav(id)
-    chuyenCanh(() => setOpenedId(null))
+    /* CHỈ chuyển cảnh khi THẬT SỰ đổi cảnh.
+       Bản trước bọc MỌI cú bấm thư mục trong `chuyenCanh`, mà chuyển cảnh gốc là
+       một hiệu ứng TOÀN TRANG: cả trang trượt -8px và co 0.994 trong 0.34s. Nên
+       bấm từ Hộp thư sang Thư rác là thanh điều hướng, danh sách và cả panel phải
+       cùng nhún một cái — đúng cảm giác "giật" người dùng mô tả.
+
+       Đổi thư mục là đổi NỘI DUNG trong cùng một cảnh, không phải đổi cảnh. Chỉ
+       khi đang mở chi tiết một lá thư (một mặt phẳng khác hẳn) thì quay về danh
+       sách mới đáng một chuyển cảnh. */
+    if (openedId) chuyenCanh(() => setOpenedId(null))
+    else setOpenedId(null)
   }
   const inboxUnread = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox' && e.unread).length
 

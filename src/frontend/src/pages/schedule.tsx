@@ -81,8 +81,21 @@ export function SchedulePage() {
     setThang(thangNenMo(camKet, homNay))
   }, [camKet, homNay])
   const o = useMemo(() => luoiThang(thang.getFullYear(), thang.getMonth()), [thang])
+  /* "SẮP TỚI" = SÁU VIỆC GẦN HẠN NHẤT — không phải sáu việc đầu danh sách.
+     Bản trước là `slice(0, 6)` trên thứ tự trích, tức thứ tự thư trong hộp thư.
+     Nó TÌNH CỜ gần đúng vì thư thường tới theo thời gian, nhưng chỉ cần một lá
+     thư cũ nhắc hạn xa là danh sách sai — và không có cách nào nhìn ra tại sao
+     một việc lại nằm đó. Một khối tên là "Sắp tới" mà không sắp theo hạn thì
+     người dùng không thể tin nó, cũng không đoán được nó.
+
+     Việc KHÔNG CÓ HẠN xuống cuối: chúng vẫn cần theo dõi (thư đã gửi đang chờ
+     hồi âm) nhưng không tranh chỗ với thứ có mốc thật. */
   const sapToi = useMemo(
-    () => camKet.filter((c) => c.trangThai !== 'xong').slice(0, 6),
+    () =>
+      camKet
+        .filter((c) => c.trangThai !== 'xong')
+        .sort((a, b) => (a.han?.getTime() ?? Infinity) - (b.han?.getTime() ?? Infinity))
+        .slice(0, 6),
     [camKet],
   )
   const emailDangMo = thuMo ? emails.find((e) => e.id === thuMo) : null
@@ -207,6 +220,9 @@ export function SchedulePage() {
         <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin px-3 pb-3">
           <p className="px-1 py-2 font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground/60">
             Sắp tới
+            <span className="ml-1.5 normal-case tracking-normal text-muted-foreground/45">
+              · 6 việc gần hạn nhất
+            </span>
           </p>
           {sapToi.length === 0 ? (
             <p className="px-1 text-[12.5px] text-muted-foreground">Chưa có việc nào.</p>
@@ -218,8 +234,15 @@ export function SchedulePage() {
                 className="group flex items-start gap-2.5 rounded-lg px-1 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
               >
                 <span className={cn('cham-rr mt-1.5', `c${c.mucRuiRo}`)} aria-hidden />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-[12.5px] font-medium">{c.noiDung}</span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  {/* HAI DÒNG, không cắt cụt một dòng. Cột chỉ rộng 268px nên
+                      `truncate` biến mọi tiêu đề thành "Xác nhận dự chung kết
+                      Hackathon …" — người dùng phải rê chuột từng cái mới biết
+                      việc gì. Đây là khối TÓM TẮT, thứ duy nhất nó phải làm được
+                      là đọc lướt ra tên việc. */}
+                  <span className="line-clamp-2 text-[12.5px] font-medium leading-snug">
+                    {c.noiDung}
+                  </span>
                   <span className="truncate text-[11px] text-muted-foreground">
                     {c.han ? nhanNgay(c.han, homNay) : 'Không có hạn'} · {c.nguoiCho}
                   </span>
