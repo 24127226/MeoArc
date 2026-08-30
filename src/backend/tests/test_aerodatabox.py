@@ -224,6 +224,25 @@ def test_giu_du_lieu_that_ma_nguon_bia_khong_co(monkeypatch):
     assert d["trang_thai"] == "Scheduled"
 
 
+def test_SUA_ten_hang_viet_tat_cua_nha_cung_cap(monkeypatch):
+    """Đo trên dữ liệu thật: AeroDataBox trả "Vietnam" cho VN, "VietJetAir" cho VJ.
+    Viết tắt và sai chính tả thương hiệu — bảng TEN_HANG của mình đúng hơn."""
+    hang_xau = _mot_chuyen(so="VN 106")
+    hang_xau["airline"] = {"name": "Vietnam", "iata": "VN"}
+    _gia_lap(monkeypatch, [hang_xau])
+    ds = dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
+    assert ds[0].hang == "Vietnam Airlines"
+
+
+def test_hang_LA_thi_dung_ten_cua_nha_cung_cap(monkeypatch):
+    """Bảng TEN_HANG chỉ phủ hãng nội địa. Hãng lạ thì tên nhà cung cấp vẫn hơn mã trống."""
+    la = _mot_chuyen(so="XX 1")
+    la["airline"] = {"name": "Hang Bay La", "iata": "XX"}
+    _gia_lap(monkeypatch, [la])
+    ds = dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
+    assert ds[0].hang == "Hang Bay La"
+
+
 def test_KHONG_doan_chinh_sach_hoan_ve(monkeypatch):
     """FIDS không có dữ liệu vé. Nói "hoàn được" mà không hoàn là dẫn tới quyết định tiền bạc sai."""
     _gia_lap(monkeypatch, [_mot_chuyen()])

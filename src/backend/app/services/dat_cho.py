@@ -514,6 +514,14 @@ class NhaCungCapAeroDataBox:
 
         ra: list[ChuyenBay] = []
         for o in tho:
+            # ── KHÔNG LỌC BỚT CHO ĐẸP MẮT ──
+            # Dữ liệu thật có mục lạ: đo được chặng SGN-DAD trả về "9G956 / 9G Rail",
+            # nghe như tuyến nối bằng đường sắt dù nhà cung cấp vẫn gán loại máy bay.
+            # ĐÃ CÂN NHẮC rồi bỏ phương án lọc theo tên ("Rail"/"Bus"): lọc theo chuỗi
+            # là cách mong manh, bỏ nhầm một hãng thật thì người dùng mất chuyến bay
+            # có thật mà không hề biết — hỏng âm thầm, tệ hơn hiện thừa một dòng lạ.
+            # Ở đây hiện ĐÚNG thứ nhà cung cấp trả về, nhất quán với nguyên tắc của cả
+            # tệp này: không chỉnh dữ liệu cho vừa mắt.
             di = o.get("departure") or o.get("movement") or {}
             toi = o.get("arrival") or {}
             if ((toi.get("airport") or {}).get("iata") or "").upper() != den.upper():
@@ -528,9 +536,15 @@ class NhaCungCapAeroDataBox:
 
             hang = o.get("airline") or {}
             so_hieu = (o.get("number") or "").replace(" ", "")
+            # ── ƯU TIÊN BẢNG TÊN CỦA MÌNH, KHÔNG PHẢI TÊN CỦA NHÀ CUNG CẤP ──
+            # Đo trên dữ liệu thật: AeroDataBox trả "Vietnam" cho VN và "VietJetAir"
+            # cho VJ — viết tắt và sai chính tả thương hiệu. Bảng TEN_HANG phủ đủ các
+            # hãng nội địa nên dùng nó trước; hãng lạ mới lấy tên nhà cung cấp; không
+            # có gì thì giữ mã. Thứ tự này để không bao giờ hiện tên trống.
+            ma_hang = (hang.get("iata") or "").upper()
             ra.append(ChuyenBay(
                 ma=so_hieu,
-                hang=hang.get("name") or ten_hang(hang.get("iata") or ""),
+                hang=TEN_HANG.get(ma_hang) or hang.get("name") or ma_hang,
                 tu=tu.upper(), den=den.upper(),
                 khoi_hanh=gio_di, ha_canh=gio_den,
                 gia_vnd=0,          # nguồn này KHÔNG bán vé — xem chú thích đầu lớp
