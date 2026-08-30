@@ -100,7 +100,59 @@ def _header(msg: dict, name: str) -> str:
     return ""
 
 
-def _to_email(msg: dict, folder: str = "inbox") -> Email:
+# ── NHÃN NGƯỜI DÙNG ĐÃ ĐẶT PHẢI THẮNG BỘ PHÂN LOẠI TỰ ĐỘNG ───────────────────
+# Đây là gốc của lỗi "gắn nhãn xong, đi chỗ khác quay lại thì nhãn về như cũ".
+# `apply_label` GHI nhãn thật xuống Gmail, nhưng lúc đọc lại thì `classify()` tính
+# lại category/label TỪ NỘI DUNG và ghi đè — tức là thao tác của người dùng được ghi
+# rồi KHÔNG BAO GIỜ được đọc. Nhìn từ ngoài giống hệt "app quên thao tác trước đó".
+#
+# Nguyên tắc: bộ phân loại tự động chỉ ĐOÁN khi chưa ai quyết. Người dùng đã quyết
+# rồi thì quyết định đó là chân lý — nếu không, mọi lần gắn nhãn đều vô nghĩa.
+_NHAN_MEOARC: dict[str, "object"] = {}   # điền lười ở dưới, tránh vòng lặp import
+
+
+def _ban_do_nhan(access_token: str) -> dict[str, str]:
+    """id → tên của mọi nhãn Gmail. Cần vì thư chỉ mang ID nhãn, không mang tên.
+
+    Có cache riêng: danh sách nhãn đổi rất hiếm so với danh sách thư, mà gọi thêm một
+    lần Gmail cho MỖI lần liệt kê thì vừa chậm vừa dễ chạm hạn mức."""
+    key = ("labels", access_token, "", "")
+    san = _cache_get(key)
+    if san is not None:
+        return san
+    try:
+        with httpx.Client(timeout=15) as c:
+            r = c.get("https://gmail.googleapis.com/gmail/v1/users/me/labels",
+                      headers={"Authorization": f"Bearer {access_token}"})
+            r.raise_for_status()
+            ra = {lb["id"]: lb.get("name", "") for lb in (r.json().get("labels") or [])}
+    except Exception:
+        # Không lấy được nhãn thì LÙI VỀ bộ phân loại tự động, đừng làm hỏng cả danh
+        # sách thư chỉ vì một lời gọi phụ.
+        return {}
+    _cache_set(key, ra)
+    return ra
+
+
+def _nhan_nguoi_dung_dat(label_ids: list[str], ban_do: dict[str, str]):
+    """Trả Category mà NGƯỜI DÙNG đã gắn, hoặc None nếu chưa gắn nhãn MeoArc nào.
+
+    Chỉ nhận nhãn TRÙNG TÊN với một trong 7 nhãn MeoArc. Nhãn Gmail khác của người
+    dùng ("Du lịch", "Gia đình"…) bị bỏ qua có chủ ý: giao diện chỉ có 7 màu chip, và
+    đoán màu cho một nhãn lạ là bịa ra thông tin không có thật."""
+    if not label_ids or not ban_do:
+        return None
+    if not _NHAN_MEOARC:
+        from app.core.labeling import ALL_CATEGORIES
+        _NHAN_MEOARC.update({c.label.lower(): c for c in ALL_CATEGORIES})
+    for lid in label_ids:
+        ten = (ban_do.get(lid) or "").strip().lower()
+        if ten in _NHAN_MEOARC:
+            return _NHAN_MEOARC[ten]
+    return None
+
+
+def _to_email(msg: dict, folder: str = "inbox", ban_do_nhan: dict[str, str] | None = None) -> Email:
     name, addr = parseaddr(_header(msg, "From"))  # tách "Tên <email>" → (tên, email)
     to_name, to_addr = parseaddr(_header(msg, "To"))
     sender = name or addr or "(không tên)"
@@ -120,7 +172,9 @@ def _to_email(msg: dict, folder: str = "inbox") -> Email:
     # UC009: phân loại TẤT ĐỊNH theo người gửi + tiêu đề + snippet (engine rule-based).
     # Thay cho băm id ngẫu nhiên trước đây → mỗi lần fetch cho ĐÚNG MỘT category/label
     # (nhãn không "biến mất" sau khi làm mới), và khớp y hệt nhãn UC009 đề xuất/áp.
-    cls = classify(addr, name, raw_subject, snippet)
+    # NGƯỜI DÙNG ĐÃ GẮN NHÃN thì dùng nhãn đó; chưa thì mới để bộ phân loại đoán.
+    nhom = (_nhan_nguoi_dung_dat(labels, ban_do_nhan or {})
+            or classify(addr, name, raw_subject, snippet).category)
     return Email(
         id=msg["id"],
         sender=display,
@@ -134,8 +188,8 @@ def _to_email(msg: dict, folder: str = "inbox") -> Email:
         date=date_s,
         unread=("UNREAD" in labels),
         starred=("STARRED" in labels),
-        category=cls.category.color,   # type: ignore[arg-type]  (1 trong 7 màu chip FE)
-        label=cls.category.label,      # tên nhãn tiếng Việt (Học tập/Công việc/…) hiện trên card
+        category=nhom.color,           # type: ignore[arg-type]  (1 trong 7 màu chip FE)
+        label=nhom.label,              # tên nhãn tiếng Việt (Học tập/Công việc/…) hiện trên card
         folder=folder,              # type: ignore[arg-type]  (gắn đúng thư mục đang xem)
         threadId=msg.get("threadId"),  # id luồng THẬT từ Gmail (đóng nợ INTEGRATION #3)
     )
@@ -282,11 +336,14 @@ def list_messages(
 
         emails: list[Email] = []
         if ids:
+            # Lấy bản đồ nhãn MỘT LẦN cho cả trang (có cache riêng), để biết thư nào đã
+            # được NGƯỜI DÙNG gắn nhãn — nhãn đó phải thắng bộ phân loại tự động.
+            ban_do = _ban_do_nhan(access_token)
             with ThreadPoolExecutor(max_workers=min(_LIST_WORKERS, len(ids))) as pool:
                 # map giữ ĐÚNG THỨ TỰ Gmail trả về — thư mới nhất vẫn nằm trên đầu.
                 for raw in pool.map(_fetch, ids):
                     if raw is not None:
-                        emails.append(_to_email(raw, tag))
+                        emails.append(_to_email(raw, tag, ban_do))
         result = (emails, next_cursor)
         _cache_set(cache_key, result)  # lưu lại để lần sau (trong TTL) khỏi gọi Gmail
         return result
@@ -367,7 +424,11 @@ def get_message(access_token: str, msg_id: str) -> Email:
     _, date_s = _fmt_local(raw_date)        # giờ VN (đồng nhất với danh sách)
     labels = msg.get("labelIds", [])
     raw_subject = _header(msg, "Subject") or ""
-    cls = classify(addr, name, raw_subject, msg.get("snippet", ""))  # UC009: cùng engine với danh sách
+    # Cùng luật với danh sách: NHÃN NGƯỜI DÙNG ĐÃ ĐẶT thắng bộ phân loại tự động.
+    # Thiếu ở đây thì mở chi tiết một thư vừa gắn nhãn sẽ thấy nhãn CŨ, còn danh sách
+    # thấy nhãn MỚI — hai màn nói hai điều khác nhau về cùng một lá thư.
+    nhom = (_nhan_nguoi_dung_dat(labels, _ban_do_nhan(access_token))
+            or classify(addr, name, raw_subject, msg.get("snippet", "")).category)
     email = Email(
         id=msg["id"],
         sender=sender,
@@ -381,8 +442,8 @@ def get_message(access_token: str, msg_id: str) -> Email:
         date=date_s,
         unread=("UNREAD" in labels),
         starred=("STARRED" in labels),
-        category=cls.category.color,   # type: ignore[arg-type]
-        label=cls.category.label,      # nhãn khớp danh sách → mở chi tiết không "nhảy màu"
+        category=nhom.color,           # type: ignore[arg-type]
+        label=nhom.label,              # nhãn khớp danh sách → mở chi tiết không "nhảy màu"
         attachments=([{"name": a["name"], "size": a["size"]} for a in attachments] or None),  # type: ignore[arg-type]
         html=(html or None),                  # HTML gốc để FE render đúng chuẩn Gmail
         folder=_folder_from_labels(labels),   # suy đúng thư mục từ nhãn (sent/drafts/trash/archive)

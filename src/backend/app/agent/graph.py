@@ -19,6 +19,20 @@ from app.agent.nodes.agent_node import agent_node, responder_node, MAX_ITERATION
 from app.agent.nodes.tool_node import tool_node
 
 
+# ── TOOL CÓ THẺ DỰNG TẤT ĐỊNH → KHÔNG CẦN GỌI `responder` ────────────────────
+# app/api/app.py dựng thẻ cho các tool này TỪ DỮ LIỆU TOOL (_categorize_card,
+# _di_lai_card) rồi GHI ĐÈ lên đầu ra của responder. Nghĩa là lượt gọi model của
+# responder bị VỨT ĐI hoàn toàn — trả tiền cho một câu văn không ai đọc.
+#
+# Chuyện này không nhỏ: gói Gemini free là 20 lượt/NGÀY cho mỗi model, mà một câu
+# hỏi có dùng tool tốn 3 lượt (agent nghĩ → agent đọc kết quả → responder trình bày).
+# Bỏ được lượt thứ ba là người dùng hỏi được nhiều hơn 50% mỗi ngày.
+#
+# Chỉ thêm tên tool vào đây khi app.py THẬT SỰ dựng thẻ riêng cho nó — thêm nhầm thì
+# người dùng nhận về câu trả lời cụt của agent thay vì phần trình bày tử tế.
+_TOOL_TU_DUNG_THE = {"categorize_emails", "tim_chuyen_bay", "tim_khach_san"}
+
+
 def _should_continue(state: State) -> str:
     """'Ngã rẽ' sau mỗi lần agent nghĩ: chạy tool, ép thẻ, hay dừng luôn?
 
@@ -36,8 +50,13 @@ def _should_continue(state: State) -> str:
     # Có ToolMessage nào trong LƯỢT hiện tại (từ HumanMessage gần nhất) không?
     msgs = state["messages"]
     last_human = max((i for i, m in enumerate(msgs) if getattr(m, "type", None) == "human"), default=0)
-    has_tool_data = any(getattr(m, "type", None) == "tool" for m in msgs[last_human:])
-    return "responder" if has_tool_data else "end"
+    tool_msgs = [m for m in msgs[last_human:] if getattr(m, "type", None) == "tool"]
+    if not tool_msgs:
+        return "end"
+    # Lượt này gọi tool mà app.py tự dựng thẻ cho → responder sẽ bị ghi đè, khỏi gọi.
+    if any(getattr(m, "name", "") in _TOOL_TU_DUNG_THE for m in tool_msgs):
+        return "end"
+    return "responder"
 
 
 def build_graph():
