@@ -215,10 +215,25 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
           )}
         </div>
 
-        <p className="shrink-0 border-t border-border/15 px-4 py-2 text-[11px] text-muted-foreground">
-          Khung này <strong className="text-foreground">không đặt chỗ</strong>. Muốn đặt thì phải qua
-          thẻ dự định có nút duyệt — và khâu chuyển tiền hiện là mô phỏng.
-        </p>
+        <div className="shrink-0 border-t border-border/15 px-4 py-2 text-[11px] text-muted-foreground">
+          <p>
+            Khung này <strong className="text-foreground">không đặt chỗ</strong>. Muốn đặt thì phải qua
+            thẻ dự định có nút duyệt — và khâu chuyển tiền hiện là mô phỏng.
+          </p>
+          {/* KHI ĐANG MÔ PHỎNG, NÓI RÕ CHỖ NÀO VẪN LÀ THẬT.
+              Nhãn "MÔ PHỎNG" ở trên là lời thú nhận cần thiết, nhưng nếu dừng ở đó
+              thì người xem kết luận "cả khung này đều giả" — mà không đúng: đường
+              dẫn mở ra đúng chặng, đúng ngày, trên một trang tra cứu thật. Chỉ ra
+              chỗ kiểm được biến điểm yếu thành một phép thử. */}
+          {!that && ketQua && (
+            <p className="mt-1 text-foreground/70">
+              Giá trên là số mô phỏng, nhưng nút{' '}
+              <strong className="text-[var(--spark)]">Xem chuyến bay</strong> mở ra
+              chuyến bay <strong className="text-foreground">thật</strong> của đúng chặng và
+              ngày này — bấm để đối chiếu.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
