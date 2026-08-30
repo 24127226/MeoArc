@@ -535,6 +535,19 @@ export type DoanThe = {
  *  mà lưới méo thì mất luôn khả năng so sánh ngày này với ngày kia bằng mắt. */
 export const SO_LAN_TOI_DA = 3
 
+/** Số DẢI ĐỢT DÀI vẽ được ở đáy mỗi hàng tuần.
+ *
+ *  Đợt dài có KHÔNG GIAN RIÊNG, không tranh làn với việc trong ngày. Bản trước cho
+ *  chúng dùng chung ba làn (chỉ chừa làn 0 cho việc ngắn), và hậu quả đo được trên
+ *  hộp thư thật: ngày 15/9 có SÁU việc ngắn nhưng chỉ vẽ được MỘT — hai đợt dài
+ *  ("Đợt thực tập 7/9–25/9" và "Giai đoạn hoàn thiện PA3 9/9–22/9") chiếm hai làn
+ *  còn lại, năm việc kia dồn hết vào chip "+5".
+ *
+ *  Người dùng nhìn cột "Sắp tới" thấy năm việc của 15/9 rồi nhìn sang ô 15 trên lịch
+ *  không thấy chúng đâu — và họ đúng khi thấy đó là vô lý. Một đợt kéo dài ba tuần
+ *  là NỀN, nó không nên đẩy việc phải làm hôm nay ra khỏi tầm mắt. */
+export const SO_DAI_DOT = 2
+
 /** Trần số ngày một việc được phép trải trên lưới.
  *
  *  Hai con số khác nhau vì hai mức đáng tin khác nhau. Khoảng SUY RA đến từ ước
@@ -578,12 +591,12 @@ export function phutMoiNgay(c: CamKet): number {
  */
 export function xepDoanTheoTuan(
   ds: CamKet[], o: Date[],
-): { doan: DoanThe[]; du: Map<string, number>; soLan: number }[] {
-  const ra: { doan: DoanThe[]; du: Map<string, number>; soLan: number }[] = []
+): { doan: DoanThe[]; dot: DoanThe[]; du: Map<string, number>; soLan: number }[] {
+  const ra: { doan: DoanThe[]; dot: DoanThe[]; du: Map<string, number>; soLan: number }[] = []
 
   for (let w = 0; w < 6; w++) {
     const tuan = o.slice(w * 7, w * 7 + 7)
-    if (tuan.length < 7) { ra.push({ doan: [], du: new Map(), soLan: 0 }); continue }
+    if (tuan.length < 7) { ra.push({ doan: [], dot: [], du: new Map(), soLan: 0 }); continue }
     const tuanDau = new Date(tuan[0]); tuanDau.setHours(0, 0, 0, 0)
     const tuanCuoi = new Date(tuan[6]); tuanCuoi.setHours(0, 0, 0, 0)
 
@@ -638,49 +651,46 @@ export function xepDoanTheoTuan(
     const ngan = ung.filter((u) => !laDai(u))
       .sort((a, b) => b.ck.mucUuTien - a.ck.mucUuTien || a.cot - b.cot || theoId(a, b))
 
-    const lanDaDung: { tu: number; den: number }[][] =
-      Array.from({ length: SO_LAN_TOI_DA }, () => [])
     const doan: DoanThe[] = []
+    const dot: DoanThe[] = []
     const du = new Map<string, number>()
 
-    /* ĐỢT DÀI KHÔNG ĐƯỢC CHIẾM LÀN TRÊN CÙNG.
-       Đo thật trên bộ thư dày: tuần 14–20/9 có BA đợt dài chồng nhau (thực tập 19
-       ngày, hoàn thiện PA3 14 ngày, kiểm tra giữa kỳ 6 ngày). Vì đợt dài được xếp
-       trước, chúng chiếm sạch cả ba làn và cả tuần đó KHÔNG hiện nổi một việc hằng
-       ngày nào — tám việc của thứ Sáu dồn hết vào chip "+8".
+    /* HAI KHÔNG GIAN TÁCH RỜI — đây là thay đổi cốt lõi.
+       Bản trước đợt dài và việc ngắn dùng CHUNG ba làn (chỉ chừa làn 0 cho việc
+       ngắn). Đo trên hộp thư thật: ngày 15/9 có SÁU việc ngắn mà chỉ vẽ được MỘT,
+       vì hai đợt dài chiếm hai làn còn lại — năm việc kia dồn vào chip "+5".
+       Người dùng nhìn cột "Sắp tới" thấy năm việc của 15/9 rồi nhìn sang ô 15 không
+       thấy chúng đâu. Họ đúng khi thấy đó là vô lý.
 
-       Một cuốn lịch không cho thấy việc phải làm hôm nay thì hỏng nặng hơn hẳn một
-       cuốn lịch giấu bớt một đợt dài: đợt dài còn hiện ở những tuần khác và trong
-       bảng ngày, còn việc hằng ngày thì hôm nay không thấy là hôm nay quên.
+       Nay đợt dài có DẢI RIÊNG ở đáy hàng tuần, không đụng tới làn việc. Ba làn
+       trả lại hết cho việc phải làm trong ngày — thứ mà cuốn lịch tồn tại để cho
+       thấy. Đợt dài vẫn hiện đủ, chỉ mỏng hơn và nằm dưới, đúng vai trò của nó:
+       nền, không phải việc hôm nay. */
+    const lanNgan: { tu: number; den: number }[][] =
+      Array.from({ length: SO_LAN_TOI_DA }, () => [])
+    const lanDot: { tu: number; den: number }[][] =
+      Array.from({ length: SO_DAI_DOT }, () => [])
 
-       Nên chừa làn 0 cho việc ngắn. Đợt dài chỉ dùng các làn dưới. */
-    const tuDuoiLen = Array.from({ length: SO_LAN_TOI_DA - 1 }, (_, i) => SO_LAN_TOI_DA - 1 - i)
-    const tuTrenXuong = Array.from({ length: SO_LAN_TOI_DA }, (_, i) => i)
-
-    for (const u of [...dai, ...ngan]) {
+    const xep = (u: UngVien, kho: { tu: number; den: number }[][], ra: DoanThe[]) => {
       const tu = u.cot, den = u.cot + u.rong - 1
-      const thuTu = laDai(u) ? tuDuoiLen : tuTrenXuong
-      let lan = -1
-      for (const i of thuTu) {
-        if (lanDaDung[i].every((x) => den < x.tu || tu > x.den)) { lan = i; break }
-      }
+      const lan = kho.findIndex((l) => l.every((x) => den < x.tu || tu > x.den))
       if (lan < 0) {
-        // Hết làn → ghi "+1" cho MỌI ngày việc này phủ qua trong tuần, vì người
+        // Hết chỗ → ghi "+1" cho MỌI ngày việc này phủ qua trong tuần, vì người
         // dùng bấm vào ngày nào cũng phải thấy nó còn ở đó.
         for (let i = tu; i <= den; i++) {
           const k = khoaNgay(tuan[i])
           du.set(k, (du.get(k) ?? 0) + 1)
         }
-        continue
+        return
       }
-      lanDaDung[lan].push({ tu, den })
-      doan.push({ ck: u.ck, cot: u.cot, rong: u.rong, lan, moDau: u.moDau, ketThuc: u.ketThuc })
+      kho[lan].push({ tu, den })
+      ra.push({ ck: u.ck, cot: u.cot, rong: u.rong, lan, moDau: u.moDau, ketThuc: u.ketThuc })
     }
 
-    // Đếm làn THẬT SỰ có thanh. `lanDaDung.length` giờ luôn bằng SO_LAN_TOI_DA vì
-    // mảng được dựng sẵn đủ ba làn, nên dùng nó là luôn trả về 3 — một con số vô
-    // nghĩa mà nơi gọi lại tưởng là số làn đang dùng.
-    ra.push({ doan, du, soLan: lanDaDung.filter((l) => l.length > 0).length })
+    for (const u of dai) xep(u, lanDot, dot)
+    for (const u of ngan) xep(u, lanNgan, doan)
+
+    ra.push({ doan, dot, du, soLan: lanNgan.filter((l) => l.length > 0).length })
   }
   return ra
 }

@@ -568,6 +568,7 @@ function LuoiThe({
           homNay={homNay}
           theoNgay={theoNgay}
           doan={tt.doan}
+          dot={tt.dot}
           du={tt.du}
           onBamThe={onBamThe}
           onRoiThe={onRoiThe}
@@ -592,13 +593,15 @@ function LuoiThe({
    Mỗi làn là MỘT HÀNG của lưới con (`grid-rows-[repeat(3,17px)]`), nên hai việc
    trùng ngày nằm đúng hai làn mà không cần cộng trừ vị trí. */
 function HangTuan({
-  ngay, thang, homNay, theoNgay, doan, du, onBamThe, onRoiThe, dangReId, onMoNgay,
+  ngay, thang, homNay, theoNgay, doan, dot, du, onBamThe, onRoiThe, dangReId, onMoNgay,
 }: {
   ngay: Date[]
   thang: Date
   homNay: Date
   theoNgay: Map<string, CamKet[]>
   doan: DoanThe[]
+  /** Đợt dài — vẽ ở DẢI RIÊNG dưới đáy, không tranh làn với việc trong ngày. */
+  dot: DoanThe[]
   du: Map<string, number>
   onBamThe: (v: { ck: CamKet; hcn: DOMRect }) => void
   onRoiThe: () => void
@@ -635,6 +638,28 @@ function HangTuan({
           />
         ))}
       </div>
+
+      {/* ── DẢI ĐỢT DÀI — không gian RIÊNG ở đáy ──
+          Mỏng hơn thanh việc (11px so với 17px) và nằm dưới cùng, ngay trên vạch
+          tải. Hình dáng đó nói đúng vai trò: đây là NỀN của tuần, không phải việc
+          phải làm hôm nay. Trước đây chúng dùng chung ba làn với việc ngắn, và một
+          ngày sáu việc chỉ vẽ được một vì hai đợt dài đã chiếm hai làn. */}
+      {dot.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[9px] grid grid-cols-7
+                        grid-rows-[repeat(2,11px)] content-end gap-x-1 gap-y-[2px] px-1">
+          {dot.map((dt) => (
+            <ThanhCamKet
+              key={dt.ck.id + '-dot-' + dt.cot}
+              doan={dt}
+              mo={dt.ck.han ? dt.ck.han.getMonth() !== thang.getMonth() : false}
+              dangRe={dangReId === dt.ck.id}
+              laDot
+              onBam={(e) => onBamThe({ ck: dt.ck, hcn: e.currentTarget.getBoundingClientRect() })}
+              onRoi={onRoiThe}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -737,7 +762,7 @@ function ONgay({
  *  sáng. Chỉ đổi màu là không đủ — người mù màu không thấy gì, và ngay cả mắt
  *  thường cũng khó xếp hạng ba màu nếu chúng không đứng cạnh nhau. */
 function ThanhCamKet({
-  doan, mo, dangRe, onBam, onRoi,
+  doan, mo, dangRe, laDot, onBam, onRoi,
 }: {
   doan: DoanThe
   /** Hạn nằm ngoài tháng đang xem → lùi lại một bậc cho khỏi tranh chỗ. */
@@ -751,6 +776,10 @@ function ThanhCamKet({
    *  người dùng đang tìm hiểu nó. Nên trạng thái rê phải nằm ở TRÊN, theo id cam
    *  kết, chứ không nằm ở CSS của từng đoạn. */
   dangRe: boolean
+  /** Là ĐỢT DÀI (vẽ ở dải đáy) — mỏng hơn, chữ nhỏ hơn, mờ hơn một bậc.
+   *  Khác biệt về hình dáng là thứ giúp mắt phân biệt "nền của tuần" với "việc
+   *  hôm nay" mà không cần đọc chữ. */
+  laDot?: boolean
   onBam: (e: { currentTarget: HTMLElement }) => void
   onRoi: () => void
 }) {
@@ -773,7 +802,10 @@ function ThanhCamKet({
       style={{ gridColumn: `${cot + 1} / span ${rong}`, gridRow: lan + 1 }}
       title={ck.noiDung}
       className={cn(
-        'nhay-bat pointer-events-auto relative flex h-[17px] items-center gap-1 overflow-hidden pr-1 text-left',
+        'nhay-bat pointer-events-auto relative flex items-center gap-1 overflow-hidden pr-1 text-left',
+        // Đợt dài MỎNG HƠN và chữ nhỏ hơn: hình dáng phải nói được vai trò, để mắt
+        // phân biệt "nền của tuần" với "việc hôm nay" mà không cần đọc chữ.
+        laDot ? 'h-[11px] text-[8.5px] opacity-80' : 'h-[17px]',
         'transition-[box-shadow,transform] duration-150 ease-soft hover:z-30 hover:scale-[1.012]',
         ut === 3 ? 'uu-tien-3' : ut === 2 ? 'uu-tien-2' : 'uu-tien-1',
         'bg-[var(--elevated)]/90 backdrop-blur-sm',
