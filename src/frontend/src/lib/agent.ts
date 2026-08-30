@@ -101,6 +101,10 @@ export type AgentReply =
       /** Chỗ agent phải đoán vì thư không nói rõ. Nói ra chỗ mình không chắc thì
        *  đáng tin hơn hẳn lúc nào cũng quả quyết. */
       cho_doan?: string
+      /** Id yêu cầu chờ duyệt do backend cấp. Bấm "Duyệt" gọi
+       *  POST /confirmations/{id}/approve — đường TẤT ĐỊNH, không đi qua mô hình.
+       *  Chế độ mock không có id; khi đó thẻ vẫn duyệt được nhưng chỉ mô phỏng tại chỗ. */
+      confirmationId?: string
     }
 
 /** Hành động Mèo tự đề xuất cho từng thư khi tự lái. */

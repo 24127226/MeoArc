@@ -664,9 +664,16 @@ const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với 
 function TheDuDinh({
   reply,
   resolved,
+  dangChay,
+  onDuyet,
+  onBoQua,
 }: {
   reply: Extract<AgentReply, { kind: 'dudinh' }>
   resolved?: boolean
+  /** Đang gọi backend — khoá nút để một cú bấm không thành hai đơn. */
+  dangChay?: boolean
+  onDuyet: () => void
+  onBoQua: () => void
 }) {
   const capCao = Math.max(...reply.buoc.map((b) => b.mucRuiRo)) as 1 | 2 | 3
   const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
@@ -731,16 +738,23 @@ function TheDuDinh({
         </p>
       )}
 
+      {/* Ba nút này TỪNG KHÔNG GẮN HÀNH ĐỘNG NÀO — thẻ chỉ để nhìn. Và một trong ba
+          ("Chỉ thêm vào lịch") hứa việc MeoArc không làm được: nó không ghi được vào
+          Google Calendar. Một nút hứa sai còn tệ hơn không có nút, vì người dùng bấm
+          rồi tưởng đã xong. Đã bỏ nút đó và nối hai nút còn lại vào đường thật. */}
       {!resolved && (
         <div className="flex flex-wrap gap-2">
-          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-semibold text-white"
+          <button
+            onClick={onDuyet}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-60"
             style={{ ['--tint' as string]: 'var(--rr)', background: 'var(--rr)' }}>
-            Duyệt từng bước
+            {dangChay ? 'Đang xử lý…' : coTienThat ? 'Duyệt & đặt' : 'Duyệt'}
           </button>
-          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-foreground">
-            Chỉ thêm vào lịch
-          </button>
-          <button className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-muted-foreground">
+          <button
+            onClick={onBoQua}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-muted-foreground disabled:opacity-60">
             Bỏ qua
           </button>
         </div>
@@ -1122,6 +1136,70 @@ export function ChatPanel({
     window.setTimeout(tick, 550)
   }
 
+  /* ── DUYỆT THẺ DỰ ĐỊNH ────────────────────────────────────────────────────
+     Đây là mắt xích cuối để cả ý tưởng chạy được đầu-cuối: agent đề xuất → người
+     bấm → hệ thống thực thi qua cổng tiền.
+
+     Đi qua `/confirmations/{id}/approve` — đường TẤT ĐỊNH, KHÔNG qua mô hình. Mô
+     hình đã làm xong phần việc của nó (đề xuất) trước khi thẻ hiện ra; để nó tham
+     gia lần nữa lúc thực thi thì thứ chạy có thể khác thứ người dùng vừa duyệt.
+
+     Chế độ mock không có `confirmationId`. Vẫn cho duyệt, nhưng nói THẲNG là mô
+     phỏng — im lặng để người dùng tưởng đã đặt thật là kiểu nói dối tệ nhất ở đây. */
+  const [dangDuyetId, setDangDuyetId] = useState<string | null>(null)
+
+  const onDuyetDuDinh = async (
+    id: string,
+    reply: Extract<AgentReply, { kind: 'dudinh' }>,
+  ) => {
+    if (dangDuyetId) return          // khoá: một cú bấm không được thành hai đơn
+    setDangDuyetId(id)
+    const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+    try {
+      let ma = ''
+      if (reply.confirmationId) {
+        const ra = await api.approveConfirmation(reply.confirmationId)
+        const d = (ra?.result ?? {}) as { data?: { ma_dat_cho?: string }; message?: string }
+        ma = d.data?.ma_dat_cho ?? ''
+      }
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'result',
+          title: ma ? `Đã đặt (mô phỏng) · ${ma}` : 'Đã duyệt (mô phỏng)',
+          intro: 'Xong rồi — nhưng đọc kỹ dòng cuối nhé:',
+          lines: [
+            reply.title,
+            tong > 0 ? `Tổng chi ghi nhận: ${tong.toLocaleString('vi-VN')} ₫` : 'Không phát sinh chi phí.',
+            'ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán vé hay phòng nào. '
+            + 'Không có khoản tiền nào được thanh toán, và bạn sẽ KHÔNG nhận được vé thật.',
+          ],
+        },
+      })
+      triggerFlash()
+    } catch (e) {
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: { kind: 'text', text: `Chưa duyệt được: ${String(e).slice(0, 140)}. Bạn thử lại giúp mình nhé.` },
+      })
+    } finally {
+      setDangDuyetId(null)
+    }
+  }
+
+  const onBoQuaDuDinh = (id: string) => {
+    markResolved(id)
+    push({
+      id: uid(),
+      role: 'agent',
+      reply: { kind: 'text', text: 'Đã bỏ qua dự định này — mình chưa làm gì cả. Bạn muốn đổi phương án nào?' },
+    })
+  }
+
   const rejectPlan = (id: string) => {
     markResolved(id)
     push({
@@ -1459,6 +1537,9 @@ export function ChatPanel({
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
                   onOpenEmail={onOpenEmail}
+                  duyetDuDinhId={dangDuyetId}
+                  onDuyetDuDinh={onDuyetDuDinh}
+                  onBoQuaDuDinh={onBoQuaDuDinh}
                 />
               )}
             </div>
@@ -2140,6 +2221,9 @@ function AgentMessage({
   onApplyCategorize,
   onAutopilotApply,
   onOpenEmail,
+  duyetDuDinhId,
+  onDuyetDuDinh,
+  onBoQuaDuDinh,
 }: {
   message: Extract<Message, { role: 'agent' }>
   exec: { id: string; current: number } | null
@@ -2156,6 +2240,16 @@ function AgentMessage({
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
   onOpenEmail?: (id: string) => void
+  /* THẺ DỰ ĐỊNH. Ba prop này TỪNG THIẾU: `AgentMessage` gọi thẳng `dangDuyetId`,
+     `onDuyetDuDinh`, `onBoQuaDuDinh` — vốn là biến trong component CHA. Thẻ dự định
+     chưa bao giờ được render thật (chỉ là mockup) nên không ai vấp; vừa render lần
+     đầu là ReferenceError làm TRẮNG CẢ APP.
+     TypeScript CÓ bắt được (5 lỗi), nhưng chúng bị che bởi bộ nhớ đệm
+     `node_modules/.tmp/tsconfig.app.tsbuildinfo` — tsc coi file không đổi nên dùng
+     lại kết quả cũ. Xoá cache là lộ ra ngay. */
+  duyetDuDinhId: string | null
+  onDuyetDuDinh: (id: string, reply: Extract<AgentReply, { kind: 'dudinh' }>) => void
+  onBoQuaDuDinh: (id: string) => void
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
@@ -2260,7 +2354,13 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <TheDuDinh reply={reply} resolved={resolved} />
+        <TheDuDinh
+          reply={reply}
+          resolved={resolved}
+          dangChay={duyetDuDinhId === message.id}
+          onDuyet={() => onDuyetDuDinh(message.id, reply)}
+          onBoQua={() => onBoQuaDuDinh(message.id)}
+        />
       </AgentRow>
     )
   }
