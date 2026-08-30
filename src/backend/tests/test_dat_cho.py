@@ -111,12 +111,22 @@ def test_amadeus_KHONG_doan_chinh_sach_hoan():
     assert "hoan_duoc=False" in src
 
 
-def test_khach_san_amadeus_BAO_CHUA_NOI_thay_vi_tra_so_gia():
-    """Chưa nối thì nói thẳng. Lặng lẽ đưa số mô phỏng ra dưới nhãn 'amadeus' là nói
-    dối về nguồn gốc dữ liệu."""
-    ncc = dat_cho.NhaCungCapAmadeus("k", "s")
-    with pytest.raises(NotImplementedError):
-        ncc.tim_khach_san("Đà Nẵng", NGAY, date(2026, 9, 18))
+def test_khach_san_amadeus_DA_NOI_va_KHONG_bia_so_sao():
+    """Phần khách sạn Amadeus đã nối (trước đây ném NotImplementedError).
+
+    Amadeus KHÔNG trả số sao ở endpoint hotel-offers. Để 0 và giao diện hiểu là
+    "không có dữ liệu" — bịa một con số cho đẹp là nói dối về chất lượng khách sạn,
+    và người dùng sẽ chọn dựa trên nó."""
+    src = inspect.getsource(dat_cho.NhaCungCapAmadeus.tim_khach_san)
+    assert "hotels/by-city" in src and "/v3/shopping/hotel-offers" in src
+    assert 'ks.get("rating") or 0' in src, "số sao phải lấy từ dữ liệu, thiếu thì để 0"
+
+
+def test_khach_san_amadeus_KHONG_doan_thanh_pho():
+    """Không tra ra mã thành phố thì DỪNG. Đoán nhầm là trả về khách sạn ở một nơi
+    khác hẳn mà nhìn vẫn hợp lý — người dùng không có cách nào phát hiện."""
+    src = inspect.getsource(dat_cho.NhaCungCapAmadeus.tim_khach_san)
+    assert "raise ValueError" in src
 
 
 # ── Đầu vào hỏng ─────────────────────────────────────────────────────────────

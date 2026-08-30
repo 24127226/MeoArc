@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2 } from 'lucide-react'
+import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2, ExternalLink, MapPin } from 'lucide-react'
 import { duongDanApi, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -244,6 +244,8 @@ function O({ nhan, giaTri, datGiaTri, rong }: {
 
 function DongBay({ k }: { k: Record<string, unknown> }) {
   const gia = Number(k.gia_vnd ?? 0)
+  const phut = Number(k.phut_bay ?? 0)
+  const gioBay = phut ? `${Math.floor(phut / 60)}h${String(phut % 60).padStart(2, '0')}` : null
   return (
     <>
       <span className="font-mono text-[12px] font-semibold text-[var(--spark)]">{String(k.ma)}</span>
@@ -251,12 +253,28 @@ function DongBay({ k }: { k: Record<string, unknown> }) {
         <span className="block truncate text-[12.5px] font-medium">{String(k.hang)}</span>
         <span className="block truncate text-[11px] text-muted-foreground">
           {String(k.khoi_hanh)} → {String(k.ha_canh)}
+          {gioBay ? ` · ${gioBay}` : ''}
           {' · '}{Number(k.so_diem_dung) === 0 ? 'bay thẳng' : `${k.so_diem_dung} điểm dừng`}
           {' · '}{k.hoan_duoc ? 'hoàn được' : 'không hoàn'}
         </span>
       </span>
-      <span className="shrink-0 font-mono text-[12.5px] font-semibold tabular-nums">
-        {gia.toLocaleString('vi-VN')} ₫
+      <span className="shrink-0 text-right">
+        <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
+          {gia.toLocaleString('vi-VN')} ₫
+        </span>
+        {/* BẤM RA TRANG THẬT. Một bảng giá không bấm được thì người dùng vẫn phải mở
+            tab khác gõ lại từ đầu — công cụ chưa tiết kiệm được gì. Đây cũng là cách
+            người xem TỰ KIỂM số liệu: khớp hay không khớp, thấy ngay trong ba giây. */}
+        {typeof k.lien_ket === 'string' && (
+          <a
+            href={k.lien_ket}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
+          >
+            Xem chuyến bay <ExternalLink className="size-2.5" />
+          </a>
+        )}
       </span>
     </>
   )
@@ -266,7 +284,11 @@ function DongPhong({ k }: { k: Record<string, unknown> }) {
   const tong = Number(k.tong_vnd ?? 0)
   return (
     <>
-      <span className="font-mono text-[12px] font-semibold text-[var(--spark)]">{String(k.so_sao)}★</span>
+      {/* 0 = Amadeus KHÔNG trả số sao ở endpoint này. Hiện "—" chứ không hiện "0★":
+          "0 sao" là một khẳng định về chất lượng, còn "—" là thú nhận không biết. */}
+      <span className="w-9 shrink-0 text-center font-mono text-[12px] font-semibold text-[var(--spark)]">
+        {Number(k.so_sao) > 0 ? `${k.so_sao}★` : '—'}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-medium">{String(k.ten)}</span>
         <span className="block truncate text-[11px] text-muted-foreground">
@@ -274,8 +296,20 @@ function DongPhong({ k }: { k: Record<string, unknown> }) {
           {' · '}{k.huy_mien_phi ? 'huỷ miễn phí' : 'không huỷ được'}
         </span>
       </span>
-      <span className="shrink-0 font-mono text-[12.5px] font-semibold tabular-nums">
-        {tong.toLocaleString('vi-VN')} ₫
+      <span className="shrink-0 text-right">
+        <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
+          {tong.toLocaleString('vi-VN')} ₫
+        </span>
+        {typeof k.lien_ket === 'string' && (
+          <a
+            href={k.lien_ket}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
+          >
+            Xem trên bản đồ <MapPin className="size-2.5" />
+          </a>
+        )}
       </span>
     </>
   )

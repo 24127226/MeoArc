@@ -107,6 +107,10 @@ def tim_khach_san(
         raise HTTPException(400, "Ngày trả phòng phải sau ngày nhận phòng")
     try:
         ds = ncc.tim_khach_san(thanh_pho, nhan, tra, so_ket_qua)
+    except ValueError as exc:
+        # Không tra ra mã thành phố là lỗi ĐẦU VÀO của người dùng, không phải lỗi
+        # nhà cung cấp — trả 400 kèm đúng lý do để họ sửa được, thay vì 502 khó hiểu.
+        raise HTTPException(400, str(exc))
     except NotImplementedError as exc:
         raise HTTPException(501, str(exc))
     except Exception as exc:

@@ -26,7 +26,53 @@ import hashlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from urllib.parse import quote_plus
+
 from app.core.config import settings
+
+
+# ── TÊN HÃNG BAY ─────────────────────────────────────────────────────────────
+# Amadeus trả về MÃ IATA hai ký tự ("VJ", "VN"), không trả tên. Hiện "VJ" cho người
+# dùng là bắt họ tự tra. Bảng này phủ các hãng bay nội địa Việt Nam — đủ cho mọi
+# chặng trong nước, và có nhánh lùi giữ nguyên mã cho hãng lạ.
+TEN_HANG: dict[str, str] = {
+    "VN": "Vietnam Airlines", "VJ": "Vietjet Air", "QH": "Bamboo Airways",
+    "BL": "Pacific Airlines", "VU": "Vietravel Airlines",
+    "TR": "Scoot", "SQ": "Singapore Airlines", "TG": "Thai Airways",
+    "KE": "Korean Air", "OZ": "Asiana Airlines", "CX": "Cathay Pacific",
+    "JL": "Japan Airlines", "NH": "ANA", "AK": "AirAsia", "MH": "Malaysia Airlines",
+    "CI": "China Airlines", "BR": "EVA Air", "QR": "Qatar Airways", "EK": "Emirates",
+}
+
+
+def ten_hang(ma: str) -> str:
+    """Đổi mã IATA sang tên hãng. Không biết thì GIỮ NGUYÊN MÃ — bịa một cái tên
+    còn tệ hơn hiện hai chữ cái, vì người dùng sẽ tin cái tên đó."""
+    return TEN_HANG.get((ma or "").upper(), (ma or "").upper())
+
+
+def lien_ket_chuyen_bay(tu: str, den: str, ngay: date) -> str:
+    """Đường dẫn MỞ RA TRANG THẬT của chặng bay này trên Google Flights.
+
+    ── VÌ SAO PHẢI CÓ ──
+    Một bảng giá không bấm được thì người dùng vẫn phải tự mở tab khác và gõ lại từ
+    đầu — tức là công cụ chưa tiết kiệm được gì. Bấm ra trang thật cũng là cách người
+    xem TỰ KIỂM số liệu: giá trên màn hình khớp hay không khớp với thị trường, họ
+    thấy ngay trong ba giây.
+
+    ── VÌ SAO KHÔNG PHẢI LINK ĐẶT CỦA HÃNG ──
+    Amadeus môi trường Test không trả về đường đặt chỗ, và dựng link đặt của từng
+    hãng là đoán — đoán sai thì người dùng bấm vào một chặng khác với thứ họ vừa xem.
+    Google Flights là trang TRA CỨU trung lập, dựng được từ đúng ba dữ kiện ta có
+    chắc chắn: chặng đi, chặng đến, ngày."""
+    q = f"Flights from {tu} to {den} on {ngay.isoformat()}"
+    return "https://www.google.com/travel/flights?q=" + quote_plus(q)
+
+
+def lien_ket_ban_do(ten: str, thanh_pho: str) -> str:
+    """Mở khách sạn trên Google Maps. Dùng dạng `search` — không cần khoá API."""
+    return "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{ten} {thanh_pho}")
+
 
 
 # ── Kiểu dữ liệu ─────────────────────────────────────────────────────────────
@@ -51,6 +97,9 @@ class ChuyenBay:
             "ha_canh": self.ha_canh.strftime("%d/%m/%Y %H:%M"),
             "gia_vnd": self.gia_vnd, "so_diem_dung": self.so_diem_dung,
             "hoan_duoc": self.hoan_duoc, "nguon": self.nguon,
+            # Bấm ra trang thật — vừa tiện, vừa là cách người xem tự kiểm số liệu.
+            "lien_ket": lien_ket_chuyen_bay(self.tu, self.den, self.khoi_hanh.date()),
+            "phut_bay": int((self.ha_canh - self.khoi_hanh).total_seconds() // 60),
         }
 
 
@@ -78,6 +127,7 @@ class KhachSan:
             "tong_vnd": self.gia_moi_dem_vnd * so_dem,
             "so_sao": self.so_sao, "cach_trung_tam_km": self.cach_trung_tam_km,
             "huy_mien_phi": self.huy_mien_phi, "nguon": self.nguon,
+            "lien_ket": lien_ket_ban_do(self.ten, self.thanh_pho),
         }
 
 
@@ -201,7 +251,7 @@ class NhaCungCapAmadeus:
             dau, cuoi = seg[0], seg[-1]
             ra.append(ChuyenBay(
                 ma=f"{dau['carrierCode']}{dau['number']}",
-                hang=dau["carrierCode"],
+                hang=ten_hang(dau["carrierCode"]),
                 tu=dau["departure"]["iataCode"], den=cuoi["arrival"]["iataCode"],
                 khoi_hanh=datetime.fromisoformat(dau["departure"]["at"]),
                 ha_canh=datetime.fromisoformat(cuoi["arrival"]["at"]),
@@ -215,14 +265,82 @@ class NhaCungCapAmadeus:
             ))
         return ra
 
+    def _tra_ma_thanh_pho(self, ten: str) -> str | None:
+        """Đổi tên thành phố sang mã IATA ("Hà Nội" → "HAN").
+
+        Bắt người dùng tự biết mã là bắt họ làm việc của máy. Endpoint này cũng dùng
+        cho ô gợi ý ở giao diện."""
+        import httpx
+        with httpx.Client(timeout=20) as c:
+            r = c.get(
+                f"{self._GOC}/v1/reference-data/locations",
+                headers={"Authorization": f"Bearer {self._lay_token()}"},
+                params={"keyword": ten, "subType": "CITY", "page[limit]": 1},
+            )
+            r.raise_for_status()
+            d = r.json().get("data") or []
+        return d[0].get("iataCode") if d else None
+
     def tim_khach_san(self, thanh_pho: str, nhan: date, tra: date,
                       so_ket_qua: int = 3) -> list[KhachSan]:
-        # Endpoint khách sạn của Amadeus cần thêm bước tra mã thành phố và có hạn mức
-        # riêng. Chưa làm — trả rỗng và nói thẳng, hơn là lặng lẽ đưa số mô phỏng ra
-        # dưới nhãn "amadeus".
-        raise NotImplementedError(
-            "Tra cứu khách sạn qua Amadeus chưa nối. Dùng nhà cung cấp mô phỏng."
-        )
+        """Tra cứu khách sạn thật qua Amadeus. Ba bước, vì Amadeus tách chúng ra:
+        tên thành phố → mã IATA → danh sách khách sạn → giá theo ngày."""
+        import httpx
+
+        ma_tp = self._tra_ma_thanh_pho(thanh_pho)
+        if not ma_tp:
+            # Không tra ra mã thì DỪNG, không đoán. Đoán nhầm thành phố là trả về
+            # khách sạn ở một nơi khác hẳn mà nhìn vẫn hợp lý.
+            raise ValueError(f"Không tra được mã thành phố cho '{thanh_pho}'")
+
+        tieu_de = {"Authorization": f"Bearer {self._lay_token()}"}
+        with httpx.Client(timeout=30) as c:
+            r = c.get(f"{self._GOC}/v1/reference-data/locations/hotels/by-city",
+                      headers=tieu_de, params={"cityCode": ma_tp})
+            r.raise_for_status()
+            ds_ks = (r.json().get("data") or [])[: max(so_ket_qua * 4, 12)]
+            if not ds_ks:
+                return []
+
+            r = c.get(
+                f"{self._GOC}/v3/shopping/hotel-offers",
+                headers=tieu_de,
+                params={
+                    "hotelIds": ",".join(h["hotelId"] for h in ds_ks),
+                    "checkInDate": nhan.isoformat(),
+                    "checkOutDate": tra.isoformat(),
+                    "adults": 1, "currency": "VND", "bestRateOnly": "true",
+                },
+            )
+            r.raise_for_status()
+            data = r.json().get("data") or []
+
+        ra: list[KhachSan] = []
+        for o in data[:so_ket_qua]:
+            ks = o.get("hotel") or {}
+            gia_ds = o.get("offers") or []
+            if not gia_ds:
+                continue
+            tong = float((gia_ds[0].get("price") or {}).get("total") or 0)
+            so_dem = max(1, (tra - nhan).days)
+            chinh_sach = (gia_ds[0].get("policies") or {}).get("cancellations") or []
+            ra.append(KhachSan(
+                ma=ks.get("hotelId", ""),
+                ten=ks.get("name", "(không rõ tên)"),
+                thanh_pho=thanh_pho,
+                nhan_phong=nhan, tra_phong=tra,
+                gia_moi_dem_vnd=int(tong / so_dem),
+                # Amadeus KHÔNG trả số sao ở endpoint này. Để 0 và giao diện hiểu là
+                # "không có dữ liệu" — bịa một con số cho đẹp là nói dối về chất lượng.
+                so_sao=float(ks.get("rating") or 0),
+                cach_trung_tam_km=0.0,
+                huy_mien_phi=any(
+                    str(x.get("type", "")).upper() == "FULL_STAY" or x.get("amount") in (None, "0")
+                    for x in chinh_sach
+                ),
+                nguon=self.ten,
+            ))
+        return ra
 
 
 # ── Chọn nhà cung cấp ────────────────────────────────────────────────────────
@@ -239,4 +357,3 @@ def lay_nha_cung_cap():
     if khoa and bi_mat:
         return NhaCungCapAmadeus(khoa, bi_mat)
     return NhaCungCapMoPhong()
-
