@@ -84,6 +84,28 @@ export type AgentReply =
       title: string
       items: { id: string; sender: string; subject: string; category: Category; label: string }[]
     }
+  /** TRA CỨU ĐI LẠI — chuyến bay / chỗ ở, hiện trong chat ĐÚNG bảng như khung
+   *  "Tra cứu đi lại".
+   *
+   *  Dựng TẤT ĐỊNH từ `data` của tool ở backend, KHÔNG phải từ lời mô hình. Trước đây
+   *  kết quả tra cứu rơi vào `kind: 'text'` nên mô hình tự viết lại — và nó có thể chép
+   *  sai số hiệu, làm rơi nhãn nguồn, hoặc thêm một con giá không có trong dữ liệu,
+   *  ngay trên phần cần chứng minh là THẬT.
+   *
+   *  `items` để `unknown` có chủ ý: đây là dữ liệu thô từ nhà cung cấp, và hai thành
+   *  phần vẽ (`DongBay`/`DongPhong`) đã tự đọc từng trường kèm giá trị lui. Khai một
+   *  kiểu chặt ở đây sẽ khiến FE vỡ mỗi khi nhà cung cấp thêm trường mới. */
+  | {
+      kind: 'dilai'
+      loai: 'bay' | 'phong'
+      intro?: string | null
+      title: string
+      /** Nhãn nguồn do MÁY CHỦ quyết định — FE chỉ hiện, không tự suy ra. */
+      nguon: string
+      la_that: boolean
+      nhan: string
+      items: Record<string, unknown>[]
+    }
   // --- Inbox Autopilot (UC017) — hộp thư tự lái, ambient + reversible ---
   | { kind: 'autopilot'; intro: string; title: string; plan: AutopilotStep[] }
   /** THẺ DỰ ĐỊNH — agent xin phép TRƯỚC khi làm việc có hậu quả ra bên ngoài.

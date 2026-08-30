@@ -18,6 +18,17 @@ name: Trien khai Azure
 on:
   push:
     branches: [integration]
+    # ── VI SAO BO QUA TAI LIEU ──
+    # Moi lan deploy, Azure khoi dong lai app va tra 503 trong khoang 2-4 phut.
+    # Do la cai gia CHAP NHAN DUOC khi day ma nguon, nhung KHONG chap nhan duoc khi
+    # chi sua mot tep .md: web sap may phut ma khong them duoc chuc nang nao.
+    # Da xay ra that (commit 86f691e chi sua docs, lam trang 503).
+    # Nguy hiem nhat la dung hom bao ve: mot nguoi sua tai lieu la ca nhom mat trang
+    # demo giua chung, va khong ai doan ra vi "chi sua chu thoi ma".
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
   workflow_dispatch:          # cho phep bam chay tay tu tab Actions
 
 env:

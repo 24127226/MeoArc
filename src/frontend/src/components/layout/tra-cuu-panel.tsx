@@ -263,7 +263,7 @@ function O({ nhan, giaTri, datGiaTri, rong }: {
   )
 }
 
-function DongBay({ k }: { k: Record<string, unknown> }) {
+export function DongBay({ k }: { k: Record<string, unknown> }) {
   const gia = Number(k.gia_vnd ?? 0)
   const phut = Number(k.phut_bay ?? 0)
   const gioBay = phut ? `${Math.floor(phut / 60)}h${String(phut % 60).padStart(2, '0')}` : null
@@ -346,7 +346,7 @@ function DongBay({ k }: { k: Record<string, unknown> }) {
   )
 }
 
-function DongPhong({ k }: { k: Record<string, unknown> }) {
+export function DongPhong({ k }: { k: Record<string, unknown> }) {
   const tong = Number(k.tong_vnd ?? 0)
   return (
     <>

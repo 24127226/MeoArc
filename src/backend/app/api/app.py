@@ -1233,6 +1233,64 @@ def _categorize_card(messages: list) -> dict | None:
     return None
 
 
+def _di_lai_card(messages: list) -> dict | None:
+    """Dựng thẻ 'dilai' cho FE từ kết quả tim_chuyen_bay / tim_khach_san CỦA LƯỢT NÀY.
+
+    ── VÌ SAO PHẢI CÓ THẺ, KHÔNG ĐỂ MÔ HÌNH KỂ LẠI ──
+    Trước đây kết quả tra cứu rơi vào nhánh mặc định `kind: "text"`, tức là mô hình đọc
+    dữ liệu tool rồi TỰ VIẾT LẠI thành đoạn văn. Đó đúng là thứ cả tính năng này sinh ra
+    để tránh: mô hình có thể chép sai số hiệu, làm rơi nhãn nguồn, hoặc thêm một con giá
+    không có trong dữ liệu — ngay trên phần cần chứng minh là THẬT.
+    Dựng tất định từ `data` thì thứ người dùng đọc CHÍNH LÀ thứ nhà cung cấp trả về.
+    Cùng lý do với `_categorize_card` và `_confirm_card`.
+
+    NHÃN NGUỒN lấy từ chính nhà cung cấp (không suy ra bằng cách so chuỗi ở đây), nên
+    thẻ trong chat và khung "Tra cứu đi lại" luôn nói cùng một điều.
+    """
+    import json
+    from app.services import dat_cho as _dc
+
+    TEN_TOOL = {"tim_chuyen_bay": "bay", "tim_khach_san": "phong"}
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    for m in reversed(messages[last_human:]):
+        if getattr(m, "type", None) != "tool":
+            continue
+        loai = TEN_TOOL.get(getattr(m, "name", "") or "")
+        if not loai:
+            continue
+        try:
+            data = json.loads(m.content)
+        except Exception:
+            return None
+        items = [it for it in (data.get("data") or []) if isinstance(it, dict)]
+        if not items:
+            # Không có kết quả thì ĐỪNG dựng thẻ rỗng — để mô hình nói bằng lời sẽ rõ
+            # hơn ("không có chuyến nào ngày đó"). Thẻ rỗng trông như giao diện hỏng.
+            return None
+
+        # Nguồn nào đang phục vụ: hỏi thẳng lớp nhà cung cấp. Riêng khách sạn có thể đã
+        # LUI VỀ mô phỏng dù nguồn bay là thật — nên tin `nguon` trong chính dữ liệu
+        # trước, chỉ dùng nhà cung cấp để lấy câu nhãn.
+        ncc = _dc.lay_nha_cung_cap()
+        nguon = items[0].get("nguon") or getattr(ncc, "ten", "mo_phong")
+        if nguon == getattr(ncc, "ten", None):
+            nhan, la_that = getattr(ncc, "nhan", ""), getattr(ncc, "la_that", False)
+        else:
+            nhan, la_that = _dc.NhaCungCapMoPhong.nhan, False
+
+        return {
+            "kind": "dilai",
+            "loai": loai,
+            "intro": (data.get("message") or "").strip() or None,
+            "title": (f"{len(items)} chuyến bay" if loai == "bay"
+                      else f"{len(items)} chỗ ở"),
+            "nguon": nguon, "la_that": la_that, "nhan": nhan,
+            "items": items,
+        }
+    return None
+
+
 def _confirm_card(messages: list) -> dict | None:
     """Human-in-the-loop (UC007/UC010): tool KHÔNG HOÀN TÁC bị tool_node CHẶN (payload
     needs_confirmation) → dựng thẻ CÓ NÚT DUYỆT cho FE: 'draft' (gửi/trả lời — nút
@@ -1471,6 +1529,12 @@ async def agent_chat(
         cat_card = _categorize_card(result["messages"])
         if cat_card:
             out = cat_card
+
+        # Tra cứu đi lại: ÉP thành thẻ 'dilai' để chat hiện ĐÚNG bảng như khung "Tra cứu
+        # đi lại", thay vì để mô hình kể lại bằng lời. Xem chú thích ở _di_lai_card.
+        dl_card = _di_lai_card(result["messages"])
+        if dl_card:
+            out = dl_card
 
         # HUMAN-IN-THE-LOOP: lượt này có tool không-hoàn-tác bị CHẶN chờ duyệt →
         # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,

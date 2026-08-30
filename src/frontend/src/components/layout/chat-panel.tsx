@@ -28,6 +28,10 @@ import {
   Volume2,
   VolumeX,
   ArrowUpRight,
+  Plane,
+  Hotel,
+  ShieldCheck,
+  FlaskConical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -39,6 +43,9 @@ import { useTheme } from '@/components/theme-provider'
 import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
 import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
+// Dùng LẠI thành phần vẽ của khung "Tra cứu đi lại" — không vẽ bản thứ hai. Vẽ hai lần
+// thì hai chỗ sẽ trôi xa nhau và cùng một chuyến bay hiện hai kiểu.
+import { DongBay, DongPhong } from '@/components/layout/tra-cuu-panel'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
 import { api, apiBaseUrlDaCauHinh, type StoredMessage } from '@/lib/api'
@@ -184,10 +191,14 @@ function doneText(op: PlanOp): string {
   }
 }
 
-/** Câu ngắn để TTS đọc cho từng loại phản hồi. */
+/** Câu ngắn để TTS đọc cho từng loại phản hồi.
+ *
+ *  `intro` của thẻ 'dilai' có thể vắng (nhà cung cấp không kèm câu mô tả), nên phải
+ *  lui về `title` — thiếu bước này thì máy đọc thành tiếng chữ "null". */
 function replyToSpeech(reply: AgentReply): string {
   if ('text' in reply) return reply.text
-  if ('intro' in reply) return reply.intro
+  if ('intro' in reply && reply.intro) return reply.intro
+  if ('title' in reply && reply.title) return reply.title
   return ''
 }
 
@@ -369,6 +380,55 @@ function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: st
 }
 
 /** Meeting Brief — bento: thời gian/deadline · người tham gia · checklist · điểm chính. */
+/** Kết quả tra cứu đi lại, hiện NGAY TRONG CHAT.
+ *
+ *  Dùng lại đúng `DongBay`/`DongPhong` của khung "Tra cứu đi lại" — không vẽ lại một
+ *  bản riêng. Vẽ hai lần thì hai chỗ sẽ TRÔI XA NHAU: sửa cột giá ở khung mà quên
+ *  trong chat là cùng một chuyến bay hiện hai kiểu, và không ai biết bên nào đúng.
+ *
+ *  Nhãn nguồn giữ nguyên kiểu của khung (xanh = thật, hổ phách = mô phỏng) để người
+ *  xem nhận ra ngay là CÙNG MỘT THỨ, dù tới bằng hai đường khác nhau. */
+function DiLaiWidget({ reply }: { reply: Extract<AgentReply, { kind: 'dilai' }> }) {
+  return (
+    <Card className="rose-glass shadow-float">
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {reply.loai === 'bay' ? (
+            <Plane className="size-4 text-primary" />
+          ) : (
+            <Hotel className="size-4 text-primary" />
+          )}
+          {reply.title}
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1',
+              'font-mono text-[10px] font-semibold uppercase tracking-[0.08em]',
+              reply.la_that
+                ? 'bg-[var(--rr-hoan,#0E8F63)]/15 text-[var(--rr-hoan,#0E8F63)]'
+                : 'bg-[var(--ut-gap,#B45309)]/15 text-[var(--ut-gap,#B45309)]',
+            )}
+          >
+            {reply.la_that ? <ShieldCheck className="size-3" /> : <FlaskConical className="size-3" />}
+            {reply.nhan}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <div className="flex flex-col gap-1.5">
+          {reply.items.map((k, i) => (
+            <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
+              {reply.loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
+            </div>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[11px] text-muted-foreground/80">
+          Chỉ tra cứu — không đặt, không thanh toán.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> }) {
   const [done, setDone] = useState<Set<number>>(new Set())
   const toggle = (i: number) =>
@@ -2327,6 +2387,15 @@ function AgentMessage({
             )}
           </CardContent>
         </Card>
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'dilai') {
+    return (
+      <AgentRow>
+        {reply.intro && <AgentText>{reply.intro}</AgentText>}
+        <DiLaiWidget reply={reply} />
       </AgentRow>
     )
   }
