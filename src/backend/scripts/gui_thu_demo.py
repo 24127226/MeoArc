@@ -233,6 +233,91 @@ def _canh_bao_bo_day(tong: int, nguoi_nhan: str) -> None:
     print("└────────────────────────────────────────────────────────────────────")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# BỘ THEO KỊCH BẢN (--kich-ban) — mỗi thư phục vụ MỘT câu hỏi cụ thể khi demo
+#
+# Bộ dày ở trên chỉ sinh ra một KIỂU thư: "hạn chót". Nó làm màn Lịch trình quá tải
+# đúng như mong muốn, nhưng nhiều câu hỏi trong kịch bản kiểm thử lại không có gì để
+# bấu víu — hỏi "thư nào đang chờ tôi phản hồi" trên một hộp thư toàn thông báo thì
+# agent trả lời đúng mà nhìn vẫn như hỏng.
+#
+# Nên bộ này cố ý ĐA DẠNG chứ không nhiều: quảng cáo để thử xoá hàng loạt, thư hỏi
+# thẳng chờ trả lời, một luồng họp để dựng brief, một chuyến công tác để gợi ý đi lại.
+# ══════════════════════════════════════════════════════════════════════════════
+_THU_KICH_BAN: list[tuple[str, str, str]] = [
+    # ── Cho A1 "xoá hết thư quảng cáo": cần ĐỦ NHIỀU để con số trên thẻ duyệt gây ấn
+    #    tượng, và cần RÕ RÀNG là quảng cáo để không ai tranh cãi agent xoá nhầm.
+    ("Tiki", "Siêu sale tháng 9 — mã giảm 200K",
+     "Nhập mã THANG9 để được giảm ngay 200.000đ cho đơn từ 500K. Áp dụng toàn sàn."),
+    ("Lazada", "Flash Sale 12h hôm nay",
+     "Săn deal đồng giá 9K khung giờ 12h. Số lượng có hạn, nhanh tay bạn nhé!"),
+    ("Grab", "Ưu đãi 50% cho 5 chuyến tiếp theo",
+     "Tặng bạn 5 mã giảm 50% cho chuyến GrabBike. Mã tự động áp dụng khi đặt xe."),
+    ("Highlands Coffee", "Mua 1 tặng 1 cuối tuần",
+     "Cuối tuần này mua 1 tặng 1 tất cả đồ uống size L tại toàn bộ cửa hàng."),
+    ("Shopee", "Voucher freeship toàn sàn",
+     "Nhận ngay bộ voucher freeship 0đ, áp dụng cho mọi đơn hàng trong tuần này."),
+    ("Zalopay", "Hoàn tiền 30% khi thanh toán hoá đơn",
+     "Thanh toán hoá đơn điện nước qua ZaloPay để nhận hoàn tiền lên tới 30%."),
+
+    # ── Cho B1 "thư nào đang chờ tôi phản hồi": phải hỏi THẲNG và chờ MÌNH trả lời.
+    #    Đây là thứ bộ dày không có — thư ở đó chỉ thông báo hạn, không ai đợi mình.
+    ("Phạm Thu Trang", "Bạn xem giúp mình phần use case với",
+     "Mình vừa đẩy bản vẽ use case lên nhánh của mình.\n\n"
+     "Bạn xem qua rồi cho mình biết có cần tách UC007 ra không nhé? Mình đang đợi ý "
+     "kiến của bạn mới dám sửa tiếp."),
+    ("Trần Minh Khoa", "Chốt giúp mình định dạng response của tool",
+     "Mình đang làm MCP server, kẹt ở chỗ định dạng trả về.\n\n"
+     "Bạn trả lời giúp mình là dùng snake_case hay camelCase để mình còn viết tiếp. "
+     "Mình dừng ở đây chờ bạn."),
+    ("GVHD Nguyễn Văn Sơn", "Em xác nhận lại giúp thầy",
+     "Thầy cần biết nhóm em trình bày mấy người để thầy xếp lịch phòng.\n\n"
+     "Em phản hồi lại thầy trong hôm nay nhé."),
+    ("Lê Thu Hà", "Nhóm mình họp thứ mấy?",
+     "Mọi người rảnh thứ Năm hay thứ Sáu? Bạn chốt giúp mình một ngày để mình đặt phòng."),
+
+    # ── Cho B6 "meeting brief": một LUỒNG có việc cần làm, người phụ trách, và hạn.
+    ("Nguyễn Hoàng Anh", "Biên bản họp nhóm 7 — chuẩn bị bảo vệ",
+     "Tóm tắt buổi họp chiều nay:\n\n"
+     "1. Quân hoàn thiện màn Lịch trình và khung tra cứu đi lại — xong trước thứ Tư.\n"
+     "2. Khoa viết lại phần MCP server cho khớp đặc tả — xong trước thứ Năm.\n"
+     "3. Trang chuẩn bị slide phần an toàn (cổng xác nhận, cổng tiền) — xong thứ Sáu.\n"
+     "4. Cả nhóm chạy thử 15 phút vào sáng thứ Bảy.\n\n"
+     "Ai không kịp thì báo sớm để nhóm chia lại việc."),
+    ("Trần Minh Khoa", "Re: Biên bản họp nhóm 7 — chuẩn bị bảo vệ",
+     "Mình nhận mục 2.\n\n"
+     "Nhưng phần đặc tả tool mình vẫn chưa nhận được. Ai gửi giúp mình trước thứ Ba "
+     "thì mình mới kịp thứ Năm."),
+
+    # ── Cho "đề xuất đi lại": phải có ĐỊA ĐIỂM KHÁC thành phố và mốc thời gian rõ.
+    ("Ban tổ chức Hackathon", "Lịch chi tiết vòng chung kết tại Đà Nẵng",
+     "Chào đội MeoArc,\n\n"
+     "Vòng chung kết diễn ra ngày 12/9 tại Đà Nẵng, bắt đầu lúc 8h00 sáng.\n\n"
+     "Các đội có mặt trước 7h30 để làm thủ tục. Ban tổ chức hỗ trợ chi phí đi lại "
+     "cho tối đa 3 thành viên, các bạn tự đặt vé rồi gửi hoá đơn về sau."),
+    ("Phòng Hợp tác Quốc tế", "Hội thảo sinh viên tại Hà Nội 20/9",
+     "Trường cử sinh viên tham dự hội thảo tại Hà Nội ngày 20/9.\n\n"
+     "Bạn đăng ký trước ngày 14/9 nếu muốn tham gia. Trường hỗ trợ một phần chi phí."),
+
+    # ── Cho B4 "triage": ba mức độ khác nhau để nhóm ưu tiên nhìn ra sự khác biệt.
+    ("Ngân hàng ACB", "Cảnh báo: đăng nhập từ thiết bị lạ",
+     "Tài khoản của bạn vừa được đăng nhập từ một thiết bị mới.\n\n"
+     "Nếu không phải bạn, hãy đổi mật khẩu NGAY."),
+    ("Phòng Đào tạo HCMUS", "GẤP: bổ sung hồ sơ trước 16h hôm nay",
+     "Hồ sơ của em còn thiếu bản sao bằng tốt nghiệp THPT.\n\n"
+     "Em bổ sung trước 16h hôm nay, nếu không sẽ bị loại khỏi danh sách xét."),
+    ("GitHub", "[MeoArc] CI passed on integration",
+     "All checks have passed for commit on branch integration. No action needed."),
+    ("Moodle HCMUS", "Điểm giữa kỳ đã được cập nhật",
+     "Điểm giữa kỳ môn Nhập môn Công nghệ Phần mềm đã có trên hệ thống."),
+
+    # ── Thư BẪY thứ ba: có động từ cam kết nhưng KHÔNG có mốc thời gian.
+    #    Bộ trích phải bỏ qua. Đây là nửa còn lại của luật "cần CẢ hai".
+    ("Nguyễn Hoàng Anh", "Nhớ gửi mình file nhé",
+     "Khi nào rảnh bạn gửi mình file thiết kế nha, không gấp đâu."),
+]
+
+
 def _dung_bo_day() -> list[tuple[str, str, str]]:
     """Dựng bộ thư dày từ hai bảng gọn ở trên."""
     ra: list[tuple[str, str, str]] = []
@@ -264,6 +349,10 @@ def main() -> int:
     ap.add_argument("--tai-khoan", default=None,
                     help="Địa chỉ GỬI ĐI — chọn tài khoản nào trong DB. Mặc định: tài "
                          "khoản mới nhất còn phiên Gmail dùng được.")
+    ap.add_argument("--kich-ban", action="store_true",
+                    help="Gửi THÊM bộ thư ĐA DẠNG bám theo docs/kich-ban-kiem-thu-agent.md "
+                         "(quảng cáo để thử xoá hàng loạt, thư chờ mình trả lời, luồng "
+                         "họp, chuyến công tác). Bật sẵn khi dùng --bo-day.")
     ap.add_argument("--bo-day", action="store_true",
                     help="Gửi THÊM ~50 thư dồn cục để xem màn Lịch trình dưới tải "
                          "thật (xếp làn, chip +N, bảng ngày). Hộp thư sẽ rất lộn xộn "
@@ -313,15 +402,21 @@ def main() -> int:
             print(f"(Bỏ qua {len(bo_qua)} tài khoản không dùng được: {', '.join(bo_qua)})\n")
 
         bo = list(THU_DEMO)
+        thanh_phan = [f"{len(THU_DEMO)} gốc"]
+        # Bộ kịch bản đi kèm --bo-day, và cũng bật riêng được bằng --kich-ban: có lúc
+        # chỉ cần dữ liệu ĐA DẠNG để thử agent, không cần hộp thư quá tải.
+        if args.kich_ban or args.bo_day:
+            bo += _THU_KICH_BAN
+            thanh_phan.append(f"{len(_THU_KICH_BAN)} kịch bản")
         if args.bo_day:
-            bo += _dung_bo_day()
+            day = _dung_bo_day()
+            bo += day
+            thanh_phan.append(f"{len(day)} dày")
 
         nguoi_nhan = args.email or user.email
         print(f"Tài khoản : {user.email}")
         print(f"Gửi tới   : {nguoi_nhan}")
-        print(f"Số thư    : {len(bo)}"
-              + (f"  (8 bộ gốc + {len(bo) - len(THU_DEMO)} bộ dày)" if args.bo_day else "")
-              + "\n")
+        print(f"Số thư    : {len(bo)}  ({' + '.join(thanh_phan)})\n")
 
         if not args.gui_that:
             for i, (nguoi_gui, tieu_de, _) in enumerate(bo, 1):
