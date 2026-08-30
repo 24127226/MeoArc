@@ -106,7 +106,24 @@ export function AppShell() {
     if (openedId) chuyenCanh(() => setOpenedId(null))
     else setOpenedId(null)
   }
-  const inboxUnread = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox' && e.unread).length
+  /* ── SỐ CHƯA ĐỌC CỦA HỘP THƯ ĐẾN — phải ỔN ĐỊNH, không đổi theo chỗ đang đứng ──
+     Bản trước đếm thẳng trên `emails`, mà `emails` là thư của THƯ MỤC ĐANG XEM. Nên
+     con số nhảy lung tung theo nơi người dùng bấm vào, và không quy tắc nào giải
+     thích được nó:
+       • đang ở "Hộp thư"  → đếm đúng thư chưa đọc
+       • đang ở "Gắn sao"  → thư gắn sao vẫn mang folder 'inbox', nên nó đếm số thư
+                             GẮN SAO chưa đọc (vd 2) rồi dán lên icon Hộp thư
+       • đang ở "Đã gửi"   → không lá nào mang folder 'inbox' → badge BIẾN MẤT
+     Đúng ba triệu chứng người dùng báo, và cả ba đều từ một nguyên nhân.
+
+     Nay: chỉ cập nhật khi ĐANG THẬT SỰ xem hộp thư đến; các thư mục khác giữ nguyên
+     con số biết được lần cuối. Một con số hơi cũ vẫn có nghĩa; một con số đổi theo
+     tab thì không có nghĩa gì cả. */
+  const soChuaDoc = useRef(0)
+  if (folder === 'inbox') {
+    soChuaDoc.current = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox' && e.unread).length
+  }
+  const inboxUnread = soChuaDoc.current
 
   // Áp lực 7 ngày cho dải ở thanh điều hướng. Tính Ở ĐÂY chứ không trong nav-rail
   // để nav-rail không phải biết gì về tầng lịch trình — nó còn được dùng ở chỗ

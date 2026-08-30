@@ -921,8 +921,27 @@ export function ChatPanel({
     setCurrentId(s.id)
   }
 
-  // UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP). Mock trả [] → giữ initSessions (demo SRS).
-  // Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation phiên đó.
+  /* UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP).
+     Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation.
+
+     ── LỖI ĐÃ SỬA: CÂU HỎI BỐC HƠI SAU VÀI GIÂY ──
+     Bản trước, khi lời gọi này trả về nó chạy `setSessions([fresh, ...loaded])` rồi
+     `setCurrentId(fresh.id)` — tức THAY SẠCH phiên đang mở bằng một phiên TRỐNG.
+
+     Trên máy nhà, lời gọi về trong vài chục mili-giây nên không ai thấy. Trên bản
+     chạy thật nó mất vài giây, và trong khoảng đó người dùng đã kịp bấm "Hỏi trợ lý"
+     từ trang Lịch trình: câu hỏi hiện lên, agent bắt đầu nghĩ, rồi lịch sử về và
+     XOÁ luôn phiên chứa câu hỏi đó. Màn hình quay về lời chào, câu trả lời đang tới
+     thì rơi vào một phiên không còn được hiển thị.
+
+     Triệu chứng người dùng mô tả: "hỏi xong khoảng 10 mấy giây thì AI bị refresh và
+     hiện lại đoạn Chào Quân". Đúng là refresh — do chính đoạn mã này.
+
+     Nay: GIỮ NGUYÊN phiên đang mở, chỉ ghép lịch sử vào SAU nó, và KHÔNG đụng tới
+     `currentId`. Người dùng đang đứng ở đâu thì ở nguyên đó. */
+  const currentIdRef = useRef(currentId)
+  useEffect(() => { currentIdRef.current = currentId }, [currentId])
+
   useEffect(() => {
     let alive = true
     api
@@ -937,9 +956,14 @@ export function ChatPanel({
           pinned: c.pinned,
           messages: [],
         }))
-        const fresh = freshSession()
-        setSessions([fresh, ...loaded]) // thêm 1 phiên mới ở đầu để chat ngay
-        setCurrentId(fresh.id)
+        setSessions((prev) => {
+          const dangMo = prev.find((s) => s.id === currentIdRef.current) ?? prev[0]
+          // Bỏ bản trùng: phiên đang mở có thể đã được lưu xuống backend rồi.
+          const conLai = loaded.filter((c) => c.id !== dangMo?.backendId)
+          return dangMo ? [dangMo, ...conLai] : [freshSession(), ...loaded]
+        })
+        // KHÔNG setCurrentId — đổi phiên dưới chân người dùng là cách chắc chắn
+        // nhất làm mất câu hỏi họ vừa gửi.
       })
       .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI
     return () => {

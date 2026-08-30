@@ -212,8 +212,12 @@ export function SchedulePage() {
         {/* Chat mở → cột này là khối chính, nên hiện DANH SÁCH ĐẦY ĐỦ.
             Chat đóng → nó chỉ là phần tóm tắt bên cạnh lưới thẻ, nên rút gọn còn
             6 mục sắp tới. Cùng một chỗ, hai vai khác nhau tuỳ ngữ cảnh. */}
+        {/* Khung bọc danh sách PHẢI là flex container. `DanhSachViec` dùng
+            `flex-1 min-h-0 overflow-y-auto` để tự cuộn, nhưng hai lớp đó chỉ có
+            tác dụng khi CHA là flex — bản trước khung bọc chỉ có `overflow-hidden`,
+            nên danh sách cao tự nhiên, tràn ra rồi bị CẮT CỤT và không cuộn được. */}
         {chatMo ? (
-          <div className="fade-y mt-1 min-h-0 flex-1 overflow-hidden">
+          <div className="fade-y mt-1 flex min-h-0 flex-1 flex-col overflow-hidden">
             <DanhSachViec camKet={camKet} homNay={homNay} onBamThe={moThe} />
           </div>
         ) : (
