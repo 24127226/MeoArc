@@ -45,12 +45,17 @@ def _doc_ngay(s: str) -> datetime:
 
 
 def _vo_nguon(du_lieu: list[dict], ncc) -> dict:
-    """Bọc kết quả kèm KHAI BÁO NGUỒN. Đây là phần khiến bản demo đáng tin."""
-    that = getattr(ncc, "ten", "mo_phong") == "amadeus"
+    """Bọc kết quả kèm KHAI BÁO NGUỒN. Đây là phần khiến bản demo đáng tin.
+
+    Nhãn lấy TỪ CHÍNH nhà cung cấp, không suy ra bằng cách so tên ở đây. Bản trước viết
+    `ten == "amadeus"` nên khi thêm nguồn thứ ba (AeroDataBox) nó lặng lẽ bị xếp vào
+    "mô phỏng" — dữ liệu thật bị dán nhãn giả, và không có gì báo lỗi. Nhãn thuộc về
+    nơi biết sự thật về nguồn, tức là chính lớp nhà cung cấp.
+    """
     return {
         "nguon": getattr(ncc, "ten", "mo_phong"),
-        "la_that": that,
-        "nhan": "AMADEUS · dữ liệu thật" if that else "MÔ PHỎNG · không phải giá thật",
+        "la_that": getattr(ncc, "la_that", False),
+        "nhan": getattr(ncc, "nhan", "MÔ PHỎNG · không phải giá thật"),
         "thoi_diem": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         "so_ket_qua": len(du_lieu),
         "ket_qua": du_lieu,
@@ -63,13 +68,18 @@ def trang_thai():
 
     Không trả về khoá, chỉ trả về CÓ hay KHÔNG — khoá không bao giờ được rời máy chủ."""
     ncc = dat_cho.lay_nha_cung_cap()
-    that = getattr(ncc, "ten", "") == "amadeus"
+    that = getattr(ncc, "la_that", False)
     return {
         "nguon": getattr(ncc, "ten", "mo_phong"),
         "la_that": that,
-        "nhan": "AMADEUS · dữ liệu thật" if that else "MÔ PHỎNG · không phải giá thật",
+        "nhan": getattr(ncc, "nhan", "MÔ PHỎNG · không phải giá thật"),
+        # Nguồn thật vẫn có thể thiếu giá (AeroDataBox không bán vé). Giao diện cần biết
+        # điều này TRƯỚC khi vẽ bảng, để dựng sẵn cột giá dạng gạch ngang thay vì đợi
+        # kết quả về rồi mới phát hiện thiếu và nhảy bố cục.
+        "co_gia": getattr(ncc, "ten", "") != "aerodatabox",
         "huong_dan": None if that else (
-            "Chưa cấu hình AMADEUS_KEY/AMADEUS_SECRET trong .env nên đang dùng số mô phỏng."
+            "Chưa cấu hình AERODATABOX_KEY (hoặc AMADEUS_KEY/SECRET) trong .env "
+            "nên đang dùng số mô phỏng."
         ),
     }
 
@@ -111,8 +121,13 @@ def tim_khach_san(
         # Không tra ra mã thành phố là lỗi ĐẦU VÀO của người dùng, không phải lỗi
         # nhà cung cấp — trả 400 kèm đúng lý do để họ sửa được, thay vì 502 khó hiểu.
         raise HTTPException(400, str(exc))
-    except NotImplementedError as exc:
-        raise HTTPException(501, str(exc))
+    except NotImplementedError:
+        # Nguồn đang dùng chỉ có dữ liệu bay (AeroDataBox). LUI VỀ MÔ PHỎNG cho khách
+        # sạn, và quan trọng hơn: bọc kết quả bằng CHÍNH nguồn mô phỏng đó, nên nhãn
+        # trả về là "MÔ PHỎNG". Nếu vẫn bọc bằng `ncc` thì phòng bịa sẽ đội nhãn
+        # "LỊCH BAY THẬT" — đúng kiểu lỗi mà cả tệp này sinh ra để tránh.
+        ncc = dat_cho.NhaCungCapMoPhong()
+        ds = ncc.tim_khach_san(thanh_pho, nhan, tra, so_ket_qua)
     except Exception as exc:
         raise HTTPException(502, f"{type(exc).__name__}: {str(exc)[:200]}")
     return _vo_nguon([k.to_dict() for k in ds], ncc)

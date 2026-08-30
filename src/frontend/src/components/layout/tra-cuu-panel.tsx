@@ -26,7 +26,13 @@ import { cn } from '@/lib/utils'
  * KHÔNG CÓ NÚT ĐẶT. Đặt chỗ phải đi qua cổng xác nhận riêng — xem thẻ dự định.
  */
 
-type Nguon = { nguon: string; la_that: boolean; nhan: string; huong_dan?: string | null }
+// `la_that` và `co_gia` TÁCH RỜI: AeroDataBox là nguồn thật nhưng không bán vé nên
+// không có giá. Gộp làm một cờ thì hoặc phải dán nhãn giả cho dữ liệu thật, hoặc phải
+// hứa có giá trong khi không có.
+type Nguon = {
+  nguon: string; la_that: boolean; nhan: string
+  co_gia?: boolean; huong_dan?: string | null
+}
 type KetQua = Nguon & { thoi_diem: string; so_ket_qua: number; ket_qua: Record<string, unknown>[] }
 
 const HOM_NAY_CONG = (n: number) => {
@@ -261,22 +267,67 @@ function DongBay({ k }: { k: Record<string, unknown> }) {
   const gia = Number(k.gia_vnd ?? 0)
   const phut = Number(k.phut_bay ?? 0)
   const gioBay = phut ? `${Math.floor(phut / 60)}h${String(phut % 60).padStart(2, '0')}` : null
+  // Nguồn BÁN VÉ mới có giá. Nguồn dữ liệu bay (AeroDataBox) thì không — và nó cũng
+  // không biết chính sách hoàn vé, nên hai thứ đó cùng ẩn/hiện theo một cờ.
+  const coGia = k.co_gia !== false
+  const chiTiet = typeof k.lien_ket_chi_tiet === 'string' ? k.lien_ket_chi_tiet : null
+  // Chỉ nguồn thật mới có mấy thứ này; rỗng nghĩa là KHÔNG BIẾT, không phải "không có".
+  const them = [k.may_bay, k.nha_ga ? `nhà ga ${k.nha_ga}` : '', k.trang_thai]
+    .filter((x) => typeof x === 'string' && x).join(' · ')
+
   return (
     <>
-      <span className="font-mono text-[12px] font-semibold text-[var(--spark)]">{String(k.ma)}</span>
+      {/* SỐ HIỆU LÀ NÚT khi chuyến bay có thật: bấm ra đúng thẻ chi tiết của chuyến đó
+          trên Google (giờ, nhà ga, cửa ra, loại máy bay, đang bay hay chưa). Bản dựng
+          theo CHẶNG ở cột phải chỉ mở ra một bảng nhiều chuyến, người dùng vẫn phải tự
+          dò lại dòng mình vừa xem. Nguồn mô phỏng KHÔNG có link này — số hiệu do hàm
+          băm sinh ra, dẫn tới trang trống thì người dùng kết luận công cụ hỏng. */}
+      {chiTiet ? (
+        <a
+          href={chiTiet}
+          target="_blank"
+          rel="noreferrer noopener"
+          title="Xem chi tiết chuyến bay này trên Google"
+          className="group flex shrink-0 items-center gap-0.5 font-mono text-[12px] font-semibold text-[var(--spark)] hover:underline"
+        >
+          {String(k.ma)}
+          <ExternalLink className="size-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
+        </a>
+      ) : (
+        <span className="font-mono text-[12px] font-semibold text-[var(--spark)]">{String(k.ma)}</span>
+      )}
+
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-medium">{String(k.hang)}</span>
         <span className="block truncate text-[11px] text-muted-foreground">
           {String(k.khoi_hanh)} → {String(k.ha_canh)}
           {gioBay ? ` · ${gioBay}` : ''}
           {' · '}{Number(k.so_diem_dung) === 0 ? 'bay thẳng' : `${k.so_diem_dung} điểm dừng`}
-          {' · '}{k.hoan_duoc ? 'hoàn được' : 'không hoàn'}
+          {/* KHÔNG hiện "không hoàn" cho nguồn không bán vé: đó là một KHẲNG ĐỊNH về
+              điều kiện vé mà nguồn đó không hề biết. Im lặng mới đúng. */}
+          {coGia ? ` · ${k.hoan_duoc ? 'hoàn được' : 'không hoàn'}` : ''}
         </span>
+        {them && (
+          <span className="block truncate text-[10.5px] text-muted-foreground/80">{them}</span>
+        )}
       </span>
+
       <span className="shrink-0 text-right">
-        <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
-          {gia.toLocaleString('vi-VN')} ₫
-        </span>
+        {coGia ? (
+          <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
+            {gia.toLocaleString('vi-VN')} ₫
+          </span>
+        ) : (
+          // "—" chứ KHÔNG phải "0 ₫". Số 0 là một mức giá, và là mức giá hấp dẫn nhất
+          // có thể — người dùng tin ngay. "—" là thú nhận không biết. Cùng lý do với
+          // "—" ở cột số sao khách sạn.
+          <span
+            title="Nguồn này cung cấp lịch bay, không bán vé nên không có giá"
+            className="block cursor-help font-mono text-[12.5px] font-semibold text-muted-foreground"
+          >
+            —
+          </span>
+        )}
         {/* BẤM RA TRANG THẬT. Một bảng giá không bấm được thì người dùng vẫn phải mở
             tab khác gõ lại từ đầu — công cụ chưa tiết kiệm được gì. Đây cũng là cách
             người xem TỰ KIỂM số liệu: khớp hay không khớp, thấy ngay trong ba giây. */}
@@ -287,7 +338,7 @@ function DongBay({ k }: { k: Record<string, unknown> }) {
             rel="noreferrer noopener"
             className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
           >
-            Xem chuyến bay <ExternalLink className="size-2.5" />
+            {coGia ? 'Xem chuyến bay' : 'Xem giá'} <ExternalLink className="size-2.5" />
           </a>
         )}
       </span>

@@ -17,8 +17,12 @@ c = TestClient(app)
 
 
 def _mo_phong(monkeypatch):
-    monkeypatch.setattr(dat_cho.settings, "amadeus_key", "", raising=False)
-    monkeypatch.setattr(dat_cho.settings, "amadeus_secret", "", raising=False)
+    """Xoá HẾT khoá của MỌI nguồn thật, không riêng Amadeus.
+
+    Bỏ sót một khoá thì cả tệp này đổ ngay khi có người điền khoá đó vào .env —
+    và nó đổ trên MÁY CỦA HỌ chứ không đổ trên CI, nên rất khó lần ra."""
+    for k in ("amadeus_key", "amadeus_secret", "aerodatabox_key"):
+        monkeypatch.setattr(dat_cho.settings, k, "", raising=False)
 
 
 # ── Khai báo nguồn ───────────────────────────────────────────────────────────
@@ -49,6 +53,39 @@ def test_moi_ket_qua_deu_kem_nhan_nguon(monkeypatch):
     assert "MÔ PHỎNG" in d["nhan"]
     assert d["thoi_diem"]           # có dấu thời gian để đối chiếu lúc trình bày
     assert d["so_ket_qua"] == len(d["ket_qua"])
+
+
+def test_nguon_that_van_bao_dung_khi_THIEU_GIA(monkeypatch):
+    """AeroDataBox là nguồn THẬT nhưng KHÔNG có giá. Hai điều đó độc lập nhau, nên
+    `la_that` và `co_gia` phải là hai cờ tách rời — gộp làm một là hoặc phải dán nhãn
+    giả cho dữ liệu thật, hoặc phải hứa có giá trong khi không có."""
+    for k in ("amadeus_key", "amadeus_secret"):
+        monkeypatch.setattr(dat_cho.settings, k, "", raising=False)
+    monkeypatch.setattr(dat_cho.settings, "aerodatabox_key", "khoa-that", raising=False)
+    d = c.get("/tra-cuu/trang-thai").json()
+    assert d["la_that"] is True and d["co_gia"] is False
+    assert "không có giá" in d["nhan"].lower()
+    assert d["huong_dan"] is None, "đang dùng nguồn thật thì không còn gì phải hướng dẫn"
+
+
+def test_khach_san_lui_ve_mo_phong_thi_NHAN_CUNG_PHAI_LUI(monkeypatch):
+    """Chỗ dễ hỏng nhất của việc thêm nguồn thứ ba.
+
+    AeroDataBox không có khách sạn nên phần này lui về mô phỏng. Nếu nhãn vẫn lấy theo
+    nhà cung cấp ĐANG CHỌN thay vì nhà cung cấp ĐÃ DÙNG, thì phòng bịa sẽ đội nhãn
+    "LỊCH BAY THẬT" — đúng loại lỗi mà cả tính năng này sinh ra để ngăn."""
+    for k in ("amadeus_key", "amadeus_secret"):
+        monkeypatch.setattr(dat_cho.settings, k, "", raising=False)
+    monkeypatch.setattr(dat_cho.settings, "aerodatabox_key", "khoa-that", raising=False)
+
+    d = c.get("/tra-cuu/khach-san", params={
+        "thanh_pho": "Đà Nẵng", "nhan_phong": "16/09/2026", "tra_phong": "18/09/2026",
+    }).json()
+
+    assert d["nguon"] == "mo_phong", "khách sạn không đến từ nguồn bay"
+    assert d["la_that"] is False
+    assert "MÔ PHỎNG" in d["nhan"]
+    assert d["so_ket_qua"] > 0, "lui về mô phỏng chứ không phải trả rỗng"
 
 
 # ── Tra cứu chạy đúng ────────────────────────────────────────────────────────

@@ -1,0 +1,919 @@
+================================================================================
+MEOARC — DANH SÁCH CHỨC NĂNG & CÁCH TRẢ LỜI THẦY
+Đồ án Intro2SE · HCMUS · Nhóm 7
+Tài liệu nội bộ cho buổi bảo vệ 15 phút
+================================================================================
+
+CÁCH DÙNG FILE NÀY
+------------------
+Thầy đã dặn: "Thầy không hỏi code, thầy hỏi về cách các em tạo ra sản phẩm,
+lý do các em chọn giải pháp."
+
+Nên mỗi chức năng dưới đây được viết theo đúng 5 dòng:
+
+    LÀM GÌ      — chức năng đó là gì, nói cho người không biết code hiểu
+    LÀM SAO     — phương pháp kỹ thuật, gọi tên đúng thuật ngữ
+    ĐÃ LOẠI     — phương án hiển nhiên mà nhóm KHÔNG chọn
+    VÌ SAO      — điều gì ở phương án đó sẽ hỏng (đây là chỗ ăn điểm)
+    BẰNG CHỨNG  — con số hoặc thao tác chạy được
+    FILE        — chỗ để bạn tự đọc thêm / hỏi AI riêng
+
+Học thuộc phần "ĐÃ LOẠI + VÌ SAO". Kể tính năng thì nghe như đọc README;
+kể được mình đã cân nhắc và bỏ cái gì thì thầy thấy có tư duy thiết kế.
+
+
+================================================================================
+PHẦN 0 — TÌNH TRẠNG THẬT (đọc trước khi mở miệng)
+================================================================================
+
+TẤT CẢ chức năng trong tài liệu này ĐỀU CHẠY THẬT, trừ ba ngoại lệ sau.
+Nói sai một lần là mọi câu sau đều bị nghi ngờ.
+
+  [MOCK]  Gói đăng ký / bảng giá / đồng hồ token
+          -> Giao diện có, KHÔNG nối cổng thanh toán. Đừng demo phần này.
+
+  [THẬT khi có khoá]  Tra cứu chuyến bay
+          -> Có AERODATABOX_KEY thì đây là LỊCH BAY THẬT: hãng thật, số hiệu
+             thật, giờ thật, loại máy bay, nhà ga. Thầy tra số hiệu là ra.
+             KHÔNG có giá vé — nguồn này không bán vé, và nhóm không bịa giá.
+             Chưa có khoá thì lui về mô phỏng, tự dán nhãn "MÔ PHỎNG".
+             Nhãn do MÁY CHỦ quyết định, không phải do giao diện gõ vào.
+
+  [MÔ PHỎNG CÓ NHÃN]  Tra cứu khách sạn
+          -> Nguồn bay không có dữ liệu khách sạn nên phần này luôn mô phỏng.
+             Nhãn lui theo, phòng bịa không đội nhãn thật.
+
+  [MÔ PHỎNG CÓ NHÃN]  Đặt chỗ
+          -> Mã đơn luôn có tiền tố "MP-", tên hàm chứa chữ "mo_phong",
+             thẻ duyệt ghi rõ. Cố ý không làm thanh toán thật (xem Phần 6).
+
+LƯU Ý: file src/backend/app/agent/guardrails/output_guardrail.py là FILE RỖNG.
+Đừng nói nhóm "có guardrail đầu ra". Chỉ có guardrail ĐẦU VÀO (chặn tiêm lệnh),
+còn việc chặn hành động nguy hiểm nằm ở tool_node.py — nói vậy mới đúng.
+
+
+================================================================================
+PHẦN 1 — SÁU CHỨC NĂNG NỔI BẬT NHẤT (nói sớm, đừng để bị bỏ sót)
+================================================================================
+
+--------------------------------------------------------------------------------
+[1] LỊCH TRÌNH SINH RA TỪ HỘP THƯ
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Đọc thư đến rồi tự dựng ra một cuốn lịch: việc gì phải làm, hạn lúc nào,
+  ai đang chờ mình, và lá thư nào sinh ra việc đó. Người dùng không nhập tay
+  một dòng nào.
+
+LÀM SAO
+  Bộ trích luật (rule-based extractor) chạy hai tầng:
+    - Tầng 1: nhận diện ĐỘNG TỪ CAM KẾT ("nộp", "gửi", "phản hồi", "xác nhận"...)
+    - Tầng 2: nhận diện MỐC THỜI GIAN — ngày tuyệt đối, "trong vòng N ngày làm
+      việc", "thứ Sáu tuần này/tuần sau", "ngày mai/ngày kia/cuối tuần",
+      "từ 7/9 đến 25/9", giờ đứng riêng.
+  Bắt buộc có CẢ HAI mới nhận là cam kết.
+  Mỗi cam kết mang thêm: độ tin cậy (doTinCay), ước lượng thời lượng,
+  mức ưu tiên, người đang chờ, và id lá thư gốc.
+
+ĐÃ LOẠI
+  Trích "sự kiện" theo kiểu Google Calendar.
+
+VÌ SAO
+  Sự kiện chỉ là một khối thời gian trên lịch. Cái nhóm cần là CAM KẾT —
+  nó có thêm trạng thái (chưa làm / đang làm / xong), có NGƯỜI ĐANG CHỜ, và
+  có nguồn gốc truy ngược được. Đó chính là khoảng cách giữa một cuốn lịch
+  và một người trợ lý.
+  Ngoài ra Google Calendar chỉ bắt được ngày tuyệt đối; nó bỏ qua
+  "gửi giúp anh trước thứ Sáu" — mà trong thư công việc thì câu đó mới là
+  dạng phổ biến nhất.
+
+BẰNG CHỨNG
+  - 55 ca kiểm thử, dùng CHUNG một bộ dữ liệu cho cả bản Python lẫn TypeScript
+    (src/shared/ca-cam-ket.json) — hai bản cài đặt độc lập phải cho cùng kết quả.
+  - Thư "Sale 9/9 giảm 50%" có ngày tháng nhưng KHÔNG có động từ cam kết ->
+    bị loại đúng. Đây là ca chứng minh bộ lọc không tham.
+
+FILE
+  src/backend/app/core/cam_ket.py          (bản Python — dùng cho agent)
+  src/frontend/src/lib/cam-ket.ts          (bản TypeScript — dùng cho giao diện)
+  src/shared/ca-cam-ket.json               (bộ ca kiểm thử dùng chung)
+  src/frontend/src/pages/schedule.tsx      (trang /lich)
+  src/backend/tests/test_cam_ket.py
+
+
+--------------------------------------------------------------------------------
+[2] CỔNG XÁC NHẬN — AGENT KHÔNG TỰ Ý LÀM ĐIỀU KHÔNG HOÀN TÁC ĐƯỢC
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Agent có thể tìm, đọc, tóm tắt thoải mái. Nhưng gửi thư, xoá thư, hay thao
+  tác hàng loạt thì nó BỊ DỪNG LẠI và phải chờ người bấm duyệt.
+
+LÀM SAO
+  Human-in-the-loop cưỡng chế ở TẦNG MÃ, không phải ở prompt:
+    - Mỗi công cụ trong registry khai báo sẵn MỨC RỦI RO của nó.
+    - tool_node đọc mức rủi ro TRƯỚC khi thực thi. Loại không-hoàn-tác bị
+      chặn lại, biến thành một "thẻ chờ duyệt" (confirmation request) đẩy
+      ra giao diện.
+    - Thẻ đó được dựng TẤT ĐỊNH TỪ THAM SỐ của lời gọi công cụ — không nhờ
+      mô hình viết lại nội dung thẻ.
+
+ĐÃ LOẠI
+  Viết vào prompt hệ thống: "nhớ hỏi người dùng trước khi xoá".
+
+VÌ SAO
+  Lời dặn trong prompt là GỢI Ý, không phải RÀNG BUỘC. Một prompt hệ thống dài
+  vài trăm dòng thì mô hình bỏ sót là chuyện bình thường — và hậu quả ở đây
+  không hoàn tác được.
+  Chi tiết quan trọng thứ hai: vì sao thẻ phải dựng tất định từ tham số?
+  Nếu để mô hình tự viết mô tả thẻ, nó có thể viết "xoá 5 thư quảng cáo" trong
+  khi lời gọi thật là xoá 50 thư. Người dùng duyệt cái họ ĐỌC, không phải cái
+  sẽ chạy. Dựng từ tham số thì thứ duyệt CHÍNH LÀ thứ chạy.
+
+BẰNG CHỨNG
+  Đo thật: gõ "xoá hết thư quảng cáo" -> agent tìm ra 50 thư rồi DỪNG,
+  hiện thẻ ghi rõ số lượng, chờ bấm Duyệt/Bỏ qua. Bấm Bỏ qua thì không thư
+  nào bị đụng tới.
+
+FILE
+  src/backend/app/agent/nodes/tool_node.py      (chỗ chặn)
+  src/backend/app/tools/registry.py             (khai báo mức rủi ro)
+  src/backend/app/models/confirmation.py
+  src/backend/app/api/app.py                    (/confirmations, approve, reject)
+  src/backend/tests/test_confirmation.py
+  src/backend/tests/test_confirmation_api.py
+  src/frontend/src/components/layout/chat-panel.tsx   (thẻ duyệt trên giao diện)
+
+
+--------------------------------------------------------------------------------
+[3] RANH GIỚI NĂNG LỰC — AGENT BIẾT VIỆC GÌ NÓ KHÔNG LÀM ĐƯỢC
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Yêu cầu ngoài tầm ("đặt vé máy bay đi Đà Nẵng", "gọi điện cho anh Nam")
+  thì agent nói thẳng là không làm được, thay vì làm bừa một việc khác.
+
+LÀM SAO
+  - Thêm một CÔNG CỤ riêng tên tu_choi_ngoai_pham_vi. Agent chọn công cụ này
+    y như chọn công cụ tìm thư.
+  - Thêm khối "## PHẠM VI" vào prompt hệ thống, đặt TRƯỚC luật "luôn phải
+    tìm thư" — thứ tự này là load-bearing.
+
+ĐÃ LOẠI
+  Chỉ viết thêm một câu cấm trong prompt: "nếu ngoài phạm vi thì từ chối".
+
+VÌ SAO
+  Đây là lỗi CHÍNH NHÓM ĐO RA rồi mới sửa, nên kể được cả quá trình:
+  Ban đầu bảo agent "đặt vé máy bay đi Đà Nẵng", nó đi TÌM THƯ VỀ VÉ MÁY BAY
+  rồi báo "không tìm thấy thư nào". Người dùng đọc câu đó sẽ hiểu là HỘP THƯ
+  TRỐNG, chứ không hiểu là MeoArc không có khả năng đó.
+  Một yêu cầu ngoài tầm bị âm thầm diễn giải thành việc khác — với một agent
+  sắp được nối vào tiền thì đây là tính chất nguy hiểm nhất, nguy hiểm hơn
+  cả việc nó báo lỗi.
+  Vì sao làm thành CÔNG CỤ chứ không phải LỜI CẤM: mô hình bám theo danh sách
+  công cụ chặt hơn nhiều so với bám theo một câu cấm nằm lẫn trong prompt dài.
+  Còn vì sao khối PHẠM VI phải đặt TRƯỚC: luật "luôn tìm thư trước khi trả
+  lời" chính là thứ đẩy nó đi tìm thư — đọc luật đó trước thì nó làm theo luật đó.
+
+BẰNG CHỨNG
+  Có kịch bản đo riêng, ném 10 yêu cầu ngoài phạm vi vào agent và kiểm
+  từng câu trả lời.
+
+FILE
+  src/backend/app/agent/nodes/agent_node.py    (khối ## PHẠM VI)
+  src/backend/app/tools/email_tools.py         (hàm tu_choi_ngoai_pham_vi)
+  src/backend/tests/test_pham_vi.py
+
+
+--------------------------------------------------------------------------------
+[4] CỔNG TIỀN — BỐN LỚP, MỖI LỚP CHẶN MỘT KIỂU HỎNG KHÁC
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Lớp bảo vệ đặt giữa agent và bất cứ thao tác nào chạm tới tiền.
+
+LÀM SAO
+  Bốn cơ chế độc lập, mỗi cái chặn một kiểu hỏng khác nhau:
+    1. KHOÁ CHỐNG TRÙNG (idempotency key) — cùng một yêu cầu gửi hai lần
+       chỉ sinh ra một đơn.
+    2. TRẦN CHI TIÊU — vượt hạn mức thì từ chối, không cần biết ai ra lệnh.
+    3. NHẬT KÝ GHI TRƯỚC VÀ SAU — ghi "sắp làm gì" trước khi làm, ghi
+       "kết quả ra sao" sau khi làm.
+    4. BẮT BUỘC CÓ NGƯỜI DUYỆT — không có đường nào đi vòng qua.
+
+ĐÃ LOẠI
+  Dựa vào cổng xác nhận ở mục [2] là đủ.
+
+VÌ SAO
+  Cổng xác nhận chặn AGENT, nó không chặn SỰ CỐ.
+  Kịch bản hỏng thật: người dùng đã bấm duyệt hợp lệ, hệ thống bắt đầu đặt,
+  rồi mạng đứt giữa chừng. Client không nhận được phản hồi nên thử lại ->
+  thành hai vé, tiền mất thật. Cổng xác nhận không hề bị vi phạm ở đây.
+  Vì sao nhật ký phải ghi TRƯỚC khi làm: nếu chỉ ghi sau, mà tiến trình chết
+  đúng lúc đang gọi nhà cung cấp, thì không còn dấu vết nào cho biết hệ thống
+  đã ĐỊNH làm gì — không điều tra được, không đối soát được.
+
+BẰNG CHỨNG
+  Phép thử giết tiến trình giữa lúc đặt rồi chạy lại -> không sinh đơn thứ hai.
+
+FILE
+  src/backend/app/services/cong_tien.py
+  src/backend/app/models/dat_cho.py
+  src/backend/app/services/dat_cho_gia_lap.py
+  src/backend/tests/test_cong_tien.py
+  src/backend/tests/test_dat_cho_mo_phong.py
+
+
+--------------------------------------------------------------------------------
+[5] MCP HAI CHIỀU — VỪA LÀ MÁY CHỦ, VỪA LÀ MÁY KHÁCH
+--------------------------------------------------------------------------------
+LÀM GÌ
+  MeoArc là MCP Server: một trợ lý AI khác (Claude Desktop, Codex) kết nối vào
+  và gọi thẳng các công cụ hộp thư, không cần đi qua giao diện chat của MeoArc.
+  Đồng thời MeoArc là MCP Client khi gọi ra nhà cung cấp dữ liệu đi lại.
+
+LÀM SAO
+  MCP (Model Context Protocol) — chuẩn mở để agent gọi công cụ.
+  Cả hai chiều dùng CHUNG một tool registry với agent nội bộ.
+
+ĐÃ LOẠI
+  Mở một REST API riêng cho agent ngoài gọi vào.
+
+VÌ SAO
+  REST API thì agent ngoài phải được lập trình riêng cho MeoArc. MCP là chuẩn,
+  nên bất kỳ agent nào nói được MCP đều dùng được ngay, không sửa dòng nào.
+  Vì sao dùng chung registry: viết hai bản thì hai đường sẽ LỆCH HÀNH VI theo
+  thời gian — sửa luật an toàn ở đường này mà quên đường kia.
+  Và đây là chi tiết đáng nói nhất: đường MCP KHÔNG đi qua LangGraph, nên cổng
+  xác nhận phải có bản riêng cho nó. Chặn ở một chỗ là hở chỗ kia.
+
+BẰNG CHỨNG
+  src/backend/tests/test_mcp.py
+
+FILE
+  src/backend/app/mcp/server.py
+  src/backend/app/tools/registry.py
+  src/backend/app/tools/email_tools.py
+  src/backend/tests/test_mcp.py
+
+
+--------------------------------------------------------------------------------
+[6] HAI QUYẾT ĐỊNH HẠ TẦNG, CẢ HAI ĐỀU TỪ SỐ ĐO
+--------------------------------------------------------------------------------
+
+6a. VƯỢT CHẶN VÙNG ĐỊA LÝ
+
+LÀM GÌ
+  Bản deploy gọi được Gemini, dù máy chủ đặt ở vùng Google không phục vụ.
+
+LÀM SAO
+  Cloudflare Worker + Durable Object ghim vị trí (locationHint) ở Bắc Mỹ.
+  Lời gọi Gemini đi vòng qua đó.
+
+ĐÃ LOẠI
+  (a) Dời App Service sang vùng khác.  (b) Dùng Worker thường không Durable Object.
+
+VÌ SAO
+  (a) Dời vùng thì URL đổi -> phải khai báo lại toàn bộ redirect URI của Google
+      OAuth, rủi ro làm hỏng đăng nhập ngay trước hạn.
+  (b) Worker thường chạy ở PoP gần NGƯỜI GỌI nhất, nên nó không đổi được vùng
+      đi ra. Chỉ Durable Object mới ghim được vị trí. Đây là chi tiết kỹ thuật
+      dễ ghi điểm vì nó cho thấy nhóm hiểu mô hình chạy của Cloudflare.
+  Bản chất vấn đề: đây là lỗi CHỈ XUẤT HIỆN Ở MỘT MÔI TRƯỜNG. Chạy máy nhà thì
+  bình thường, deploy lên mới chết — nên không thể phát hiện bằng test.
+
+BẰNG CHỨNG
+  Đo từ bên thứ ba: lời gọi đi ra từ IP 172.68.35.102 · Denver · Colorado · US.
+
+FILE
+  infra/cf-gemini-proxy/src/worker.js
+  infra/cf-gemini-proxy/wrangler.toml
+  src/backend/app/core/config.py       (ai_base_url, ai_proxy_secret)
+
+
+6b. CHỐNG HẾT HẠN MỨC GIỮA BUỔI DEMO
+
+LÀM GÌ
+  Hết lượt gọi model này thì tự chuyển sang model khác, không sập.
+
+LÀM SAO
+  Chuỗi model dự phòng (LLMDuPhong). Chỉ rơi xuống model sau khi lỗi đúng là
+  HẾT HẠN MỨC.
+
+ĐÃ LOẠI
+  Runnable.with_fallbacks có sẵn của LangChain.
+
+VÌ SAO
+  with_fallbacks chỉ nhận LỚP NGOẠI LỆ. Mà ở đây lỗi hết hạn mức và lỗi thật
+  (sai khoá, model không tồn tại) dùng CHUNG một lớp ChatGoogleGenerativeAIError.
+  Dùng nó thì mọi lỗi đều rơi xuống model sau -> che mất lỗi thật, gỡ lỗi
+  thành mò kim đáy bể.
+  Vì sao phải có cơ chế này: gói miễn phí của Gemini chỉ 20 lượt/ngày CHO MỖI
+  MODEL. Một buổi bảo vệ 15 phút mà phần quan trọng nhất chết vì hết lượt thì
+  không có cách nào cứu tại chỗ. Hạn mức tính riêng từng model nên xâu chuỗi
+  lại là nhân được số lượt.
+
+BẰNG CHỨNG
+  src/backend/tests/test_llm_du_phong.py
+
+FILE
+  src/backend/app/core/llm.py
+  src/backend/tests/test_llm_du_phong.py
+
+
+================================================================================
+PHẦN 2 — CHỨC NĂNG CHÍNH CÒN LẠI
+================================================================================
+
+--------------------------------------------------------------------------------
+[7] TRỢ LÝ NGÔN NGỮ TỰ NHIÊN (UC007 — trung tâm của sản phẩm)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Gõ tiếng Việt tự nhiên, agent hiểu ý rồi tự chọn công cụ để làm.
+  Đây là cửa vào của UC008/009/010/014/015/016.
+
+LÀM SAO
+  LangGraph dựng đồ thị trạng thái: agent_node (mô hình suy nghĩ, chọn công cụ)
+  <-> tool_node (thực thi công cụ) lặp cho tới khi xong.
+  Hiện có 16 công cụ. Mô hình: Gemini.
+
+ĐÃ LOẠI
+  Tự viết vòng lặp gọi hàm bằng if/else theo từ khoá.
+
+VÌ SAO
+  Vòng lặp if/else chỉ chạy được với câu đúng mẫu. Người dùng thật viết
+  "coi giúp có ai chờ mình trả lời không" — không khớp mẫu nào cả.
+  Vì sao chọn LangGraph chứ không phải chuỗi prompt tuần tự: các yêu cầu thật
+  cần NHIỀU BƯỚC và số bước không biết trước (tìm -> lọc -> tóm tắt -> soạn).
+  Đồ thị trạng thái cho phép lặp có điều kiện; chuỗi tuần tự thì không.
+
+BẰNG CHỨNG
+  16 công cụ trong registry. Đã chạy thật với Gmail thật + Gemini thật.
+
+FILE
+  src/backend/app/agent/graph.py
+  src/backend/app/agent/state.py
+  src/backend/app/agent/nodes/agent_node.py
+  src/backend/app/agent/nodes/tool_node.py
+  src/backend/app/tools/email_tools.py
+  src/backend/app/tools/registry.py
+  src/frontend/src/components/layout/chat-panel.tsx
+
+
+--------------------------------------------------------------------------------
+[8] TÌM KIẾM NGỮ NGHĨA (UC005)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Ngoài tìm theo tiêu chí (người gửi / tiêu đề / ngày / nhãn), còn tìm được
+  bằng câu mô tả: "thư nào đang chờ mình phản hồi".
+
+LÀM SAO
+  Hai công cụ tách bạch: search_emails (tiêu chí, rẻ) và semantic_search (ngữ nghĩa).
+  Agent tự chọn cái phù hợp với câu hỏi.
+
+ĐÃ LOẠI
+  Chỉ làm một công cụ tìm kiếm duy nhất, luôn dùng ngữ nghĩa.
+
+VÌ SAO
+  Tìm ngữ nghĩa đắt hơn nhiều lần. "Thư từ thầy Bình" là truy vấn tiêu chí
+  thuần tuý — dùng ngữ nghĩa cho nó là đốt hạn mức vô ích. Tách hai công cụ
+  để agent chọn đúng loại chi phí cho đúng loại câu hỏi.
+
+FILE
+  src/backend/app/tools/email_tools.py   (search_emails, semantic_search)
+  src/backend/app/services/email_service.py
+
+
+--------------------------------------------------------------------------------
+[9] THAO TÁC THƯ & HÀNG LOẠT (UC006)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Đánh dấu đã đọc / quan trọng, gắn nhãn, lưu trữ, xoá — cho một thư hoặc
+  cho nhiều thư theo tiêu chí.
+
+LÀM SAO
+  bulk_action nhận TIÊU CHÍ chứ không nhận danh sách id.
+  Mọi thao tác không hoàn tác đi qua cổng xác nhận ở mục [2].
+
+ĐÃ LOẠI
+  Bắt agent liệt kê từng id thư rồi gọi từng lệnh một.
+
+VÌ SAO
+  Gọi từng lệnh cho 50 thư là 50 lần gọi API Gmail -> chậm và dễ dính rate
+  limit của Google. Quan trọng hơn: nếu đứt giữa chừng thì trạng thái nửa vời,
+  không biết đã xử lý tới thư nào.
+
+FILE
+  src/backend/app/tools/email_tools.py    (bulk_action, apply_labels)
+  src/backend/app/services/gmail_actions.py
+  src/backend/app/api/app.py              (/emails/actions/*)
+
+
+--------------------------------------------------------------------------------
+[10] SOẠN & GỬI THƯ (UC010)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Nhờ agent soạn thư, xem bản nháp, sửa tại chỗ, rồi mới gửi.
+
+LÀM SAO
+  Agent trả về DraftCard với 4 lựa chọn: Gửi / Chỉnh sửa tại chỗ / Viết lại / Huỷ.
+  Gửi là hành động không hoàn tác -> đi qua cổng xác nhận.
+
+ĐÃ LOẠI
+  Agent soạn xong gửi luôn cho nhanh.
+
+VÌ SAO
+  Thư gửi đi thì người khác ĐÃ THẤY — không thu hồi được. Đây đúng là cấp rủi
+  ro giữa trong thang ba mức của nhóm: hoàn tác được / người khác đã thấy /
+  mất tiền thật.
+
+FILE
+  src/backend/app/tools/email_tools.py    (send_email, reply_email)
+  src/backend/app/services/gmail_send.py
+  src/frontend/src/components/layout/compose-dialog.tsx
+
+
+--------------------------------------------------------------------------------
+[11] ĐA NHÀ CUNG CẤP THƯ — GMAIL VÀ OUTLOOK
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Đăng nhập bằng Google hoặc Microsoft, phần còn lại của hệ thống chạy y hệt.
+
+LÀM SAO
+  Một lớp trừu tượng (mail.py) đứng giữa. Tầng trên — agent, công cụ, giao
+  diện — chỉ nói chuyện với lớp này, không biết bên dưới là Gmail hay Outlook.
+
+ĐÃ LOẠI
+  Viết if provider == "gmail" ... else ... rải khắp nơi cần dùng.
+
+VÌ SAO
+  Rải điều kiện thì mỗi lần thêm nhà cung cấp mới phải sửa hàng chục chỗ, và
+  chắc chắn sót. Gom vào một lớp thì thêm nhà cung cấp = thêm một file, không
+  đụng tầng trên. Đây là Dependency Inversion — tầng cao phụ thuộc vào trừu
+  tượng, không phụ thuộc vào chi tiết.
+
+FILE
+  src/backend/app/services/mail.py           (lớp trừu tượng)
+  src/backend/app/services/gmail_service.py
+  src/backend/app/services/outlook_service.py
+  src/backend/app/services/auth_service.py
+  src/backend/app/services/auth_service_ms.py
+  src/backend/app/api/auth.py
+
+
+--------------------------------------------------------------------------------
+[12] KHO THƯ TRONG CSDL + ĐỒNG BỘ ĐẨY (PUSH)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Thư được lưu xuống CSDL của MeoArc làm bản ghi chính, không gọi Gmail mỗi
+  lần cần đọc. Có thư mới thì Gmail ĐẨY tin báo sang.
+
+LÀM SAO
+  - Đồng bộ tăng dần (incremental sync) qua historyId của Gmail.
+  - Google Pub/Sub push notification cho thư mới.
+  - Bật/tắt bằng cờ tính năng MAILBOX_STORE_ENABLED.
+
+ĐÃ LOẠI
+  Hỏi Gmail mỗi lần người dùng mở hộp thư (polling).
+
+VÌ SAO
+  Polling thì mỗi lần mở là một lần gọi API. Google có hạn mức, và nhiều người
+  dùng cùng lúc là dính rate limit ngay. Nghiêm trọng hơn: agent cần quét nhiều
+  thư để trích cam kết — làm việc đó qua API trực tiếp thì không khả thi.
+  Vì sao có cờ tính năng: kho thư đổi nguồn dữ liệu của cả hệ thống. Có cờ thì
+  tắt được ngay nếu hỏng lúc demo, không phải sửa code.
+
+FILE
+  src/backend/app/services/sync_service.py
+  src/backend/app/api/app.py     (/gmail/push, /gmail/watch, /sync/run)
+
+
+--------------------------------------------------------------------------------
+[13] TRA CỨU CHUYẾN BAY & KHÁCH SẠN  [MÔ PHỎNG CÓ NHÃN]
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Gõ chặng bay và ngày -> ra danh sách chuyến, có nút mở trang đặt vé thật.
+  Có cả tra cứu khách sạn theo thành phố.
+
+LÀM SAO
+  - Đường HTTP riêng (/tra-cuu/*), gọi THẲNG, KHÔNG đi qua mô hình ngôn ngữ.
+  - BA nhà cung cấp sau cùng một lớp trừu tượng, chọn theo khoá đang có:
+      * AeroDataBox (RapidAPI) — LỊCH BAY THẬT: hãng thật, số hiệu thật, giờ
+        thật, loại máy bay, nhà ga. KHÔNG có giá vì nó không bán vé.
+      * Amadeus — thật và có giá, nhưng đã ĐÓNG đăng ký self-service. Giữ code
+        lại cho ai còn khoá cũ.
+      * Mô phỏng — chạy được ngay không cần khoá, sinh số TẤT ĐỊNH bằng SHA1.
+  - MỌI phản hồi mang sẵn: nguon, la_that, nhan, co_gia, thoi_diem.
+
+ĐÃ LOẠI
+  (a) Cho agent trả lời câu hỏi chuyến bay bằng chính lời văn của nó.
+  (b) Duffel — API đặt vé, đăng ký nhanh, CÓ giá.
+  (c) Adivaha / Trawex / FlightsLogic — API "hợp nhất" gom mọi nguồn.
+
+VÌ SAO
+  Loại (a) vì hai lý do TRÌNH BÀY chứ không phải kỹ thuật:
+      * Không phụ thuộc hạn mức — đường này không gọi model lần nào, nên phần
+        quan trọng nhất của buổi demo không thể chết vì hết lượt.
+      * Tách bạch điều đang chứng minh. Khi thầy hỏi "cái này có thật không",
+        câu trả lời phải là DỮ LIỆU, không phải một đoạn văn do mô hình viết.
+  Loại (b) vì tài liệu của chính Duffel ghi môi trường thử nghiệm "won't show
+      realistic schedules or prices", hãng test mang mã ZZ. Có giá nhưng chuyến
+      bay là BỊA — tra ngoài không ra. Đúng vấn đề cần tránh, chỉ đổi vỏ.
+  Loại (c) vì đó là công ty bán phần mềm cho ĐẠI LÝ DU LỊCH, phải nạp tiền và
+      ký hợp đồng. Mà hợp đồng đại lý chính là ranh giới nhóm đã tuyên bố cố ý
+      không vượt — đi đường đó là tự mâu thuẫn với lập luận của chính mình.
+
+  Vì sao chấp nhận MẤT CỘT GIÁ: thứ cần chứng minh ở đây là DỮ LIỆU THẬT, không
+  phải luồng thanh toán — luồng thanh toán thì nhóm cố ý không làm. Một bảng giá
+  bịa trông y hệt giá thật là thứ nguy hiểm nhất; thà thiếu cột giá. Giá hiện
+  "—" chứ không hiện "0 ₫": số 0 là một MỨC GIÁ, và là mức hấp dẫn nhất có thể.
+
+  Vì sao nhãn do MÁY CHỦ quyết định, và do CHÍNH NHÀ CUNG CẤP tự khai: bản trước
+  tầng HTTP so chuỗi `ten == "amadeus"` để chọn nhãn. Cách đó chỉ đúng khi có
+  ĐÚNG HAI nguồn — thêm nguồn thứ ba là dữ liệu THẬT lặng lẽ bị dán nhãn GIẢ mà
+  không có gì báo lỗi. Nhãn thuộc về nơi biết sự thật về nguồn.
+
+BẰNG CHỨNG
+  - /tra-cuu/trang-thai KHÔNG BAO GIỜ trả về khoá API, chỉ trả CÓ hay KHÔNG
+    (test_trang_thai_KHONG_lo_khoa).
+  - Khách sạn LUI VỀ mô phỏng khi nguồn bay không có khách sạn — và NHÃN LUI
+    THEO, nên phòng bịa không bao giờ đội nhãn "LỊCH BAY THẬT"
+    (test_khach_san_lui_ve_mo_phong_thi_NHAN_CUNG_PHAI_LUI).
+  - Nguồn mô phỏng KHÔNG được gắn link chi tiết theo số hiệu: số hiệu do hàm băm
+    sinh ra, link dẫn tới trang trống làm người dùng kết luận CÔNG CỤ hỏng chứ
+    không kết luận dữ liệu là giả.
+  - 23 phép kiểm riêng cho nguồn mới (tests/test_aerodatabox.py).
+
+FILE
+  src/backend/app/api/dat_cho_routes.py
+  src/backend/app/services/dat_cho.py
+  src/backend/app/services/dat_cho_gia_lap.py
+  src/frontend/src/components/layout/tra-cuu-panel.tsx
+  src/backend/tests/test_aerodatabox.py
+  src/backend/tests/test_dat_cho.py
+  src/backend/tests/test_tra_cuu_api.py
+
+
+--------------------------------------------------------------------------------
+[14] LỊCH SỬ HỘI THOẠI (UC011)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Đóng trình duyệt mở lại vẫn còn nguyên các phiên chat cũ; xem lại, tiếp tục,
+  ghim, đổi tên, xoá.
+
+LÀM SAO
+  Lưu xuống CSDL (bảng conversations), không giữ trong RAM.
+
+ĐÃ LOẠI
+  Giữ hội thoại trong bộ nhớ tiến trình.
+
+VÌ SAO
+  Giữ trong RAM thì khởi động lại máy chủ là mất sạch — mà máy chủ khởi động
+  lại mỗi lần deploy. Ngoài ra chạy nhiều tiến trình song song thì mỗi tiến
+  trình giữ một bản khác nhau, người dùng thấy lịch sử nhảy loạn.
+
+FILE
+  src/backend/app/agent/memory/memory_manager.py
+  src/backend/app/api/app.py    (/agent/conversations/*)
+  src/backend/tests/test_uc011_conversations.py
+
+
+--------------------------------------------------------------------------------
+[15] BA KỸ NĂNG AI (UC014 / UC015 / UC016)
+--------------------------------------------------------------------------------
+LÀM GÌ
+  - Digest: báo cáo tóm tắt hộp thư theo khoảng thời gian.
+  - Triage: phân loại thư chưa đọc theo độ ưu tiên + gợi ý hành động.
+  - Meeting Brief: đọc luồng thư về một cuộc họp -> rút ra việc cần làm,
+    hạn chót, điểm chính.
+
+LÀM SAO
+  Kỹ năng nạp từ thư mục (skill_loader), không viết cứng trong code.
+  Thư viện chia theo domain / provider / workflows / writing.
+  Kết quả render thành widget tương tác trong khung chat (tick được, sửa được),
+  không phải một đoạn văn.
+
+ĐÃ LOẠI
+  Nhét cả ba vào prompt hệ thống dưới dạng hướng dẫn dài.
+
+VÌ SAO
+  Prompt hệ thống dùng chung cho MỌI câu hỏi. Nhét ba kỹ năng vào đó thì hỏi
+  "thư nào chưa đọc" cũng phải tải toàn bộ hướng dẫn Meeting Brief — tốn token
+  và làm loãng chỉ dẫn chính. Nạp theo nhu cầu thì chỉ trả giá khi thật sự dùng.
+  Vì sao kết quả là WIDGET chứ không phải văn bản: Meeting Brief sinh ra một
+  danh sách việc — người dùng cần TICK từng việc, không cần đọc một đoạn văn
+  kể lại rằng có những việc đó.
+
+FILE
+  src/backend/app/agent/skills/skill_loader.py
+  src/backend/app/agent/skills/library/    (domain, provider, workflows, writing)
+  src/frontend/src/components/layout/chat-panel.tsx
+
+
+--------------------------------------------------------------------------------
+[16] NHẬT KÝ KIỂM TOÁN + THÔNG BÁO
+--------------------------------------------------------------------------------
+LÀM GÌ
+  Mọi hành động của agent đều được ghi lại, tra lại được. Có chuông thông báo
+  và đếm số chưa đọc.
+
+LÀM SAO
+  Bảng AuditLog trong CSDL, ghi ở tầng service. Endpoint /audit để xem lại.
+
+ĐÃ LOẠI
+  Chỉ ghi ra log file của máy chủ.
+
+VÌ SAO
+  Log file thì NGƯỜI DÙNG không xem được — mà người cần biết "agent đã làm gì
+  với hộp thư của tôi" chính là người dùng, không phải quản trị viên. Log file
+  cũng bị xoay vòng và mất sau vài ngày.
+
+FILE
+  src/backend/app/api/app.py    (/audit, /notifications/*)
+  src/frontend/src/components/layout/notification-bell.tsx
+  src/frontend/src/components/layout/alert-overlay.tsx
+
+
+================================================================================
+PHẦN 3 — CHỨC NĂNG PHỤ / TRẢI NGHIỆM (nói nhanh, đừng sa đà)
+================================================================================
+
+Ba cơ chế chống quá tải trên trang lịch (đáng nói nếu còn thời gian):
+  - XẾP LÀN: mỗi việc một làn ngang; đợt dài xuống làn cuối, việc ngắn lên trên.
+    VÌ SAO: đợt dài là BỐI CẢNH, việc ngắn mới là thứ phải làm hôm nay.
+    Đo được: tuần 14-20/9 có ba đợt dài chồng nhau chiếm sạch ba làn, cả tuần
+    không hiện nổi một việc hằng ngày nào -> phải chừa riêng làn 0 cho việc ngắn.
+  - CHIP "+N": quá số làn thì không vẽ tràn, ngày đó mang số "+N" bấm được.
+  - BẢNG NGÀY: bấm "+N" mở bảng liệt kê đủ, cuộn được, không có trần.
+    VÌ SAO không nới số làn: cho ô cao thêm thì hàng tuần đó cao gấp đôi hàng
+    khác, lưới méo, mất luôn khả năng so ngày này với ngày kia bằng mắt —
+    thứ mà một cuốn lịch tồn tại để làm.
+  FILE: src/frontend/src/lib/cam-ket.ts (xepDoanTheoTuan), pages/schedule.tsx
+
+Báo hiệu nổi — ba quy tắc chống làm phiền:
+  một lần cho mỗi thứ (nhớ qua localStorage) · tối đa 2 tin cùng lúc ·
+  chỉ báo khi CÒN KỊP làm gì đó (dưới 24h và chưa quá hạn).
+  VÌ SAO: báo một việc đã quá hạn thì người dùng không làm gì được với tin đó,
+  chỉ thấy phiền — và học được rằng thông báo của MeoArc không đáng đọc.
+  FILE: src/frontend/src/components/layout/alert-overlay.tsx
+
+Các mục còn lại (liệt kê cho đủ, không cần giải thích sâu):
+  - Command Palette Ctrl+K            (command-palette.tsx)
+  - Voice Mode STT tiếng Việt + TTS   (voice-mode.tsx, chat-panel.tsx)
+  - Phím tắt / c j k Enter Esc        (email-list.tsx, compose-dialog.tsx)
+  - Onboarding lần đầu                (onboarding.tsx)
+  - Nav rail thu/mở + dải áp lực 7 ngày (nav-rail.tsx)
+  - Chuyển cảnh View Transitions API  (lib/chuyen-canh.ts)
+  - Hai theme sáng/tối (UC013)        (index.css, settings-dialog.tsx)
+  - Ảnh đại diện + upload             (api/avatar.py, services/upload_store.py)
+  - [MOCK] Gói đăng ký / bảng giá     (pricing-screen.tsx, subscription-dialog.tsx)
+
+
+================================================================================
+PHẦN 4 — YÊU CẦU PHI CHỨC NĂNG (NFR) LÀM RA SAO
+================================================================================
+
+Điểm chung của cả phần này, nói câu này trước khi đi vào chi tiết:
+
+    "Nhóm không tự đặt ra chuẩn cho mình. Mỗi NFR được kiểm bằng một CHUẨN
+     CÔNG BỐ — hoặc khuyến nghị của OWASP, hoặc chính con số nhóm đã công bố
+     trong file cấu hình. Test đọc con số công bố rồi kiểm xem hệ thống có
+     cưỡng chế đúng con số đó không."
+
+Toàn bộ nằm ở: src/backend/tests/test_nfr.py
+
+
+4.1 BẢO MẬT (Security)
+  LÀM SAO
+    - Header theo khuyến nghị OWASP trên MỌI phản hồi:
+        X-Content-Type-Options: nosniff        (chống MIME-sniffing)
+        X-Frame-Options: DENY                  (chống clickjacking)
+        Referrer-Policy: strict-origin-when-cross-origin
+    - Guardrail đầu vào chặn tiêm lệnh (prompt injection) bằng regex, 4 nhóm
+      mẫu, cả tiếng Việt lẫn tiếng Anh.
+    - Token Gmail KHÔNG bao giờ nằm thô trong khoá cache (có test kiểm).
+    - Endpoint trạng thái đặt chỗ không trả về khoá API, chỉ trả CÓ / KHÔNG.
+  ĐÃ LOẠI
+    Dùng NeMo-Guardrails cho phần chặn tiêm lệnh.
+  VÌ SAO
+    NeMo-Guardrails quá nặng cho quy mô đồ án, và nó gọi thêm model -> tốn
+    hạn mức cho mỗi câu hỏi. Regex chạy tức thì, không tốn lượt, chặn được SỚM
+    ngay trước khi vào đồ thị. Đây là lớp NHẸ; lớp thứ hai mới là lớp thật —
+    human-in-the-loop ở mục [2]. Nhóm cố ý viết mẫu HẸP để không chặn nhầm
+    câu hỏi thật.
+  FILE
+    src/backend/app/agent/guardrails/input_guardrail.py
+    src/backend/tests/test_nfr.py   (test_header_bao_mat_va_quan_sat)
+
+
+4.2 CÁCH LY DỮ LIỆU GIỮA NGƯỜI DÙNG (Security / Privacy)
+  LÀM SAO
+    Mọi hàm đọc dữ liệu đều BẮT BUỘC nhận user_id. Có một test quét toàn bộ
+    hàm đọc để kiểm điều đó — không phải kiểm từng hàm bằng tay.
+  ĐÃ LOẠI
+    Tin vào việc lập trình viên nhớ truyền user_id.
+  VÌ SAO
+    Rò dữ liệu người này sang người kia là lỗi không sửa được sau khi đã xảy ra.
+    Kiểm bằng mắt thì thêm một hàm mới là quên. Test quét tự động thì hàm mới
+    thiếu user_id sẽ làm CI đỏ ngay.
+  BẰNG CHỨNG
+    4 test: không đọc được thư / thông báo / hội thoại của người khác,
+    và test_moi_ham_doc_du_lieu_deu_nhan_user_id.
+  FILE
+    src/backend/tests/test_isolation.py
+
+
+4.3 ĐỘ TIN CẬY (Reliability)
+  LÀM SAO
+    - /health trả 200 kèm status + db + uptime_s -> đúng ngữ nghĩa health-check
+      chuẩn production, dùng được cho load balancer.
+    - Rate limit ĐÚNG NGƯỠNG CÔNG BỐ: 8 lượt/phút cho /agent/chat,
+      90 lượt/phút cho thao tác đọc thư.
+    - Chuỗi model dự phòng khi hết hạn mức (mục 6b).
+  ĐÃ LOẠI
+    /health chỉ trả "OK".
+  VÌ SAO
+    "OK" không nói được CSDL còn sống hay không. Máy chủ vẫn chạy trong khi
+    CSDL chết thì health-check kiểu đó vẫn xanh -> load balancer vẫn đẩy người
+    dùng vào một máy chủ hỏng.
+  BẰNG CHỨNG
+    test_rate_limit_dung_nguong_cong_bo: gửi (limit+2) lượt, phải chặn ĐÚNG
+    2 lượt cuối — không chặn thiếu, cũng không chặn nhầm lượt còn trong hạn.
+  FILE
+    src/backend/app/core/config.py    (agent_rate_limit_per_min = 8)
+    src/backend/tests/test_nfr.py
+
+
+4.4 QUẢN LÝ BỘ NHỚ (chống OOM)
+  LÀM SAO
+    - Trần một tệp tải lên: 15MB, vượt thì HTTP 413.
+    - Kho tệp tạm TỰ DỌN theo hai cơ chế: TTL 30 phút, và trần tổng 25MB —
+      chật thì bỏ tệp CŨ NHẤT.
+    - Cache Gmail đi qua KV có TTL, và có hàm huỷ cache theo từng người dùng.
+  ĐÃ LOẠI
+    Giữ tệp tải lên trong RAM cho tới khi tiến trình kết thúc.
+  VÌ SAO
+    Kho không có trần thì đủ nhiều tệp là hết RAM và tiến trình bị hệ điều hành
+    giết — sập cả ứng dụng, không riêng phần tải tệp. Trần TỔNG là bắt buộc:
+    chỉ giới hạn TỪNG TỆP thì 1000 tệp nhỏ vẫn làm sập.
+  BẰNG CHỨNG
+    test_upload_store_co_tran_va_ttl: lưu 3 tệp 10MB vào kho trần 25MB ->
+    tệp đầu tiên bị dọn, tổng luôn <= trần.
+  FILE
+    src/backend/app/services/upload_store.py
+    src/backend/tests/test_nfr.py
+
+
+4.5 TỐC ĐỘ (Performance)
+  LÀM SAO
+    tool_node chạy N công cụ trong CÙNG một lượt SONG SONG (asyncio), nhưng
+    vẫn giữ ĐÚNG THỨ TỰ kết quả trả về.
+  ĐÃ LOẠI
+    Chạy tuần tự cho đơn giản.
+  VÌ SAO
+    Mô hình thường gọi nhiều công cụ một lượt (tìm thư + lấy nhãn + lấy danh bạ).
+    Tuần tự thì tổng thời gian = tổng của tất cả; song song thì tổng thời gian
+    ~ công cụ chậm nhất. Với 3 công cụ mỗi cái 1 giây, đó là 3s so với 1s —
+    khác biệt người dùng cảm nhận được ngay.
+    Vì sao phải giữ đúng thứ tự: mô hình khớp kết quả với lời gọi theo VỊ TRÍ.
+    Chạy song song mà trả về theo thứ tự hoàn thành là gán nhầm kết quả cho
+    công cụ khác — hỏng âm thầm, rất khó tìm ra.
+  BẰNG CHỨNG
+    test_tool_node_chay_song_song: tổng thời gian ~ công cụ chậm nhất,
+    và thứ tự kết quả vẫn đúng.
+  FILE
+    src/backend/app/agent/nodes/tool_node.py
+    src/backend/tests/test_nfr.py
+
+
+4.6 KHẢ NĂNG QUAN SÁT (Observability)
+  LÀM SAO
+    - Mọi phản hồi mang X-Request-ID (truy vết log theo từng request) và
+      X-Process-Time-Ms (số đo thời gian xử lý).
+    - LangSmith theo cơ chế opt-in: điền khoá = bật, để trống = tắt.
+    - Endpoint /metrics và /admin/data-size.
+  ĐÃ LOẠI
+    Bật LangSmith mặc định cho tiện.
+  VÌ SAO
+    LangSmith gửi nội dung hội thoại ra dịch vụ ngoài. Bật mặc định là đẩy
+    thư của người dùng ra bên thứ ba mà họ không biết. Opt-in là quyết định
+    về QUYỀN RIÊNG TƯ, không phải về cấu hình.
+  BẰNG CHỨNG
+    test_langsmith_opt_in
+  FILE
+    src/backend/app/core/llm.py
+    src/backend/tests/test_nfr.py
+
+
+4.7 KHẢ NĂNG BẢO TRÌ (Maintainability)
+  LÀM SAO
+    - 441 test backend + 25 test frontend, CI chạy mỗi lần đẩy code.
+    - Corpus test DÙNG CHUNG giữa Python và TypeScript (ca-cam-ket.json):
+      hai bản cài đặt độc lập buộc phải cho cùng kết quả.
+    - Chú thích trong mã ghi rõ "vì sao chọn" và "đã loại phương án nào",
+      không chỉ ghi "làm gì".
+  ĐÃ LOẠI
+    Mỗi bên tự viết bộ test riêng.
+  VÌ SAO
+    Hai bộ test riêng thì hai bản cài đặt sẽ TRÔI XA NHAU: bản Python trích
+    được "thứ Sáu tuần sau" mà bản TypeScript thì không, và không ai phát hiện
+    ra cho tới khi người dùng thấy lịch trên web khác với câu trả lời của agent.
+    Một corpus chung biến điều đó thành CI đỏ.
+  FILE
+    src/shared/ca-cam-ket.json
+    src/backend/tests/            (44 file test)
+    .github/workflows/
+
+
+================================================================================
+PHẦN 5 — BA CÂU CHẮC CHẮN BỊ HỎI
+================================================================================
+
+HỎI: "AI ở đây thật ra làm gì? Hay chỉ là gọi API rồi hiện ra?"
+ĐÁP:
+  Trả lời thẳng, đừng phóng đại. AI làm hai việc: hiểu câu tiếng Việt tự nhiên,
+  và CHỌN công cụ nào để chạy trong 16 công cụ.
+  Còn phần đọc cam kết từ thư là LUẬT VIẾT TAY — và đó là quyết định cố ý,
+  vì nó phải chạy trên MỌI thư đến. Gọi model cho mọi thư thì hạn mức cạn trong
+  vài giờ, và tiền thật cũng không chịu nổi ở quy mô lớn.
+  Nguyên tắc nhóm áp dụng: LỌC RẺ TRƯỚC, phần khó mới đưa cho mô hình.
+  Nói được câu này là ghi điểm về tư duy chi phí vận hành, thứ mà một đồ án
+  hiếm khi nghĩ tới.
+
+HỎI: "Dữ liệu chuyến bay này thật hay giả?"
+ĐÁP (khi ĐÃ có AERODATABOX_KEY — đây là kịch bản mạnh nhất):
+  Đây là câu nên MỜI THẦY TỰ KIỂM, đừng trả lời bằng lời.
+  "Thầy mở điện thoại tra số hiệu này giúp em." Rồi bấm vào chính SỐ HIỆU trên
+  màn hình — nó mở thẳng thẻ chi tiết chuyến bay đó trên Google: đúng giờ, đúng
+  nhà ga, đúng loại máy bay.
+  Chỉ tiếp vào cột giá đang để dấu "—" và nói:
+  "Cột giá em ĐỂ TRỐNG. Nguồn này cung cấp lịch bay, không bán vé, nên em không
+   có giá — và em không điền một con số cho bảng trông đầy đủ hơn. Ai cần giá
+   thì bấm 'Xem giá' để sang Google Flights."
+  Đó là điểm mạnh chứ không phải điểm yếu: nhóm thà thiếu một cột còn hơn hiện
+  một con số không kiểm chứng được.
+
+ĐÁP (khi CHƯA có khoá — lui về mô phỏng):
+  Chỉ vào NHÃN NGUỒN ngay trên khung, nói luôn là mô phỏng, và nhấn mạnh: nhãn
+  đó do MÁY CHỦ quyết định chứ không phải do giao diện gõ vào. Chỉ thêm rằng
+  ở chế độ này số hiệu KHÔNG bấm được — vì số hiệu mô phỏng dẫn tới trang trống,
+  và nhóm cố ý không gắn link cho nó.
+  Kết: "Nguồn thật đã ráp xong và có kiểm thử. Điền khoá vào .env là nhãn tự đổi
+  thành LỊCH BAY THẬT, không sửa dòng code nào."
+
+HỎI: "Sao không làm luôn phần đặt vé và thanh toán cho hoàn chỉnh?"
+ĐÁP:
+  Đây là câu DỄ ĂN ĐIỂM NHẤT nếu trả lời đúng — đừng xin lỗi.
+  Đặt vé thật cần hợp đồng đại lý với hãng hàng không, và xử lý dữ liệu thẻ
+  cần tuân thủ PCI DSS. Cả hai đều là rào cản PHÁP LÝ VÀ HỢP ĐỒNG, không phải
+  rào cản kỹ thuật — và không phù hợp với một đồ án môn học.
+  Nhóm chọn dừng ở đúng ranh giới đó, nhưng làm ĐẦY ĐỦ mọi thứ trước nó: cổng
+  tiền, chống trùng, trần chi, nhật ký, người duyệt. Nghĩa là khi có hợp đồng
+  thì chỉ cần thay lớp nhà cung cấp, phần an toàn đã sẵn sàng.
+  Biết mình dừng ở đâu và vì sao là một QUYẾT ĐỊNH, không phải một thiếu sót.
+
+
+================================================================================
+PHẦN 6 — TUYỆT ĐỐI ĐỪNG NÓI
+================================================================================
+
+Nói quá là cách nhanh nhất mất điểm. Bị bắt một lần thì mọi câu sau đều bị nghi.
+
+  KHÔNG: "MeoArc đặt vé được."
+  -> Khâu đặt là mô phỏng, giao diện tự ghi rõ. Nói "MeoArc tra cứu được và
+     đã dựng sẵn toàn bộ lớp an toàn cho khâu đặt".
+
+  KHÔNG: "AI tự phân tích và trích lịch trình."
+  -> Phần trích là luật viết tay. Nói thật lại HAY HƠN vì nó thể hiện tư duy
+     chi phí (xem Phần 5, câu 1).
+
+  KHÔNG: "Nhóm có guardrail đầu vào và đầu ra."
+  -> File output_guardrail.py đang RỖNG. Chỉ nói guardrail đầu vào, còn việc
+     chặn hành động nguy hiểm thì nói là ở tool_node.
+
+  KHÔNG: "Chạy được hết mọi trường hợp."
+  -> Bộ trích không hiểu "nộp sau khi thầy duyệt đề cương" (mốc phụ thuộc sự
+     kiện khác, không phải ngày). Nhưng nói tiếp: mọi cam kết đều mang ĐỘ TIN
+     CẬY, dưới ngưỡng thì giao diện HỎI chứ không tự khẳng định. Đó là thiết kế,
+     không phải lỗi.
+
+  KHÔNG: đọc code lên slide. Thầy đã nói không hỏi code.
+
+
+================================================================================
+PHẦN 7 — CÂU HỎI MẪU ĐỂ CÁC BẠN TỰ TRA BẰNG AI RIÊNG
+================================================================================
+
+Dán nguyên đoạn này vào AI của bạn, thay <tên file> bằng file trong phần FILE
+của chức năng mình phụ trách:
+
+  "Mình đang chuẩn bị bảo vệ đồ án phần mềm. Đọc file <tên file> trong repo
+   MeoArc nhánh integration và trả lời giúp mình ba ý:
+   (1) file này giải quyết vấn đề gì, nói cho người không biết code hiểu;
+   (2) nó chọn cách làm nào, và có dấu hiệu nào cho thấy tác giả đã CÂN NHẮC
+       rồi BỎ một cách làm khác không;
+   (3) có con số, ngưỡng, hay phép kiểm thử nào chứng minh nó chạy đúng không.
+   Trả lời bằng tiếng Việt. Đừng giải thích cú pháp code, mình không cần."
+
+Mẹo: chú thích đầu file trong repo này đã ghi sẵn phần "vì sao" và "đã loại
+phương án nào". Đó là chỗ AI sẽ tìm thấy câu trả lời — không phải ở tên hàm.
+
+================================================================================
+HẾT
+================================================================================

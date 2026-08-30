@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     #   quả đều mang nhãn nguồn "mo_phong" để không ai nhầm giá giả thành giá thật.
     amadeus_key: str = ""
     amadeus_secret: str = ""
+    # aerodatabox_key ← AERODATABOX_KEY : khoá RapidAPI cho AeroDataBox. Dùng khi Amadeus
+    #   không có khoá (Amadeus đã đóng đăng ký self-service). Nguồn này cho LỊCH BAY THẬT
+    #   — hãng thật, số hiệu thật, giờ thật — nhưng KHÔNG có giá vé vì nó không bán vé.
+    #   Đó là đánh đổi có chủ ý: các nguồn còn mở mà có giá thì môi trường thử nghiệm lại
+    #   trả chuyến bay bịa (hãng ZZ), tra ngoài không ra. Thà thiếu cột giá hơn là hiện
+    #   một bảng giá không có thật.
+    aerodatabox_key: str = ""
     #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
     #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
     #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.

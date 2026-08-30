@@ -69,6 +69,25 @@ def lien_ket_chuyen_bay(tu: str, den: str, ngay: date) -> str:
     return "https://www.google.com/travel/flights?q=" + quote_plus(q)
 
 
+def lien_ket_chi_tiet_chuyen_bay(so_hieu: str, ngay: date) -> str:
+    """Mở THẺ CHI TIẾT của ĐÚNG chuyến bay này trên Google.
+
+    ── KHÁC GÌ `lien_ket_chuyen_bay` ──
+    Hàm kia dựng link theo CHẶNG (SGN→DAD ngày 15/9) — mở ra một bảng nhiều chuyến,
+    người dùng vẫn phải tự dò lại chuyến mình vừa xem. Hàm này dựng theo SỐ HIỆU, nên
+    bấm vào một dòng là ra đúng dòng đó: giờ khởi hành, nhà ga, cửa ra, loại máy bay,
+    trạng thái đang bay hay chưa.
+
+    Chỉ dựng được khi số hiệu là THẬT. Với nhà cung cấp mô phỏng thì số hiệu do hàm
+    băm sinh ra, tra Google sẽ không ra gì — nên `to_dict` chỉ gắn link này khi nguồn
+    tự khai là thật. Một đường dẫn dẫn tới trang trống còn tệ hơn không có đường dẫn:
+    người dùng kết luận công cụ hỏng, chứ không kết luận dữ liệu là giả.
+    """
+    return "https://www.google.com/search?q=" + quote_plus(
+        f"{so_hieu} {ngay.strftime('%d/%m/%Y')}"
+    )
+
+
 def lien_ket_ban_do(ten: str, thanh_pho: str) -> str:
     """Mở khách sạn trên Google Maps. Dùng dạng `search` — không cần khoá API."""
     return "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{ten} {thanh_pho}")
@@ -85,22 +104,42 @@ class ChuyenBay:
     den: str
     khoi_hanh: datetime
     ha_canh: datetime
-    gia_vnd: int
+    gia_vnd: int          # 0 = KHÔNG CÓ DỮ LIỆU GIÁ (xem `co_gia` trong to_dict)
     so_diem_dung: int
     hoan_duoc: bool
     nguon: str
+    # ── Dữ liệu chỉ nguồn THẬT mới có. Mặc định rỗng để nguồn mô phỏng không phải
+    # bịa thêm: rỗng nghĩa là "không biết", và giao diện hiểu đúng như vậy.
+    may_bay: str = ""
+    nha_ga: str = ""
+    trang_thai: str = ""
+    la_that: bool = False
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "ma": self.ma, "hang": self.hang, "tu": self.tu, "den": self.den,
             "khoi_hanh": self.khoi_hanh.strftime("%d/%m/%Y %H:%M"),
             "ha_canh": self.ha_canh.strftime("%d/%m/%Y %H:%M"),
             "gia_vnd": self.gia_vnd, "so_diem_dung": self.so_diem_dung,
             "hoan_duoc": self.hoan_duoc, "nguon": self.nguon,
+            # ── GIÁ LÀ TUỲ CHỌN ──
+            # Nguồn lịch bay thật (AeroDataBox) KHÔNG bán vé nên không có giá. Trả 0 rồi
+            # để giao diện tự đoán là "miễn phí" thì tệ hơn nhiều so với nói thẳng là
+            # không biết — nên gửi kèm cờ này thay vì bắt giao diện suy ra từ số 0.
+            "co_gia": self.gia_vnd > 0,
+            "may_bay": self.may_bay, "nha_ga": self.nha_ga,
+            "trang_thai": self.trang_thai, "la_that": self.la_that,
             # Bấm ra trang thật — vừa tiện, vừa là cách người xem tự kiểm số liệu.
             "lien_ket": lien_ket_chuyen_bay(self.tu, self.den, self.khoi_hanh.date()),
             "phut_bay": int((self.ha_canh - self.khoi_hanh).total_seconds() // 60),
         }
+        # Link theo SỐ HIỆU chỉ có nghĩa khi số hiệu là thật — xem chú thích ở
+        # `lien_ket_chi_tiet_chuyen_bay`.
+        if self.la_that:
+            d["lien_ket_chi_tiet"] = lien_ket_chi_tiet_chuyen_bay(
+                self.ma, self.khoi_hanh.date()
+            )
+        return d
 
 
 @dataclass
@@ -145,7 +184,14 @@ class NhaCungCapMoPhong:
     lúc đó không ai phân biệt được "giá đổi" với "mã hỏng".
     """
 
+    # ── NHÀ CUNG CẤP TỰ KHAI NHÃN ──
+    # Trước đây tầng HTTP so chuỗi `ten == "amadeus"` để quyết định dán nhãn gì. Cách
+    # đó chỉ đúng khi có ĐÚNG HAI nhà cung cấp: thêm cái thứ ba là mọi nguồn mới mặc
+    # định bị xếp vào "mô phỏng" mà không ai báo lỗi. Để chính lớp nhà cung cấp khai
+    # thì thêm nguồn = thêm một class, tầng trên không phải sửa và không thể sót.
     ten = "mo_phong"
+    la_that = False
+    nhan = "MÔ PHỎNG · không phải giá thật"
 
     @staticmethod
     def _so(hat: str, day: int, cao: int) -> int:
@@ -204,6 +250,8 @@ class NhaCungCapAmadeus:
     """
 
     ten = "amadeus"
+    la_that = True
+    nhan = "AMADEUS · dữ liệu thật"
     _GOC = "https://test.api.amadeus.com"
 
     def __init__(self, khoa: str, bi_mat: str):
@@ -262,6 +310,7 @@ class NhaCungCapAmadeus:
                 # định tiền bạc dựa trên thông tin bịa.
                 hoan_duoc=False,
                 nguon=self.ten,
+                la_that=True,
             ))
         return ra
 
@@ -343,10 +392,152 @@ class NhaCungCapAmadeus:
         return ra
 
 
+# ── Nhà cung cấp THẬT (AeroDataBox qua RapidAPI) ─────────────────────────────
+
+class NhaCungCapAeroDataBox:
+    """Lịch bay THẬT: hãng thật, số hiệu thật, giờ thật, loại máy bay, nhà ga.
+
+    ── VÌ SAO CHỌN NGUỒN NÀY, DÙ NÓ KHÔNG CÓ GIÁ ──
+    Amadeus đã đóng đăng ký self-service. Trong các nguồn còn mở, có hai loại:
+      (a) API ĐẶT VÉ (Duffel...): có giá, nhưng môi trường thử nghiệm trả chuyến bay
+          BỊA — tài liệu của chính họ ghi "you won't see realistic schedules or prices",
+          hãng test mang mã ZZ. Người xem tra số hiệu đó sẽ không ra gì.
+      (b) API DỮ LIỆU BAY (nguồn này): không có giá, nhưng mọi chuyến đều CÓ THẬT
+          và tra lại được từ bên ngoài.
+    Chọn (b) vì thứ cần chứng minh ở đây là DỮ LIỆU THẬT, không phải luồng thanh toán —
+    mà luồng thanh toán thì nhóm cố ý không làm (cần hợp đồng đại lý + PCI DSS).
+    Một bảng giá bịa trông y như thật là thứ nguy hiểm nhất; thà thiếu cột giá.
+
+    ── KHÔNG CÓ GIÁ THÌ LÀM GÌ ──
+    `gia_vnd = 0` và `co_gia = False`. Giao diện hiện gạch ngang, kèm nút mở
+    Google Flights cho ai cần giá. Bịa một con số cho bảng trông đầy đủ là nói dối
+    về tiền — cùng lý do `so_sao=0` ở nhánh Amadeus phía trên.
+
+    ── VÌ SAO PHẢI LỌC THỦ CÔNG ──
+    Gói miễn phí không có endpoint tra theo CHẶNG. Chỉ có FIDS (bảng đi/đến của một
+    sân bay). Nên ta lấy toàn bộ chuyến đi khỏi sân bay đi, rồi tự lọc theo sân bay
+    đến. `withLeg=true` là bắt buộc — thiếu nó thì phản hồi không kèm đầu đến và
+    không lọc được gì.
+    """
+
+    ten = "aerodatabox"
+    la_that = True
+    nhan = "LỊCH BAY THẬT · AeroDataBox · không có giá vé"
+    _GOC = "https://aerodatabox.p.rapidapi.com"
+    _MAY_CHU = "aerodatabox.p.rapidapi.com"
+
+    # API chặn khoảng thời gian quá 12 tiếng, nên một ngày cần HAI lời gọi. Gói miễn
+    # phí tính theo lượt nên con số này đáng biết: mỗi lần tìm = 2 lượt.
+    _CUA_SO = (("T00:00", "T11:59"), ("T12:00", "T23:59"))
+
+    def __init__(self, khoa: str):
+        self.khoa = khoa
+
+    @staticmethod
+    def _doc_gio(muc: dict | None) -> datetime | None:
+        """Đọc DateTimeContract {"utc": ..., "local": ...}.
+
+        Dùng giờ ĐỊA PHƯƠNG vì người dùng hỏi "chuyến 6h sáng" theo giờ sân bay, không
+        theo UTC. AeroDataBox ngăn cách ngày và giờ bằng DẤU CÁCH ("2026-09-15 06:15+07:00")
+        chứ không phải chữ T, nên `fromisoformat` thuần sẽ hỏng — phải đổi trước.
+        Cắt tzinfo để đồng nhất với phần còn lại của hệ thống (toàn bộ dùng giờ ngây thơ).
+        """
+        if not muc:
+            return None
+        raw = (muc.get("local") or muc.get("utc") or "").strip()
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw.replace(" ", "T", 1)).replace(tzinfo=None)
+        except ValueError:
+            return None
+
+    def tim_chuyen_bay(self, tu: str, den: str, ngay: date, so_ket_qua: int = 3) -> list[ChuyenBay]:
+        import httpx
+
+        tieu_de = {"x-rapidapi-key": self.khoa, "x-rapidapi-host": self._MAY_CHU}
+        tham_so = {
+            "direction": "Departure",
+            "withLeg": "true",          # bắt buộc: thiếu nó thì không biết chuyến bay đi đâu
+            "withCancelled": "false",
+            "withCodeshared": "false",  # bỏ chuyến bán chung, tránh một chuyến hiện hai lần
+            "withCargo": "false",
+            "withPrivate": "false",
+            "withLocation": "false",
+        }
+
+        tho: list[dict] = []
+        with httpx.Client(timeout=25) as c:
+            for bat_dau, ket_thuc in self._CUA_SO:
+                r = c.get(
+                    f"{self._GOC}/flights/airports/iata/{tu}"
+                    f"/{ngay.isoformat()}{bat_dau}/{ngay.isoformat()}{ket_thuc}",
+                    headers=tieu_de, params=tham_so,
+                )
+                # 204 = sân bay không có chuyến nào trong khung giờ đó. Đó là CÂU TRẢ LỜI
+                # hợp lệ, không phải lỗi — ném lỗi ở đây là báo hỏng cho một chuyến bay
+                # đêm không tồn tại.
+                if r.status_code == 204:
+                    continue
+                r.raise_for_status()
+                tho.extend((r.json() or {}).get("departures") or [])
+
+        ra: list[ChuyenBay] = []
+        for o in tho:
+            di = o.get("departure") or o.get("movement") or {}
+            toi = o.get("arrival") or {}
+            if ((toi.get("airport") or {}).get("iata") or "").upper() != den.upper():
+                continue
+
+            gio_di = self._doc_gio(di.get("scheduledTime") or di.get("revisedTime"))
+            gio_den = self._doc_gio(toi.get("scheduledTime") or toi.get("revisedTime"))
+            if not gio_di or not gio_den:
+                # Thiếu giờ thì BỎ chuyến đó, không đoán. Một dòng có giờ sai còn tệ hơn
+                # một dòng vắng mặt: người dùng ra sân bay theo giờ sai.
+                continue
+
+            hang = o.get("airline") or {}
+            so_hieu = (o.get("number") or "").replace(" ", "")
+            ra.append(ChuyenBay(
+                ma=so_hieu,
+                hang=hang.get("name") or ten_hang(hang.get("iata") or ""),
+                tu=tu.upper(), den=den.upper(),
+                khoi_hanh=gio_di, ha_canh=gio_den,
+                gia_vnd=0,          # nguồn này KHÔNG bán vé — xem chú thích đầu lớp
+                so_diem_dung=0,     # FIDS chỉ trả chặng thẳng
+                hoan_duoc=False,    # không có dữ liệu chính sách vé -> không khẳng định
+                nguon=self.ten,
+                may_bay=(o.get("aircraft") or {}).get("model") or "",
+                nha_ga=di.get("terminal") or "",
+                trang_thai=o.get("status") or "",
+                la_that=True,
+            ))
+
+        ra.sort(key=lambda c: c.khoi_hanh)   # không có giá để sắp, nên sắp theo giờ bay
+        return ra[:so_ket_qua]
+
+    def tim_khach_san(self, thanh_pho: str, nhan: date, tra: date,
+                      so_ket_qua: int = 3) -> list[KhachSan]:
+        """Nguồn này CHỈ có dữ liệu hàng không.
+
+        Ném lỗi rõ ràng thay vì trả danh sách rỗng: rỗng bị đọc thành "hết phòng", còn
+        đây là "nguồn không có loại dữ liệu này". Tầng HTTP bắt lỗi này rồi lui về nguồn
+        mô phỏng CÙNG VỚI nhãn mô phỏng — nên khách sạn không bao giờ bị dán nhãn thật.
+        """
+        raise NotImplementedError(
+            "AeroDataBox chỉ cung cấp dữ liệu chuyến bay, không có khách sạn."
+        )
+
+
 # ── Chọn nhà cung cấp ────────────────────────────────────────────────────────
 
 def lay_nha_cung_cap():
-    """Có khoá Amadeus thì dùng thật, không thì mô phỏng.
+    """Chọn nguồn theo khoá đang có, ưu tiên nguồn THẬT.
+
+    Thứ tự: Amadeus (thật, có giá) → AeroDataBox (thật, không giá) → mô phỏng.
+    Amadeus đứng trước vì nếu có cả hai khoá thì nguồn có giá là nguồn đầy đủ hơn.
+    Trên thực tế Amadeus đã đóng đăng ký self-service nên nhánh đó gần như không chạy
+    nữa, nhưng giữ lại: xoá đi thì ai đã có khoá cũ sẽ mất tính năng mà không hiểu vì sao.
 
     Mặc định về mô phỏng chứ không báo lỗi: thiếu khoá là trạng thái BÌNH THƯỜNG khi
     trình bày hay khi chạy test, và bắt cả tính năng chết vì thiếu một khoá không bắt
@@ -356,4 +547,9 @@ def lay_nha_cung_cap():
     bi_mat = getattr(settings, "amadeus_secret", "")
     if khoa and bi_mat:
         return NhaCungCapAmadeus(khoa, bi_mat)
+
+    adb = getattr(settings, "aerodatabox_key", "")
+    if adb:
+        return NhaCungCapAeroDataBox(adb)
+
     return NhaCungCapMoPhong()
