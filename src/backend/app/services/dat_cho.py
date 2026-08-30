@@ -23,6 +23,7 @@ Tệp này KHÔNG có hàm nào đặt chỗ, giữ chỗ, hay thanh toán. Đó
 from __future__ import annotations
 
 import hashlib
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -430,6 +431,15 @@ class NhaCungCapAeroDataBox:
     # phí tính theo lượt nên con số này đáng biết: mỗi lần tìm = 2 lượt.
     _CUA_SO = (("T00:00", "T11:59"), ("T12:00", "T23:59"))
 
+    # ── VÌ SAO PHẢI NGHỈ GIỮA HAI LỜI GỌI ──
+    # Gói miễn phí giới hạn 1 REQUEST/GIÂY. Bắn hai cửa sổ liên tiếp thì lời gọi thứ
+    # hai dính 429 và cả lượt tìm hỏng — dù hạn mức tháng còn nguyên. Lỗi này KHÔNG
+    # xuất hiện khi chạy test (test giả lập httpx, không có đồng hồ thật) và cũng
+    # không xuất hiện ở máy dev nếu chỉ thử một lần; nó chỉ lộ ra khi gọi thật.
+    _NGHI_GIAY = 1.2          # nhỉnh hơn 1s để trừ hao sai lệch đồng hồ
+    _LAN_THU_LAI = 2          # 429 vẫn có thể xảy ra do lượt gọi khác cùng khoá
+    _CHO_KHI_429 = 2.5
+
     def __init__(self, khoa: str):
         self.khoa = khoa
 
@@ -468,12 +478,32 @@ class NhaCungCapAeroDataBox:
 
         tho: list[dict] = []
         with httpx.Client(timeout=25) as c:
-            for bat_dau, ket_thuc in self._CUA_SO:
-                r = c.get(
+            for i, (bat_dau, ket_thuc) in enumerate(self._CUA_SO):
+                if i:
+                    # Giãn cách để không vượt trần 1 request/giây của gói miễn phí.
+                    time.sleep(self._NGHI_GIAY)
+
+                duong_dan = (
                     f"{self._GOC}/flights/airports/iata/{tu}"
-                    f"/{ngay.isoformat()}{bat_dau}/{ngay.isoformat()}{ket_thuc}",
-                    headers=tieu_de, params=tham_so,
+                    f"/{ngay.isoformat()}{bat_dau}/{ngay.isoformat()}{ket_thuc}"
                 )
+                for lan in range(self._LAN_THU_LAI):
+                    r = c.get(duong_dan, headers=tieu_de, params=tham_so)
+                    if r.status_code != 429:
+                        break
+                    # 429 = chạm trần TỐC ĐỘ, không phải hết hạn mức tháng. Chờ rồi thử
+                    # lại thì qua. Ném lỗi ngay sẽ làm hỏng cả lượt tìm vì một giới hạn
+                    # chỉ kéo dài một giây.
+                    if lan < self._LAN_THU_LAI - 1:
+                        time.sleep(self._CHO_KHI_429)
+
+                if r.status_code == 429:
+                    # Vẫn 429 sau khi thử lại: nói RÕ là chạm trần và cách xử lý, thay vì
+                    # ném nguyên HTTPStatusError dài dòng mà người dùng không làm gì được.
+                    raise RuntimeError(
+                        "AeroDataBox đang chặn vì vượt giới hạn tốc độ (gói miễn phí cho "
+                        "1 lượt/giây). Chờ vài giây rồi tìm lại."
+                    )
                 # 204 = sân bay không có chuyến nào trong khung giờ đó. Đó là CÂU TRẢ LỜI
                 # hợp lệ, không phải lỗi — ném lỗi ở đây là báo hỏng cho một chuyến bay
                 # đêm không tồn tại.

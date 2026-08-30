@@ -63,14 +63,18 @@ class _PhanHoi:
         return self._payload
 
 
-def _gia_lap(monkeypatch, chuyen_bay: list[dict]):
+def _gia_lap(monkeypatch, chuyen_bay: list[dict], ma_tra_ve: list[int] | None = None):
     """Cửa sổ đầu (00:00–11:59) trả dữ liệu, cửa sổ sau trả 204 (không có chuyến).
 
     204 là phản hồi THẬT của API khi khung giờ trống. Để nó vào đây luôn để chắc rằng
     nhánh đó không bị ném lỗi — một sân bay không có chuyến bay đêm là chuyện bình
     thường, không phải sự cố.
+
+    `ma_tra_ve` ép mã trạng thái theo từng lượt gọi, để dựng lại 429.
+    Đồng hồ bị thay bằng bản ghi chép: phép kiểm không được ngồi chờ thật, nhưng vẫn
+    phải chứng minh được là CÓ giãn cách.
     """
-    goi = {"n": 0}
+    goi = {"n": 0, "ngu": []}
 
     class _Client:
         def __init__(self, *a, **kw): pass
@@ -79,12 +83,18 @@ def _gia_lap(monkeypatch, chuyen_bay: list[dict]):
 
         def get(self, url, **kw):
             goi["n"] += 1
+            if ma_tra_ve:
+                ma = ma_tra_ve[min(goi["n"] - 1, len(ma_tra_ve) - 1)]
+                if ma != 200:
+                    return _PhanHoi(ma)
+                return _PhanHoi(200, {"departures": chuyen_bay})
             if goi["n"] == 1:
                 return _PhanHoi(200, {"departures": chuyen_bay})
             return _PhanHoi(204)
 
     import httpx
     monkeypatch.setattr(httpx, "Client", _Client)
+    monkeypatch.setattr(dat_cho.time, "sleep", lambda s: goi["ngu"].append(s))
     return goi
 
 
@@ -159,6 +169,39 @@ def test_khung_gio_trong_tra_204_KHONG_phai_loi(monkeypatch):
     goi = _gia_lap(monkeypatch, [_mot_chuyen()])
     dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
     assert goi["n"] == 2, "một ngày cần HAI lời gọi vì API chặn khoảng quá 12 tiếng"
+
+
+# ── TRẦN TỐC ĐỘ 1 REQUEST/GIÂY — lỗi chỉ lộ ra khi gọi THẬT ─────────────────
+
+def test_CO_nghi_giua_hai_cua_so(monkeypatch):
+    """Gói miễn phí cho 1 lượt/giây. Bắn hai cửa sổ liên tiếp thì lượt sau dính 429.
+
+    Đo được trên bản deploy: cửa sổ 00:00–11:59 qua, cửa sổ 12:00–23:59 trả 429 ngay.
+    Test giả lập httpx nên không có đồng hồ thật — vì vậy phải kiểm CÓ GỌI nghỉ, chứ
+    không thể kiểm bằng cách bấm giờ."""
+    goi = _gia_lap(monkeypatch, [_mot_chuyen()])
+    dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
+    assert goi["ngu"], "không nghỉ giữa hai lời gọi thì lượt thứ hai sẽ dính 429"
+    assert max(goi["ngu"]) >= 1.0, f"nghỉ {goi['ngu']} — phải hơn 1 giây mới qua trần"
+
+
+def test_429_thi_THU_LAI_chu_khong_hong_ca_luot(monkeypatch):
+    """429 là trần TỐC ĐỘ, chỉ kéo dài một giây. Hỏng cả lượt tìm vì nó là quá đắt."""
+    goi = _gia_lap(monkeypatch, [_mot_chuyen()], ma_tra_ve=[429, 200, 204])
+    ds = dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
+    assert [c.ma for c in ds] == ["VN123"], "thử lại phải cứu được lượt tìm"
+    assert goi["n"] >= 2, "phải có lượt gọi thứ hai sau khi bị 429"
+
+
+def test_429_lien_tuc_thi_bao_RO_cach_xu_ly(monkeypatch):
+    """Ném nguyên HTTPStatusError thì người dùng đọc được một URL dài và không làm gì
+    được. Phải nói thẳng là chạm trần tốc độ và chờ vài giây."""
+    _gia_lap(monkeypatch, [_mot_chuyen()], ma_tra_ve=[429])
+    with pytest.raises(RuntimeError) as e:
+        dat_cho.NhaCungCapAeroDataBox("k").tim_chuyen_bay("SGN", "DAD", NGAY)
+    loi = str(e.value).lower()
+    assert "giới hạn tốc độ" in loi and "chờ" in loi
+    assert "httpstatuserror" not in loi, "đừng phơi tên lớp ngoại lệ cho người dùng"
 
 
 def test_sap_theo_GIO_vi_khong_co_gia_de_sap(monkeypatch):

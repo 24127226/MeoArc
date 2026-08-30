@@ -96,9 +96,15 @@ def tim_chuyen_bay(
     d = _doc_ngay(ngay).date()
     try:
         ds = ncc.tim_chuyen_bay(tu.upper(), den.upper(), d, so_ket_qua)
+    except RuntimeError as exc:
+        # Lỗi nhà cung cấp đã được DIỄN GIẢI SẴN thành câu người dùng làm được gì đó
+        # (vd chạm trần tốc độ → chờ vài giây). Giữ nguyên, đừng bọc thêm tên lớp
+        # ngoại lệ vào: "RuntimeError: ..." không giúp ai cả.
+        # 503 chứ không 502: dịch vụ vẫn sống, chỉ tạm thời chưa phục vụ được.
+        raise HTTPException(503, str(exc))
     except Exception as exc:
-        # Nói THẲNG lỗi của nhà cung cấp. Nuốt thành "có lỗi xảy ra" thì lúc trình
-        # bày mà hỏng, không ai biết đường sửa trong ba mươi giây.
+        # Lỗi CHƯA diễn giải: nói THẲNG cả tên lớp. Nuốt thành "có lỗi xảy ra" thì lúc
+        # trình bày mà hỏng, không ai biết đường sửa trong ba mươi giây.
         raise HTTPException(502, f"{type(exc).__name__}: {str(exc)[:200]}")
     return _vo_nguon([c.to_dict() for c in ds], ncc)
 
