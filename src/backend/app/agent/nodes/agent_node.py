@@ -10,7 +10,7 @@
 from typing import Literal
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel, Field
-from app.core.llm import create_llm
+from app.core.llm import create_llm, create_llm_du_phong
 from app.tools.registry import tool_registry
 from app.agent.state import State
 
@@ -20,10 +20,34 @@ MAX_ITERATIONS = 6
 # Lời dặn (system prompt) định hình TÍNH CÁCH + LUẬT cho agent.
 _SYSTEM_BASE = (
     "Bạn là MeoArc — trợ lý email cao cấp, nói TIẾNG VIỆT chỉn chu, lịch sự mà gần gũi.\n\n"
+    "## PHẠM VI — đọc mục này TRƯỚC MỌI MỤC KHÁC\n"
+    "Bạn thao tác được trên HỘP THƯ (tìm, đọc, tóm tắt, phân loại, gắn nhãn, soạn, gửi,\n"
+    "trả lời, xoá thư), đọc được LỊCH TRÌNH suy từ thư, và TRA CỨU được chuyến bay,\n"
+    "khách sạn. Ngoài ra bạn KHÔNG có công cụ nào khác.\n\n"
+    "PHÂN BIỆT CHO ĐÚNG — TRA CỨU khác ĐẶT CHỖ:\n"
+    "  • 'tìm chuyến bay', 'xem giá vé', 'có phòng nào ở Đà Nẵng' → ĐƯỢC. Gọi\n"
+    "    `tim_chuyen_bay` / `tim_khach_san`. Đây chỉ là XEM, không ràng buộc gì.\n"
+    "  • 'ĐẶT vé', 'BOOK phòng', 'giữ chỗ', 'thanh toán' → KHÔNG ĐƯỢC. MeoArc chưa nối\n"
+    "    với hệ thống đặt chỗ nào. Gọi `tu_choi_ngoai_pham_vi`, và gợi ý việc gần nhất\n"
+    "    làm được là TRA CỨU cho họ xem trước.\n"
+    "Ranh giới nằm ở chỗ TIÊU TIỀN. Xem thì tự do; cam kết tiền thì không.\n"
+    "  • Người dùng ĐÃ xem kết quả tra cứu rồi CHỌN một chuyến/phòng cụ thể và bảo\n"
+    "    'đặt cái này' → gọi `dat_cho_mo_phong`. Hệ thống TỰ CHẶN thành thẻ chờ duyệt.\n"
+    "    TUYỆT ĐỐI KHÔNG nói 'đã đặt xong' — chưa có gì được đặt cả. Và PHẢI nói rõ\n"
+    "    đây là ĐẶT MÔ PHỎNG, không phải vé hay phòng thật.\n\n"
+    "Bạn cũng KHÔNG gọi được xe, KHÔNG thanh toán hoá đơn, KHÔNG mua hàng, KHÔNG gọi\n"
+    "điện thoại, KHÔNG ghi được vào Google Calendar hay lịch nào bên ngoài.\n"
+    "Gặp những yêu cầu đó → gọi tool `tu_choi_ngoai_pham_vi`.\n"
+    "GIÁ MÔ PHỎNG: kết quả tra cứu có trường `nguon`. Bằng 'mo_phong' nghĩa là SỐ GIẢ\n"
+    "để trình bày — PHẢI nói rõ cho người dùng, tuyệt đối không đưa ra như giá thật.\n"
+    "TUYỆT ĐỐI KHÔNG biến một yêu cầu HÀNH ĐỘNG thành một lượt TÌM THƯ. 'Đặt vé máy bay\n"
+    "đi Đà Nẵng' KHÔNG PHẢI là 'tìm thư về vé máy bay đi Đà Nẵng'. Trả lời 'không tìm thấy\n"
+    "thư nào về việc đặt vé' là SAI NẶNG: người dùng sẽ hiểu là hộp thư trống, chứ không\n"
+    "hiểu là bạn không làm được việc đó.\n\n"
     "## Nguyên tắc CHÍNH XÁC (quan trọng nhất — đừng bao giờ vi phạm)\n"
     "- LUÔN gọi tool để lấy dữ liệu THẬT trước khi trả lời. TUYỆT ĐỐI KHÔNG bịa người gửi,\n"
     "  tiêu đề, nội dung hay thời gian. Chỉ nói đúng những gì tool trả về.\n"
-    "- BẤT KỲ yêu cầu nào về hộp thư/email hiện có — liệt kê, tóm tắt, PHÂN LOẠI, sắp xếp theo\n"
+    "- BẤT KỲ yêu cầu nào VỀ HỘP THƯ (đã qua kiểm tra Phạm Vi ở trên) — liệt kê, tóm tắt, PHÂN LOẠI, sắp xếp theo\n"
     "  ƯU TIÊN, tìm, đếm — BẮT BUỘC gọi search_emails TRƯỚC (MỘT lần, snippet là đủ), ĐỪNG mở từng\n"
     "  thư. TUYỆT ĐỐI KHÔNG trả lời 'không có dữ liệu'/'không tìm thấy email' khi CHƯA gọi tool —\n"
     "  hộp thư trống là điều hiếm; chưa search mà nói trống là BỊA. Có dữ liệu rồi thì trả lời NGAY\n"
@@ -36,7 +60,17 @@ _SYSTEM_BASE = (
     "- PHÂN LOẠI/GẮN NHÃN TỰ ĐỘNG (vd 'phân loại hộp thư', 'gắn nhãn giúp mình', 'sắp xếp email theo\n"
     "  nhóm'): gọi categorize_emails (nó tự đề xuất nhãn Học tập/Công việc/Tài chính/Mạng xã hội/…).\n"
     "  ĐỪNG tự bịa nhãn, ĐỪNG áp nhãn ngay — chỉ đề xuất để người dùng duyệt.\n"
-    "- Thời gian: dùng đúng giờ tool trả về (đã là giờ Việt Nam), không tự đổi.\n\n"
+    "- Thời gian: dùng đúng giờ tool trả về (đã là giờ Việt Nam), không tự đổi.\n"
+    "- LỊCH TRÌNH / DEADLINE: hỏi về 'deadline', 'hạn nộp', 'việc sắp tới', 'tuần sau có\n"
+    "  gì', 'việc nào gấp nhất' → gọi `liet_ke_cam_ket`, ĐỪNG search_emails rồi tự đọc\n"
+    "  từng thư mà đoán. Hỏi 'tuần này có nặng không', 'ngày nào rảnh', 'kham nổi không'\n"
+    "  → gọi `ap_luc_lich_trinh`. Hai tool này đã trích sẵn hạn + người đang chờ.\n"
+    "- ĐI LẠI: hỏi 'sắp tới có phải đi đâu không', 'có buổi nào ở tỉnh khác không' →\n"
+    "  gọi `de_xuat_di_lai`. Nó CHỈ ĐỀ XUẤT ngày nên có mặt; nó KHÔNG đặt vé. Người\n"
+    "  dùng bảo 'đặt vé giúp mình' thì vẫn phải `tu_choi_ngoai_pham_vi` như thường.\n"
+    "- Việc nào có `han_suy_ra` = true thì hạn đó là SUY RA, không phải thư ghi thẳng.\n"
+    "  Nói rõ ('mình hiểu là hạn khoảng…') thay vì khẳng định chắc nịch — trình bày một\n"
+    "  phỏng đoán như một sự thật là cách nhanh nhất làm người dùng mất tin.\n\n"
     "## Văn phong & bố cục (để câu trả lời SANG, dễ đọc)\n"
     "- Mở đầu MỘT câu ngắn dẫn dắt, rồi xuống dòng.\n"
     "- Liệt kê bằng gạch đầu dòng bắt đầu bằng '• ', MỖI mục một dòng riêng (xuống dòng thật),\n"
@@ -67,7 +101,11 @@ def _get_llm():
         # registry. Thiếu dòng này thì registry RỖNG → LLM không có tool → agent "bịa" câu trả lời
         # thay vì gọi Gmail. (MCP server đã import sẵn; luồng in-app /agent/chat trước đây thì chưa.)
         import app.tools.email_tools  # noqa: F401 — side-effect: đăng ký tool vào registry
-        base = create_llm()                          # tạo client Gemini từ config (.env)
+        # DỰ PHÒNG NHIỀU MODEL: hạn mức Gemini free tính riêng từng model, và
+        # gemini-2.5-flash-lite chỉ có 20 lượt/ngày (đã đo, đã chạm trần). Hết lượt
+        # giữa buổi trình bày thì agent chết bằng một thông báo đỏ. Xâu chuỗi thì
+        # tổng hạn mức cộng dồn — xem `create_llm_du_phong`.
+        base = create_llm_du_phong()
         tools = tool_registry.to_langchain_tools()   # 7 tool email (đã sửa bug lọc ở registry)
         _llm_with_tools = base.bind_tools(tools)
     return _llm_with_tools
@@ -81,11 +119,17 @@ async def agent_node(state: State) -> dict:
       • iteration_count → +1 để graph biết đã nghĩ mấy vòng (chặn lặp vô tận).
     """
     llm = _get_llm()
+    # Ghép lời dặn hệ thống + (nếu có) kiến thức skill nạp theo ngữ cảnh.
     system = _SYSTEM_BASE
     if state.get("skill_context"):
         system += "\n\n# Kiến thức bổ sung cho yêu cầu này:\n" + state["skill_context"]
-    if state.get("guardrail_warning"):
-        system += "\n\n## Cảnh báo an toàn\n" + state["guardrail_warning"]
+    # Sở thích cá nhân đặt SAU kiến thức skill và là khối cuối cùng: khi hai bên gợi ý
+    # khác nhau (skill dạy cách viết thư chung, người dùng dặn "đừng dùng từ trân trọng")
+    # thì lời của người dùng phải thắng — và lời đứng gần cuối prompt có trọng lượng hơn.
+    if state.get("user_context"):
+        system += ("\n\n# Người dùng này — tuân thủ khi soạn thư thay họ:\n"
+                   + state["user_context"])
+    # Đầu vào cho LLM = [lời dặn] + [toàn bộ tin nhắn từ trước tới giờ].
     messages = [SystemMessage(content=system), *state["messages"]]
     ai = await llm.ainvoke(messages)   # gọi Gemini (bất đồng bộ) → ra 1 AIMessage
     return {"messages": [ai], "iteration_count": state.get("iteration_count", 0) + 1}
@@ -154,7 +198,9 @@ def _get_present_llm():
     global _present_llm
     if _present_llm is None:
         # Thêm cấu hình cụ thể method="json_mode" để Gemini trả về JSON chuẩn theo cấu trúc
-        _present_llm = create_llm().with_structured_output(PresentReply, method="json_mode")
+        # Bộ trình bày cũng đốt hạn mức như agent, nên cũng phải có dự phòng —
+        # nếu không thì agent nghĩ xong rồi chết ở bước vẽ thẻ, còn khó hiểu hơn.
+        _present_llm = create_llm_du_phong().with_structured_output(PresentReply, method="json_mode")
     return _present_llm
 
 
@@ -273,20 +319,7 @@ async def responder_node(state: State) -> dict:
             SystemMessage(content=_PRESENT_SYS),
             HumanMessage(content=formatted_context)
         ])
-
-        # ── OUTPUT GUARDRAIL — content check ─────────────────────────────────
-        from app.agent.guardrails.output_guardrail import check_content
-        pres.text = check_content(pres.text)
-        pres.intro = check_content(pres.intro)
-        pres.lines = [check_content(l) for l in pres.lines if l]
-        pres.highlights = [check_content(h) for h in pres.highlights if h]
-        for g in pres.groups:
-            g.label = check_content(g.label)
-            for item in g.items:
-                item.sender = check_content(item.sender)
-                item.subject = check_content(item.subject)
-                item.suggest = check_content(item.suggest)
-
+        
         # 4. Map dữ liệu trả về chính xác cho Frontend render
         output_dict = {"kind": pres.kind, "intro": pres.intro}
         if pres.kind == "result":

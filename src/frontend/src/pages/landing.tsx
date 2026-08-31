@@ -5,7 +5,8 @@ import Lenis from 'lenis'
 import 'lenis/dist/lenis.css' // BẮT BUỘC: thiếu file này Lenis khoá cứng scroll
 import {
   Sparkles, ShieldCheck, Mails, Tags, Mic, ArrowRight, ArrowDown, Check, MessageSquare,
-  Plus, Minus, Lock, Zap, ArrowDownToLine,
+  Plus, Minus, Lock, Zap, ArrowDownToLine, KeyRound, Plug,
+  type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/auth/auth-context'
 import { cn } from '@/lib/utils'
@@ -17,7 +18,8 @@ import {
   CursorGlow, ScrollProgress, SectionDots, Marquee, AgentDemo, PlayfulLetter, Magnetic,
   GridFloor, BeamSweep, ContourLines, ParticleField,
 } from '@/components/landing/ui'
-import { LetterTale } from '@/components/landing/letter-tale'
+import { LetterTale, JOURNEY_VIDEO } from '@/components/landing/letter-tale'
+import { QuetCheo, DayChieuSau, KeoNgang } from '@/components/landing/chuyen-canh'
 
 const NAV_SECTIONS = [
   { id: 'hero', label: 'Mở đầu' },
@@ -63,15 +65,15 @@ const SKILLS = [
 ]
 
 const FAQS = [
-  { q: 'MeoArc xin những quyền gì trên hộp thư của tôi?',
+  { q: 'MeoArc xin những quyền gì trên hộp thư của tôi?', icon: KeyRound, c: '#F0A848',
     a: 'Quyền đọc và quản lý thư (gắn nhãn, lưu trữ, soạn và gửi) trên tài khoản bạn kết nối. Bạn có thể thu hồi bất cứ lúc nào trong phần Cài đặt hoặc ngay trong trang bảo mật của Google / Microsoft.' },
-  { q: 'AI có tự ý gửi thư thay tôi không?',
+  { q: 'AI có tự ý gửi thư thay tôi không?', icon: ShieldCheck, c: '#4FD1C5',
     a: 'Không. Mọi hành động không hoàn tác được đều phải qua bước xác nhận: MeoArc hiện bản nháp hoặc danh sách việc sắp làm, bạn bấm Duyệt thì nó mới chạy.' },
-  { q: 'Thư của tôi có bị dùng để huấn luyện mô hình không?',
+  { q: 'Thư của tôi có bị dùng để huấn luyện mô hình không?', icon: Lock, c: '#8B7BF0',
     a: 'Không. Nội dung thư chỉ được gửi tới mô hình để xử lý đúng yêu cầu bạn đưa ra tại thời điểm đó, và lưu trong cơ sở dữ liệu của chính bạn để hiển thị nhanh hơn.' },
-  { q: 'Tôi dùng Outlook thay vì Gmail được không?',
+  { q: 'Tôi dùng Outlook thay vì Gmail được không?', icon: Mails, c: '#4FD1C5',
     a: 'Được. MeoArc nói chuyện với Gmail qua Gmail API và với Outlook qua Microsoft Graph, cùng một giao diện và cùng bộ lệnh.' },
-  { q: 'Ứng dụng ngoài có gọi được MeoArc không?',
+  { q: 'Ứng dụng ngoài có gọi được MeoArc không?', icon: Plug, c: '#F06AA8',
     a: 'Có. MeoArc mở sẵn một máy chủ MCP, nên các trợ lý khác (Claude Desktop, Codex…) có thể gọi trực tiếp các công cụ tìm thư, tóm tắt, soạn, gửi trong đúng phạm vi quyền bạn cấp.' },
 ]
 
@@ -114,7 +116,7 @@ function UnifiedInboxMock() {
             { Glyph: GoogleGlyph, t: 'Gmail', d: 'Gmail API' },
             { Glyph: MsGlyph, t: 'Outlook', d: 'Microsoft Graph' },
           ].map(({ Glyph, t, d }) => (
-            <div key={t} className="flex items-center gap-2.5 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2.5 backdrop-blur-md">
+            <div key={t} className="flex items-center gap-2.5 lit-edge rounded-2xl bg-white/[0.05] px-4 py-2.5 backdrop-blur-md [--lit:#4FE9FF]">
               <Glyph className="size-5" />
               <div className="leading-tight">
                 <p className="text-[13px] font-semibold">{t}</p>
@@ -149,7 +151,7 @@ function UnifiedInboxMock() {
         </svg>
 
         {/* Một hộp thư chung */}
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
+        <div className="lit-edge overflow-hidden rounded-2xl bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-2.5">
             <span className="flex items-center gap-2 text-[12px] font-semibold">
               <MeoMascot mood="idle" className="size-4" />
@@ -185,7 +187,7 @@ function UnifiedInboxMock() {
 /** Mockup giao diện 3 cột — dùng cho hero và mục "bạn bấm nút cuối". */
 function AppMock({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
+    <div className="lit-edge overflow-hidden rounded-2xl bg-[#0b0b12]/90 shadow-2xl backdrop-blur-xl">
       <div className="flex items-center gap-1.5 border-b border-white/[0.07] px-3 py-2">
         <span className="size-2 rounded-full bg-[#F0A848]/70" />
         <span className="size-2 rounded-full bg-white/20" />
@@ -239,20 +241,27 @@ function AppMock({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
+/** Một dòng câu hỏi. Mỗi câu có một icon riêng ở đầu dòng — người xem nhận ra câu
+ *  mình cần bằng HÌNH trước, không phải đọc hết năm dòng chữ mới thấy. Icon cũng
+ *  phát sáng theo màu riêng nên danh sách này không còn là năm dòng chữ xám. */
+function FaqItem({ q, a, icon: Icon, c }: { q: string; a: string; icon: LucideIcon; c: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-white/[0.08]">
       <button onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between gap-4 py-5 text-left transition-colors hover:text-white">
-        <span className="text-[15px] font-medium sm:text-base">{q}</span>
+        className="group flex w-full items-center gap-4 py-5 text-left transition-colors hover:text-white">
+        <span className="lit-edge flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105"
+          style={{ ['--lit' as string]: c, color: c }}>
+          <Icon className="size-[18px]" />
+        </span>
+        <span className="flex-1 text-[15px] font-medium sm:text-base">{q}</span>
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.05]">
           {open ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
         </span>
       </button>
       <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
-        <p className="pb-5 pr-10 text-[14px] leading-relaxed text-white/60">{a}</p>
+        <p className="pb-5 pl-14 pr-10 text-[14px] leading-relaxed text-white/60">{a}</p>
       </motion.div>
     </div>
   )
@@ -500,12 +509,17 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ══ AGENT THẬT SỰ — video metal human phủ TOÀN MÀN ══ */}
+      {/* ══ AGENT THẬT SỰ — video thumb-v1 phủ TOÀN MÀN ══ */}
+      {/* CHUYỂN CẢNH 1/3 — NHÁT CẮT CHÉO.
+          Khối này lộ ra qua một đường chéo đang mở rộng, cùng góc 45° với ngôn
+          ngữ khung góc cắt của cả sản phẩm. Không phải trôi lên như mọi khối
+          trước, nên mắt biết ngay đã sang một cảnh khác. */}
+      <QuetCheo>
       <section ref={agentRef} id="agent"
         className="relative flex min-h-screen items-end overflow-hidden py-20 sm:items-center sm:py-24">
         {/* Desktop: đẩy tượng sang phải, chữ bên trái. Điện thoại: tượng ở giữa, chữ dồn xuống dưới. */}
         <VideoBackdrop
-          src="/landing/metal-human.mp4" poster="/landing/metal-human.jpg"
+          src="/landing/thumb-v1.mp4" poster="/landing/thumb-v1.jpg"
           tint="cyan" dim="none" parallax play="inview"
           className="[&_img]:object-center [&_video]:object-center sm:[&_img]:object-[72%_center] sm:[&_video]:object-[72%_center]"
         />
@@ -549,23 +563,34 @@ export function LandingPage() {
           </div>
         </motion.div>
       </section>
+      </QuetCheo>
 
       <GlowDivider tone="cyan" />
 
       {/* ══ TÍNH NĂNG — zig-zag, mỗi hình chứng minh đúng tiêu đề ══ */}
-      <section id="features" className="relative py-24 sm:py-28">
+      {/* CHUYỂN CẢNH 2/3 — CUỘN NGANG.
+          Đây là cú phá vỡ mạnh nhất, và là thứ khiến trang thôi đọc ra như một
+          tờ giấy: trên tờ giấy thì mọi thứ chỉ đi được một chiều. Khối bị ghim
+          lại, người dùng vẫn cuộn dọc như thường, nhưng nội dung chạy NGANG.
+          Tiêu đề để NGOÀI vùng ghim — nó là lời giới thiệu cho đoạn ngang, phải
+          đọc xong rồi mới tới. */}
+      <section id="features" className="relative pt-24 sm:pt-28">
         <Aurora className="opacity-60" />
         <div className="relative z-10 mx-auto max-w-6xl px-6">
           <Reveal className="mx-auto max-w-2xl text-center">
             <p className="ld-chip mx-auto">Tính năng</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.6rem]">MeoArc giải quyết việc gì</h2>
+            <p className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-white/40">
+              Cuộn để xem ngang
+              <ArrowRight className="size-3.5" />
+            </p>
           </Reveal>
+        </div>
 
-          {/* BENTO ưu tiên HÌNH: mỗi ô chỉ một nhãn ngắn + một hình chứng minh.
-              Bỏ hẳn các đoạn văn dài — người xem lướt bằng mắt, không đọc. */}
-          <div className="mt-12 grid gap-3 sm:grid-cols-12">
+        {/* BENTO ưu tiên HÌNH: mỗi ô chỉ một nhãn ngắn + một hình chứng minh. */}
+        <KeoNgang soManHinh={2.6} className="relative z-10">
             {/* Ô lớn — màn duyệt bản nháp */}
-            <Reveal className="sm:col-span-7">
+            <div className="w-[min(78vw,660px)] shrink-0">
               <SpotCard className="group relative h-full overflow-hidden p-5">
                 <div aria-hidden className="absolute -right-16 -top-16 size-52 rounded-full bg-[#F0A848]/15 blur-3xl" />
                 <div className="relative flex items-center justify-between">
@@ -579,10 +604,10 @@ export function LandingPage() {
                 </h3>
                 <div className="relative mt-4"><AppMock compact /></div>
               </SpotCard>
-            </Reveal>
+            </div>
 
             {/* Ô — hai nguồn hội tụ */}
-            <Reveal delay={0.06} className="sm:col-span-5">
+            <div className="w-[min(70vw,470px)] shrink-0">
               <SpotCard className="relative h-full overflow-hidden p-5">
                 <div aria-hidden className="absolute -left-12 -top-12 size-44 rounded-full bg-[#4FD1C5]/15 blur-3xl" />
                 <div className="relative flex items-center justify-between">
@@ -592,38 +617,86 @@ export function LandingPage() {
                 <h3 className="ld-title relative mt-3 text-2xl sm:text-[1.75rem]">Hai hộp thư, một nơi</h3>
                 <div className="relative mt-4"><UnifiedInboxMock /></div>
               </SpotCard>
-            </Reveal>
+            </div>
 
-            {/* Ba ô nhỏ — ICON KHỔNG LỒ, chỉ vài chữ */}
+            {/* Ba ô: ẢNH MỜ CHIẾM TRỌN KHUNG, không phải icon nhỏ trên nền tối.
+                Bản trước là icon lucide ở độ mờ 0.07 đặt trên nền gần đen — tức
+                là tối trên tối, và mắt không bắt được gì. Cả dải ba ô đọc ra là
+                ba hình chữ nhật xám giống hệt nhau.
+
+                Bản này mỗi ô có một ẢNH MÀU phủ kín, làm nhoè mạnh. Nhoè để nó
+                thành TRƯỜNG MÀU chứ không thành một bức ảnh đòi được nhìn: chi
+                tiết biến mất, chỉ còn lại sắc độ, nên nó không tranh chỗ với chữ.
+                Ảnh lấy từ bộ có sẵn của trang giới thiệu — không kéo thêm phụ
+                thuộc, không vướng bản quyền.
+
+                Icon nâng từ 0.07 lên 0.28 và phóng to gấp đôi: giờ nó là CHỦ THỂ
+                của khung, không phải hoa văn góc. */}
             {[
-              { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn' },
-              { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K' },
-              { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài' },
-            ].map((b, i) => (
-              <Reveal key={b.n} delay={0.12 + i * 0.06} className="sm:col-span-4">
+              { icon: Tags, n: '03', c: '#8B7BF0', t: '7 nhóm', s: 'tự gắn nhãn',
+                anh: '/landing/flower-field-poster.jpg' },
+              { icon: Mic, n: '04', c: '#F06AA8', t: 'Giọng nói', s: 'và ⌘K',
+                anh: '/landing/glass-flower.jpg' },
+              { icon: Zap, n: '05', c: '#4FD1C5', t: 'MCP', s: 'cho trợ lý ngoài',
+                anh: '/landing/thumb-v1.jpg' },
+            ].map((b) => (
+              <div key={b.n} className="w-[min(66vw,380px)] shrink-0">
                 <SpotCard className="group relative h-full overflow-hidden p-5">
-                  {/* icon lớn mờ làm hoạ tiết nền */}
-                  <b.icon
-                    aria-hidden
-                    className="pointer-events-none absolute -bottom-5 -right-4 size-32 opacity-[0.07] transition-transform duration-700 group-hover:scale-110"
-                    style={{ color: b.c }}
+                  {/* 1 — trường màu: ảnh phủ kín, nhoè mạnh, phóng 1.15 để mép
+                      nhoè không lộ ra thành viền sáng quanh khung */}
+                  <img
+                    src={b.anh} alt="" aria-hidden loading="lazy" decoding="async"
+                    className="pointer-events-none absolute inset-0 size-full scale-[1.15] object-cover
+                               opacity-90 transition-transform duration-700 group-hover:scale-[1.22]"
+                    // brightness NÂNG LÊN chứ không chỉ saturate: mấy tấm ảnh này
+                    // vốn tối, nhoè xong còn tối hơn. Không kéo sáng thì dù bão hoà
+                    // đến mấy vẫn ra một mảng đen — đúng lỗi đã mắc ở lần đầu.
+                    style={{ filter: 'blur(20px) saturate(1.9) brightness(1.45)' }}
                   />
+                  {/* 2 — nhuốm màu riêng của ô. Dùng `screen` chứ KHÔNG dùng
+                      `mix-blend-color`: color chỉ chuyển sắc và GIỮ NGUYÊN độ sáng
+                      của lớp dưới, mà lớp dưới đang tối — nên ô vẫn tối, chỉ đổi
+                      tông. `screen` thì cộng sáng, đúng thứ cần ở đây. */}
+                  <div aria-hidden className="pointer-events-none absolute inset-0 mix-blend-screen"
+                    style={{
+                      background: `radial-gradient(120% 90% at 70% 20%, ${b.c}, transparent 70%)`,
+                      opacity: 0.5,
+                    }} />
+                  {/* 3 — làm trầm ĐÚNG CHỖ CÓ CHỮ, tức là phần TRÊN.
+                      Lần đầu tôi đặt lớp phủ ở đáy — sai phía: tiêu đề và dòng phụ
+                      nằm ở nửa trên, nên chữ trắng rơi thẳng lên vùng ảnh sáng nhất
+                      còn phần được làm trầm thì chẳng có chữ nào.
+                      Phủ từ trên xuống, và chỉ 45% chiều cao: đủ để chữ đọc chắc mà
+                      vẫn chừa hai phần ba khung cho màu và cho icon. */}
+                  <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[45%]
+                    bg-gradient-to-b from-[#06060B]/88 via-[#06060B]/45 to-transparent" />
+                  {/* 4 — icon CHỦ THỂ: 0.28 và cỡ gấp đôi bản trước */}
+                  <b.icon
+                    aria-hidden strokeWidth={1.2}
+                    className="pointer-events-none absolute -bottom-8 -right-6 size-60 text-white
+                               opacity-40 mix-blend-overlay transition-transform duration-700 group-hover:scale-110"
+                  />
+
                   <div className="relative flex items-center justify-between">
-                    <span className="flex size-11 items-center justify-center rounded-2xl"
-                      style={{ background: `${b.c}20`, color: b.c }}>
-                      <b.icon className="size-5.5" />
+                    <span className="o-icon size-11 rounded-none"
+                      style={{ ['--tint' as string]: b.c }}>
+                      <b.icon className="size-5" />
                     </span>
                     <span className="ld-num" style={{ color: b.c }}>{b.n}</span>
                   </div>
-                  <h3 className="ld-title relative mt-5 text-2xl">{b.t}</h3>
-                  <p className="relative mt-0.5 text-[13px] text-white/45">{b.s}</p>
+                  <h3 className="ld-title relative mt-5 text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">{b.t}</h3>
+                  <p className="relative mt-0.5 text-[13px] text-white/70">{b.s}</p>
                 </SpotCard>
-              </Reveal>
+              </div>
             ))}
-          </div>
-        </div>
+        </KeoNgang>
       </section>
 
+      {/* CHUYỂN CẢNH 3/3 — TIẾN TỪ XA LẠI.
+          Trượt lên là chuyển động trong mặt phẳng; tiến từ xa là chuyển động
+          theo trục sâu. Khác nhau về CHẤT, nên đặt sau một khối cuộn ngang thì
+          mắt lại đọc ra một cảnh mới nữa. */}
+      <DayChieuSau>
       {/* ══ BENTO — nền hạt sáng trôi + chùm quét chéo ══ */}
       <section id="auto" className="relative overflow-hidden py-20 sm:py-24">
         <ParticleField tone="#87F5F5" count={22} />
@@ -668,6 +741,7 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+      </DayChieuSau>
 
       {/* ══ CÁCH VẬN HÀNH ══ */}
       <section id="how" className="relative border-y border-white/[0.07]">
@@ -702,13 +776,17 @@ export function LandingPage() {
             <p className="ld-chip mx-auto">Giải đáp</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-[2.4rem]">Câu hỏi thường gặp</h2>
           </Reveal>
-          <div className="mt-10">{FAQS.map((f) => <FaqItem key={f.q} q={f.q} a={f.a} />)}</div>
+          <div className="mt-10">{FAQS.map((f) => <FaqItem key={f.q} {...f} />)}</div>
         </div>
       </section>
 
       {/* ══ CTA CUỐI — video thuyền giữa biển, có parallax ══ */}
       <section id="start" className="relative flex min-h-[94vh] items-center justify-center overflow-hidden py-24">
-        <VideoBackdrop src="/landing/purple-desert.mp4" poster="/landing/purple-desert.jpg"
+        {/* Video HÀNH TRÌNH LÁ THƯ thay cho cảnh sa mạc.
+            Sa mạc là ẩn dụ đẹp nhưng nói về sự trống trải — sai thông điệp ở đúng chỗ
+            người xem sắp bấm nút. Đoạn hành trình thì cho thấy sản phẩm đang làm việc,
+            và nó khép lại vòng đã mở ở mục "Chuyện một lá thư" phía trên. */}
+        <VideoBackdrop src={JOURNEY_VIDEO} poster="/landing/flower-arc.jpg"
           tint="violet" dim="soft" parallax play="inview" />
         <div className="relative z-10 mx-auto max-w-2xl px-6 text-center">
           <Reveal>
@@ -732,7 +810,7 @@ export function LandingPage() {
               className="mx-auto mt-8 flex w-full max-w-md flex-col gap-2.5 sm:flex-row">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@cua-ban.com" aria-label="Địa chỉ email"
-                className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-3.5 text-[15px] text-white outline-none backdrop-blur-md transition-colors placeholder:text-white/35 focus:border-[#F0A848]/60" />
+                className="min-w-0 flex-1 lit-edge rounded-2xl bg-white/[0.07] px-4 py-3.5 text-[15px] text-white outline-none backdrop-blur-md placeholder:text-white/35 [--lit:#FFB03A]" />
               <MovingBorderButton className="justify-center">
                 {isAuthenticated ? 'Vào MeoArc' : 'Bắt đầu'}
                 <ArrowRight className="size-4.5" />
@@ -765,7 +843,7 @@ export function LandingPage() {
       </footer>
 
       {/* ══ CTA đáy cho điện thoại ══ */}
-      <div className={cn('fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#06060B]/90 p-3 backdrop-blur-xl transition-transform duration-500 sm:hidden',
+      <div className={cn('fixed inset-x-0 bottom-0 z-50 lit-edge bg-[#06060B]/90 p-3 backdrop-blur-xl transition-transform duration-500 sm:hidden',
         scrolled ? 'translate-y-0' : 'translate-y-full')}>
         <button onClick={goCta}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#F0A848] py-3.5 text-[15px] font-semibold text-[#1a1206] active:scale-[0.98]">

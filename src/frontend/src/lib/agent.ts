@@ -21,6 +21,17 @@ export type EmailRef = {
 }
 
 /** Phản hồi của agent — quyết định canvas hiển thị gì. */
+/** Một bước trong thẻ dự định. `mucRuiRo` ánh xạ thẳng sang thang sáng CSS. */
+export type DuDinhBuoc = {
+  mo_ta: string
+  /** Ghi chú hậu quả: "hoàn tác được", "không đổi, không hoàn"… */
+  hau_qua: string
+  /** 1 hoàn tác được · 2 người khác đã thấy · 3 mất tiền thật */
+  mucRuiRo: 1 | 2 | 3
+  /** Số tiền, đồng. 0 = không tốn gì. */
+  tien?: number
+}
+
 export type AgentReply =
   | { kind: 'text'; text: string; emails?: EmailRef[] }
   | { kind: 'done'; text: string }
@@ -73,8 +84,50 @@ export type AgentReply =
       title: string
       items: { id: string; sender: string; subject: string; category: Category; label: string }[]
     }
+  /** TRA CỨU ĐI LẠI — chuyến bay / chỗ ở, hiện trong chat ĐÚNG bảng như khung
+   *  "Tra cứu đi lại".
+   *
+   *  Dựng TẤT ĐỊNH từ `data` của tool ở backend, KHÔNG phải từ lời mô hình. Trước đây
+   *  kết quả tra cứu rơi vào `kind: 'text'` nên mô hình tự viết lại — và nó có thể chép
+   *  sai số hiệu, làm rơi nhãn nguồn, hoặc thêm một con giá không có trong dữ liệu,
+   *  ngay trên phần cần chứng minh là THẬT.
+   *
+   *  `items` để `unknown` có chủ ý: đây là dữ liệu thô từ nhà cung cấp, và hai thành
+   *  phần vẽ (`DongBay`/`DongPhong`) đã tự đọc từng trường kèm giá trị lui. Khai một
+   *  kiểu chặt ở đây sẽ khiến FE vỡ mỗi khi nhà cung cấp thêm trường mới. */
+  | {
+      kind: 'dilai'
+      loai: 'bay' | 'phong'
+      intro?: string | null
+      title: string
+      /** Nhãn nguồn do MÁY CHỦ quyết định — FE chỉ hiện, không tự suy ra. */
+      nguon: string
+      la_that: boolean
+      nhan: string
+      items: Record<string, unknown>[]
+    }
   // --- Inbox Autopilot (UC017) — hộp thư tự lái, ambient + reversible ---
   | { kind: 'autopilot'; intro: string; title: string; plan: AutopilotStep[] }
+  /** THẺ DỰ ĐỊNH — agent xin phép TRƯỚC khi làm việc có hậu quả ra bên ngoài.
+   *
+   *  Khác `plan` ở một điểm quyết định: `plan` là các bước TRONG hộp thư, sai thì
+   *  sửa lại được. `dudinh` là các bước ra THẾ GIỚI THẬT qua MCP — đặt vé, đặt
+   *  phòng, thanh toán. Nên mỗi bước phải mang riêng mức rủi ro và chi phí của nó,
+   *  KHÔNG gộp thành một cục "đặt chuyến đi": người dùng cần thấy bước nào rút lại
+   *  được, bước nào không. */
+  | {
+      kind: 'dudinh'
+      intro: string
+      title: string
+      buoc: DuDinhBuoc[]
+      /** Chỗ agent phải đoán vì thư không nói rõ. Nói ra chỗ mình không chắc thì
+       *  đáng tin hơn hẳn lúc nào cũng quả quyết. */
+      cho_doan?: string
+      /** Id yêu cầu chờ duyệt do backend cấp. Bấm "Duyệt" gọi
+       *  POST /confirmations/{id}/approve — đường TẤT ĐỊNH, không đi qua mô hình.
+       *  Chế độ mock không có id; khi đó thẻ vẫn duyệt được nhưng chỉ mô phỏng tại chỗ. */
+      confirmationId?: string
+    }
 
 /** Hành động Mèo tự đề xuất cho từng thư khi tự lái. */
 export type AutopilotAction = 'archive' | 'markRead' | 'flag' | 'reply' | 'keep'
@@ -183,6 +236,43 @@ const fmtNames = (list: Email[]) =>
 export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   const q = normalize(raw)
 
+  /* --- HỎI VỀ MỘT VIỆC CỤ THỂ trong lịch trình (nút "Hỏi trợ lý" trên thẻ) ---
+     Đặt ĐẦU TIÊN vì câu lệnh này chứa nhiều từ khoá trùng với các nhánh khác
+     ("nộp", "gửi", "hạn"…) và sẽ bị nhánh nào đó nuốt mất nếu đứng sau.
+
+     Trước đây bấm nút đó chỉ MỞ khung chat rồi thả người dùng ở đó: câu lệnh gửi
+     đi chỉ có tên việc, nên trợ lý không biết hạn khi nào, ai chờ, tốn bao lâu —
+     nó chào một câu rồi hỏi lại. Người dùng phải gõ lại đúng những thứ vừa bấm
+     vào, tức là cái nút không tiết kiệm được gì.
+     Nay câu lệnh mang đủ ngữ cảnh (xem `hoiAI` trong pages/schedule.tsx), nên
+     nhánh này trả lời được ngay bằng chính dữ liệu đó. */
+  if (/^viec: /.test(q) && /han:/.test(q)) {
+    const ten = (raw.match(/Việc:\s*"([^"]+)"/) || [])[1] || 'việc này'
+    const han = (raw.match(/Hạn:\s*([^.]+)\./) || [])[1] || 'chưa rõ'
+    const gio = Number((raw.match(/khoảng\s+([\d.]+)\s+giờ/) || [])[1] || 1)
+    const nguoiCho = (raw.match(/\.\s*([^.]+?)\s+đang chờ/) || [])[1] || 'người gửi'
+    const suyRa = /suy ra/.test(raw)
+
+    // Chia buổi theo NGUYÊN TẮC 90 PHÚT: dài hơn thế thì chất lượng rơi, và một
+    // "kế hoạch" gộp 4 tiếng vào một buổi là kế hoạch không ai làm theo được.
+    const soBuoi = Math.max(1, Math.ceil(gio / 1.5))
+    const moiBuoi = Math.round((gio / soBuoi) * 10) / 10
+
+    return {
+      kind: 'result',
+      title: ten.length > 52 ? ten.slice(0, 52) + '…' : ten,
+      intro: `Hạn ${han}${suyRa ? ' (hạn này suy ra từ thư, chưa chắc)' : ''}. Mình gợi ý thế này:`,
+      lines: [
+        `Bắt đầu sớm hơn hạn ${soBuoi === 1 ? 'một ngày' : `${soBuoi} ngày`} — làm sát ngày là chỗ hay vỡ nhất.`,
+        `Chia ${soBuoi} buổi, mỗi buổi ~${moiBuoi} giờ. Quá 90 phút một buổi thì chất lượng rơi.`,
+        `${nguoiCho} đang chờ — báo trước một câu nếu thấy sẽ trễ, đừng để họ tự phát hiện.`,
+        ...(suyRa
+          ? ['Hạn này mình ĐOÁN từ câu chữ trong thư. Mở thư gốc xác nhận lại trước khi tin.']
+          : []),
+      ],
+    }
+  }
+
   // --- Inbox Autopilot (UC017) — hộp thư tự lái (đặt trước để không lọt vào nhánh "dọn") ---
   if (/(tu lai|autopilot|de meo lo|don ca hop thu|don het hop thu|don tu dong|don sach hop thu)/.test(q)) {
     const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
@@ -197,6 +287,23 @@ export function interpretCommand(raw: string, emails: Email[]): AgentReply {
   }
 
   // --- Daily Digest (UC014) ---
+  // Đặt vé / đặt phòng / chuyến đi → THẺ DỰ ĐỊNH. Đây là nhánh MCP ra thế giới
+  // thật, nên nó không bao giờ tự chạy — luôn dừng ở đây xin phép.
+  if (/(dat ve|dat phong|dat khach san|chuyen di|di cong tac|book)/.test(q)) {
+    return {
+      kind: 'dudinh',
+      intro: 'Mình đọc thư mời rồi tra thử. Đây là dự định — bạn duyệt thì mình mới làm.',
+      title: 'Đi Đà Nẵng dự hội thảo · 12–14/09',
+      buoc: [
+        { mo_ta: 'Thêm 3 mốc vào lịch', hau_qua: 'hoàn tác được', mucRuiRo: 1 },
+        { mo_ta: 'Vé bay SGN → DAD, 12/09 06:20', hau_qua: 'không đổi, không hoàn', mucRuiRo: 3, tien: 1850000 },
+        { mo_ta: 'Khách sạn 2 đêm, gần địa điểm', hau_qua: 'huỷ miễn phí tới 10/09', mucRuiRo: 2, tien: 1240000 },
+      ],
+      cho_doan:
+        'Thư mời không ghi giờ kết thúc ngày 14. Mình chọn chuyến bay về 19:40 cho chắc — nếu hội thảo tan sớm thì bạn sửa lại giúp mình.',
+    }
+  }
+
   if (/(digest|diem tin|bao cao|tom luoc ngay)/.test(q)) {
     const unread = emails.filter((e) => e.unread).length
     const starred = emails.filter((e) => e.starred).length

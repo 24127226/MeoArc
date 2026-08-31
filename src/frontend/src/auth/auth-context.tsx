@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, duongDanApi } from '@/lib/api'
 
 export type User = {
   name: string
@@ -24,7 +24,10 @@ type AuthContextValue = {
 const STORAGE_KEY = 'meoarc-auth'
 
 // Có VITE_API_BASE_URL → dùng backend THẬT; không có → chạy mock như cũ.
-const USE_BACKEND = !!apiBaseUrl
+// KHÔNG dùng `!!apiBaseUrl`: ở chế độ gộp, đường dẫn đúng là chuỗi RỖNG (cùng
+// origin) mà vẫn phải gọi backend thật. Dựa vào chuỗi rỗng thì ứng dụng lặng lẽ
+// chuyển sang dữ liệu giả — chạy đẹp, không báo lỗi, và không ai nhận ra.
+const USE_BACKEND = apiBaseUrlDaCauHinh
 
 /** Tài khoản demo dùng cho ảnh SRS / demo. */
 const DEMO_USER: User = {
@@ -73,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogle = async () => {
     if (USE_BACKEND) {
       // Đăng nhập THẬT: điều hướng cả trang sang backend → backend đẩy sang Google.
-      window.location.href = `${apiBaseUrl}/auth/google/start`
+      window.location.href = duongDanApi('/auth/google/start')
       return new Promise<void>(() => {}) // trang sẽ rời đi, không cần resolve
     }
     // Mock: giả lập độ trễ redirect OAuth rồi gán tài khoản demo.
@@ -85,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithOutlook = async () => {
     if (USE_BACKEND) {
-      window.location.href = `${apiBaseUrl}/auth/outlook/start`  // backend đẩy sang Microsoft
+      window.location.href = duongDanApi('/auth/outlook/start')  // backend đẩy sang Microsoft
       return new Promise<void>(() => {})
     }
     setIsLoading(true)

@@ -17,7 +17,7 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import {
@@ -139,7 +139,7 @@ export function ComposeDialog() {
   const addFiles = async (list: FileList | null) => {
     if (!list) return
     const arr = Array.from(list)
-    if (apiBaseUrl) {
+    if (apiBaseUrlDaCauHinh) {
       for (const f of arr) {
         try {
           const r = await api.uploadFile(f)
@@ -214,7 +214,7 @@ export function ComposeDialog() {
     setBody(v)
     setGhost('')
     if (ghostTimer.current) window.clearTimeout(ghostTimer.current)
-    if (!apiBaseUrl || !subject.trim() || v.trim().length < 4) return
+    if (!apiBaseUrlDaCauHinh || !subject.trim() || v.trim().length < 4) return
     ghostTimer.current = window.setTimeout(() => {
       api.suggestCompose(subject, v).then((s) => setGhost(s.trim())).catch(() => setGhost(''))
     }, 900)
@@ -227,7 +227,7 @@ export function ComposeDialog() {
 
   // #1 — thoát compose mà CÒN nội dung → LƯU NHÁP (không chặn việc đóng). Bấm "Bỏ nháp" thì reset trước.
   const handleOpenChange = (o: boolean) => {
-    if (!o && step === 'compose' && (to.trim() || subject.trim() || body.trim()) && apiBaseUrl) {
+    if (!o && step === 'compose' && (to.trim() || subject.trim() || body.trim()) && apiBaseUrlDaCauHinh) {
       api
         .saveDraft({
           to: to.trim(), cc: splitAddrs(cc), bcc: splitAddrs(bcc), subject, body,
@@ -243,7 +243,7 @@ export function ComposeDialog() {
   // Bấm "Xác nhận gửi": chế độ backend thật → GỬI qua Gmail rồi mới sang bước 'sent';
   // chế độ mock → chỉ chuyển bước như demo cũ. Lỗi (vd token thiếu quyền) → hiện thông báo.
   const doSend = async () => {
-    if (!apiBaseUrl) {
+    if (!apiBaseUrlDaCauHinh) {
       setStep('sent')
       return
     }

@@ -38,6 +38,13 @@ class State(TypedDict):
     # Được set một lần trước khi vào graph loop, không thay đổi mid-run.
     skill_context: str
 
+    # Sở thích cá nhân đã kết tinh thành văn (user_preference_repo.prompt_context):
+    # tên xưng hô, giọng văn, chữ ký, dặn dò riêng. Cũng inject vào system prompt.
+    # Empty string khi người dùng chưa đặt gì — KHÔNG nhét khối rỗng vào prompt.
+    # Tách khỏi skill_context vì hai thứ có vòng đời khác nhau: skill đổi theo TỪNG
+    # yêu cầu, còn sở thích gắn với NGƯỜI và gần như không đổi giữa các lượt.
+    user_context: str
+
     # None  = không có action nào đang chờ confirm.
     # dict  = agent đã gọi request_confirmation, loop bị pause.
     #         Graph conditional edge đọc field này để route sang confirmation_node

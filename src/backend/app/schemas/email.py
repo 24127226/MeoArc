@@ -17,7 +17,18 @@ Category = Literal["moss", "sea", "sun", "cherry", "sky", "terra", "wine"]
 # PA1 §4.2.9 — hai trục tách rời, chỉ gán cho thư mang tính công việc.
 Priority = Literal["High", "Medium", "Low"]
 TaskStatus = Literal["Todo", "Waiting", "Done"]
-Folder = Literal["inbox", "sent", "drafts", "archive", "trash"]
+# `spam` TỪNG THIẾU ở đây, và đó là lý do bấm "Thư rác" ra thông báo "Không nạp được
+# thư từ máy chủ" thay vì danh sách thư.
+#
+# Lỗi ở chỗ khó thấy: tầng dịch vụ ánh xạ 'spam' → nhãn SPAM và LẤY VỀ ĐÚNG, chỉ tới
+# bước dựng đối tượng `Email` mới vỡ vì `folder='spam'` không nằm trong danh sách hợp
+# lệ. Nên triệu chứng là một lỗi mạng chung chung, còn nguyên nhân lại nằm ở kiểm tra
+# kiểu — hai chỗ chẳng liên quan gì tới nhau khi nhìn từ ngoài.
+#
+# Và nó CHỈ nổ khi hộp thư THẬT SỰ CÓ thư rác: hộp rỗng thì không đối tượng nào được
+# dựng, không lỗi nào được ném, và mọi phép thử đều xanh. Đúng bẫy đã làm tôi kết luận
+# nhầm là "tính năng chạy tốt, chỉ là hộp thư trống".
+Folder = Literal["inbox", "sent", "drafts", "archive", "trash", "spam"]
 
 
 class Attachment(BaseModel):
@@ -54,4 +65,8 @@ class Email(BaseModel):
     tldr: str | None = None                 # tóm tắt do AI; ban đầu có thể trống
     folder: Folder | None = None            # thiếu = coi như "inbox"
     threadId: str | None = None             # id LUỒNG Gmail (nhóm thư trả lời nhau) — agent cần
-                                            # để reply đúng thread; FE chưa dùng nên optional
+                                            # để reply đúng thread
+    threadCount: int = 1                    # SỐ THƯ trong luồng. Gmail gộp một cuộc trao đổi
+                                            # thành MỘT dòng; nếu trả về từng thư riêng thì một
+                                            # cuộc qua lại 5 lượt hiện thành 5 thẻ, khác hẳn
+                                            # Gmail và làm hộp thư trông đầy gấp mấy lần thật.

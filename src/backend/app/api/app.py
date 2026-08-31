@@ -28,10 +28,12 @@ from app.models.conversation import Conversation  # noqa: F401 — UC011: tạo 
 from app.models.audit import AuditLog  # noqa: F401 — tạo bảng audit_logs (accountability)
 from app.models.notification import Notification  # noqa: F401 — tạo bảng notifications
 from app.models.subscription import Subscription  # noqa: F401 — tạo bảng subscriptions (quota token)
+from app.models.dat_cho import DonDatCho  # noqa: F401 — Giai đoạn 3: bảng don_dat_cho (chống trùng)
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
 from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
-                      subscription_repo, email_store_repo, confirmation_repo)
+                      subscription_repo, email_store_repo, confirmation_repo,
+                      user_preference_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
 from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
@@ -46,6 +48,7 @@ from app.schemas.conversation import ConversationSummary, ConversationDetail, Up
 from app.core.deps import get_current_user, get_current_session, get_gmail_token, get_provider
 from app.services import gmail_service, mail, sync_service
 from app.api import auth as auth_routes
+from app.api import avatar as avatar_routes
 from fastapi import BackgroundTasks  # hàng đợi nhẹ (in-process) cho webhook/sync chạy nền
 
 # --- Nấc 6a: hành động Gmail (ghi) ---
@@ -162,10 +165,10 @@ async def observability_and_security(request: Request, call_next):
 # phép thì trình duyệt mới cho. Thiếu đoạn này → FE gọi sẽ lỗi CORS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite khi chạy `npm run dev`
-        "http://localhost:5180",  # cổng preview (nếu dùng)
-    ],
+    # Máy dev lấy mặc định localhost; khi triển khai thật thì khai thêm tên miền FE
+    # vào biến CORS_ORIGINS (xem app/core/config.py). Ghi cứng danh sách ở đây đồng
+    # nghĩa bản deploy không gọi được API nào.
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -435,6 +438,41 @@ async def root():
 
 # ── /emails — list theo thư mục + LỌC + TÌM + PHÂN TRANG (UC003/005) ──
 # `token = Depends(get_gmail_token)` → tự lấy access_token CÒN HẠN (làm mới nếu cần, Nấc 9).
+def _gom_theo_luong(items: list) -> list:
+    """Gộp các thư CÙNG MỘT LUỒNG thành một dòng, như Gmail vẫn làm.
+
+    Gmail hiển thị một cuộc trao đổi năm lượt thành MỘT dòng. MeoArc trước đây trả
+    về từng thư riêng, nên cùng cuộc đó hiện thành NĂM thẻ — hộp thư trông đầy gấp
+    mấy lần thật, và người dùng phải tự nhận ra "à, năm cái này là một chuyện".
+
+    Giữ thư MỚI NHẤT làm đại diện (danh sách từ Gmail đã sắp mới→cũ, nên thư đầu
+    tiên gặp trong mỗi luồng chính là thư mới nhất) và đếm số thư còn lại.
+
+    GIỚI HẠN ĐÃ BIẾT, nói thẳng: gom trong PHẠM VI MỘT TRANG. Một luồng có thư nằm
+    vắt qua hai trang thì vẫn xuất hiện ở cả hai. Muốn triệt để phải chuyển sang
+    Gmail threads.list — đổi cả đường phân trang, nên để lại chứ không làm nửa vời
+    ở đây. Trong thực tế thư cùng luồng gần nhau về thời gian nên hiếm khi bị tách.
+    """
+    ra: list = []
+    vi_tri: dict[str, int] = {}
+    for e in items:
+        tid = getattr(e, "threadId", None)
+        if not tid:
+            ra.append(e)
+            continue
+        if tid in vi_tri:
+            dai_dien = ra[vi_tri[tid]]
+            dai_dien.threadCount = (dai_dien.threadCount or 1) + 1
+            # Cả luồng chỉ cần MỘT thư chưa đọc là cả dòng phải hiện chưa đọc —
+            # đúng cách Gmail làm, và đúng cái người dùng cần biết.
+            if getattr(e, "unread", False):
+                dai_dien.unread = True
+            continue
+        vi_tri[tid] = len(ra)
+        ra.append(e)
+    return ra
+
+
 @app.get("/emails")
 def get_emails(
     folder: str = "inbox",
@@ -465,17 +503,38 @@ def get_emails(
     # STORE-OF-RECORD: bật cờ + DB đã có thư của user ⇒ phục vụ TỪ DB, KHÔNG gọi Gmail
     # (chống rate-limit — yêu cầu nhóm). DB còn "lạnh" (chưa sync) ⇒ lùi về live như cũ.
     if settings.mailbox_store_enabled and email_store_repo.has_any(db, session.user_id, provider):
+        # ── NÚT "LÀM MỚI" PHẢI THẬT SỰ LÀM MỚI ──
+        # Trước đây nhánh này BỎ QUA HẲN cờ `fresh`: bấm làm mới thì server vẫn trả
+        # đúng các dòng DB cũ, nên thư vừa tới không bao giờ xuất hiện — và vì dữ
+        # liệu không đổi nên lớp thông báo cũng chẳng có gì để báo. Đó là nguyên
+        # nhân gốc của "bấm refresh mà không thấy thông báo nào", nằm ở backend
+        # chứ không phải ở giao diện.
+        #
+        # Đồng bộ TĂNG DẦN chứ không tải lại cả hộp thư: Gmail history.list hỏi
+        # "có gì đổi kể từ mốc X" — không đổi gì thì đúng MỘT lượt gọi API, đổi
+        # thì chỉ lấy phần đổi. Rẻ hơn hẳn 31 lượt của một lần liệt kê lại.
+        #
+        # Lỗi đồng bộ KHÔNG được làm hỏng việc đọc thư: vẫn trả bản DB đang có.
+        # Thà hiện thư hơi cũ còn hơn hiện một màn lỗi.
+        if fresh:
+            try:
+                sync_service.incremental_sync(db, session.user_id, provider, token)
+            except Exception:
+                logger.info("Đồng bộ nhanh thất bại — vẫn phục vụ từ DB", exc_info=True)
+                db.rollback()
+
         items, next_cursor = email_store_repo.get_page(
             db, session.user_id, provider, folder=folder, q=q, unread=unread,
             starred=starred, attachment=attachment, limit=limit, cursor=cursor,
         )
-        return {"items": items, "nextCursor": next_cursor, "criteria": [], "source": "db"}
+        return {"items": _gom_theo_luong(items), "nextCursor": next_cursor,
+                "criteria": [], "source": "db"}
 
     items, next_cursor = mail.list_messages(
         provider, token, folder=folder, q=q, unread=unread, starred=starred,
         attachment=attachment, page_token=cursor, max_results=limit, bypass_cache=fresh,
     )
-    return {"items": items, "nextCursor": next_cursor, "criteria": []}
+    return {"items": _gom_theo_luong(items), "nextCursor": next_cursor, "criteria": []}
 
 
 # ── Nấc 5b: xem CHI TIẾT 1 thư (UC004) — thân thư đầy đủ + đính kèm ──
@@ -1174,6 +1233,64 @@ def _categorize_card(messages: list) -> dict | None:
     return None
 
 
+def _di_lai_card(messages: list) -> dict | None:
+    """Dựng thẻ 'dilai' cho FE từ kết quả tim_chuyen_bay / tim_khach_san CỦA LƯỢT NÀY.
+
+    ── VÌ SAO PHẢI CÓ THẺ, KHÔNG ĐỂ MÔ HÌNH KỂ LẠI ──
+    Trước đây kết quả tra cứu rơi vào nhánh mặc định `kind: "text"`, tức là mô hình đọc
+    dữ liệu tool rồi TỰ VIẾT LẠI thành đoạn văn. Đó đúng là thứ cả tính năng này sinh ra
+    để tránh: mô hình có thể chép sai số hiệu, làm rơi nhãn nguồn, hoặc thêm một con giá
+    không có trong dữ liệu — ngay trên phần cần chứng minh là THẬT.
+    Dựng tất định từ `data` thì thứ người dùng đọc CHÍNH LÀ thứ nhà cung cấp trả về.
+    Cùng lý do với `_categorize_card` và `_confirm_card`.
+
+    NHÃN NGUỒN lấy từ chính nhà cung cấp (không suy ra bằng cách so chuỗi ở đây), nên
+    thẻ trong chat và khung "Tra cứu đi lại" luôn nói cùng một điều.
+    """
+    import json
+    from app.services import dat_cho as _dc
+
+    TEN_TOOL = {"tim_chuyen_bay": "bay", "tim_khach_san": "phong"}
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    for m in reversed(messages[last_human:]):
+        if getattr(m, "type", None) != "tool":
+            continue
+        loai = TEN_TOOL.get(getattr(m, "name", "") or "")
+        if not loai:
+            continue
+        try:
+            data = json.loads(m.content)
+        except Exception:
+            return None
+        items = [it for it in (data.get("data") or []) if isinstance(it, dict)]
+        if not items:
+            # Không có kết quả thì ĐỪNG dựng thẻ rỗng — để mô hình nói bằng lời sẽ rõ
+            # hơn ("không có chuyến nào ngày đó"). Thẻ rỗng trông như giao diện hỏng.
+            return None
+
+        # Nguồn nào đang phục vụ: hỏi thẳng lớp nhà cung cấp. Riêng khách sạn có thể đã
+        # LUI VỀ mô phỏng dù nguồn bay là thật — nên tin `nguon` trong chính dữ liệu
+        # trước, chỉ dùng nhà cung cấp để lấy câu nhãn.
+        ncc = _dc.lay_nha_cung_cap()
+        nguon = items[0].get("nguon") or getattr(ncc, "ten", "mo_phong")
+        if nguon == getattr(ncc, "ten", None):
+            nhan, la_that = getattr(ncc, "nhan", ""), getattr(ncc, "la_that", False)
+        else:
+            nhan, la_that = _dc.NhaCungCapMoPhong.nhan, False
+
+        return {
+            "kind": "dilai",
+            "loai": loai,
+            "intro": (data.get("message") or "").strip() or None,
+            "title": (f"{len(items)} chuyến bay" if loai == "bay"
+                      else f"{len(items)} chỗ ở"),
+            "nguon": nguon, "la_that": la_that, "nhan": nhan,
+            "items": items,
+        }
+    return None
+
+
 def _confirm_card(messages: list) -> dict | None:
     """Human-in-the-loop (UC007/UC010): tool KHÔNG HOÀN TÁC bị tool_node CHẶN (payload
     needs_confirmation) → dựng thẻ CÓ NÚT DUYỆT cho FE: 'draft' (gửi/trả lời — nút
@@ -1241,6 +1358,41 @@ def _confirm_card(messages: list) -> dict | None:
                 card["_tool"] = "bulk_action"
                 card["_args"] = dict(args)
                 return card
+
+        if name == "dat_cho_mo_phong":
+            # THẺ DỰ ĐỊNH — dựng TẤT ĐỊNH từ args, không nhờ LLM viết lại. Đây là chỗ
+            # người dùng nhìn vào để quyết định tiêu tiền, nên nội dung thẻ phải CHÍNH
+            # LÀ thứ sẽ chạy; để mô hình diễn đạt lại thì thẻ và hành động có thể lệch
+            # nhau, và người dùng duyệt một thứ khác với thứ xảy ra.
+            tien = int(args.get("so_tien_vnd") or 0)
+            hoan = bool(args.get("hoan_duoc"))
+            la_bay = str(args.get("loai") or "") == "chuyen_bay"
+            return {
+                "kind": "dudinh",
+                "intro": "Mình đã tra và chọn sẵn. Đây là DỰ ĐỊNH — bạn duyệt thì mình mới làm.",
+                "title": args.get("mo_ta") or "Dự định đặt chỗ",
+                "buoc": [
+                    {
+                        "mo_ta": args.get("mo_ta") or "",
+                        # Nói hậu quả bằng lời người dùng hiểu, không bằng thuật ngữ.
+                        "hau_qua": ("huỷ/hoàn miễn phí" if hoan
+                                    else "không đổi, không hoàn"),
+                        # Cấp 3 = mất tiền thật. Đây đúng là chỗ thang rủi ro cấp 3
+                        # được dành sẵn cho — và là lần đầu nó được dùng.
+                        "mucRuiRo": 3 if not hoan else 2,
+                        "tien": tien,
+                    },
+                ],
+                # NÓI RÕ ĐÂY LÀ MÔ PHỎNG, ngay trên thẻ duyệt. Một xác nhận đặt chỗ
+                # trông như thật mà thực ra là giả là thứ nguy hiểm nhất ở đây: người
+                # dùng có thể ra sân bay với nó.
+                "cho_doan": ("ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán "
+                             f"{'vé' if la_bay else 'phòng'} nào. Không có khoản tiền nào "
+                             "được thanh toán, và bạn sẽ không nhận được "
+                             f"{'vé' if la_bay else 'xác nhận phòng'} thật."),
+                "_tool": "dat_cho_mo_phong", "_args": dict(args),
+            }
+
         return None  # tool destructive khác: chưa có thẻ riêng → giữ câu trả lời của agent
     return None
 
@@ -1277,15 +1429,11 @@ async def agent_chat(
                 "text": ("🐢 Bạn đang gửi hơi nhanh — mình xin nghỉ vài giây để tiết kiệm "
                          "lượt gọi AI. Chờ chút rồi gửi lại giúp mình nhé.")}
 
-    # NFR-Security: chặn prompt-injection NGAY (regex + scoring, không tốn LLM) trước khi vào graph.
-    from app.agent.guardrails.input_guardrail import check_input_ext, _REFUSAL, _WARNING_PREFIX
-    guardrail = check_input_ext(message)
-    if guardrail["action"] == "block":
-        return {"kind": "text", "text": _REFUSAL, "conversationId": incoming_id}
-    guardrail_warning = (
-        f"{_WARNING_PREFIX} ({guardrail.get('reason', 'unknown')}). "
-        f"Tuyệt đối tuân thủ quy tắc an toàn đã đặt ra.]"
-    ) if guardrail["action"] == "warn" else ""
+    # NFR-Security: chặn prompt-injection NGAY (regex, không tốn LLM) trước khi vào graph.
+    from app.agent.guardrails.input_guardrail import check_input
+    blocked = check_input(message)
+    if blocked:
+        return {"kind": "text", "text": blocked, "conversationId": incoming_id}
 
     # FALLBACK: chưa cấu hình khoá LLM → trả lời lịch sự, KHÔNG làm sập gì.
     # Nhờ vậy app vẫn chạy đầy đủ kể cả khi chưa cắm Gemini (mọi nút bấm khác vô tư).
@@ -1341,8 +1489,10 @@ async def agent_chat(
         init_state = {
             "messages": [*history, HumanMessage(content=message)],
             "request_ctx": ctx,
-            "skill_context": load_skills(message),
-            "guardrail_warning": guardrail_warning,
+            "skill_context": load_skills(message),  # nạp kỹ năng khớp ngữ cảnh
+            # Sở thích cá nhân: tên xưng hô, giọng văn, chữ ký, dặn dò riêng.
+            # Trả rỗng khi chưa đặt gì — repo tự nuốt lỗi nên không làm hỏng lượt chat.
+            "user_context": user_preference_repo.prompt_context(db, session.user_id),
             "pending_confirmation": None,
             "iteration_count": 0,
             "final_output": None,
@@ -1373,19 +1523,18 @@ async def agent_chat(
             last_text = coerce_text(last_ai.content).strip() if last_ai else ""
             out = {"kind": "text", "text": last_text or "Mình đã xử lý xong."}
 
-        # ── OUTPUT GUARDRAIL — format validation ──────────────────────────────
-        # Validate final_output đúng khuôn FE trước khi chạy card overrides.
-        # Chạy ở đây để chỉ validate output của responder_node (các card overrides
-        # như categorize/draft được dựng tất định từ tool data, không qua LLM).
-        from app.agent.guardrails.output_guardrail import validate_format
-        out = validate_format(out)
-
         # UC009: nếu lượt này có gọi categorize_emails → ÉP thành thẻ 'categorize' (widget FE cho
         # sửa nhãn từng thư rồi Áp dụng). Xây TẤT ĐỊNH từ dữ liệu tool (id + nhãn), KHÔNG nhờ LLM
         # → nhãn/ id luôn chuẩn. Đặt TRƯỚC phần đính emails để không lẫn 2 loại thẻ.
         cat_card = _categorize_card(result["messages"])
         if cat_card:
             out = cat_card
+
+        # Tra cứu đi lại: ÉP thành thẻ 'dilai' để chat hiện ĐÚNG bảng như khung "Tra cứu
+        # đi lại", thay vì để mô hình kể lại bằng lời. Xem chú thích ở _di_lai_card.
+        dl_card = _di_lai_card(result["messages"])
+        if dl_card:
+            out = dl_card
 
         # HUMAN-IN-THE-LOOP: lượt này có tool không-hoàn-tác bị CHẶN chờ duyệt →
         # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,
@@ -1441,7 +1590,35 @@ async def agent_chat(
         # PHÂN LOẠI để báo đúng bệnh thay vì ném stack-trace khó hiểu cho người dùng:
         text = str(exc)
         low = text.lower()
-        if "resource_exhausted" in low or "429" in text or "quota" in low:
+        if "user location is not supported" in low or "failed_precondition" in low:
+            # GOOGLE CHAN GEMINI API THEO VI TRI CUA MAY CHU GOI, khong phai vi tri
+            # trinh duyet. Da kiem chung: goi tu Viet Nam -> HTTP 200; nhung ban trien
+            # khai dang chay tren Azure "East Asia" = HONG KONG, va Google khong cho
+            # generativelanguage.googleapis.com phuc vu Hong Kong.
+            #
+            # => Chay may cuc bo thi agent hoat dong, ban deploy thi KHONG BAO GIO
+            #    hoat dong. Day la loai loi de tuong la "loi lac" vi no chi xuat hien
+            #    o mot moi truong.
+            #
+            # Ba duong sua, deu can thao tac NGOAI ma nguon:
+            #   1. (RE NHAT, KHUYEN DUNG) Dat AI_BASE_URL tro toi Cloudflare Worker
+            #      trong `infra/cf-gemini-proxy/`. Worker day loi goi qua mot Durable
+            #      Object ghim o Bac My nen loi goi DI RA tu My. Vung Azure giu nguyen
+            #      => URL dang nhap giu nguyen => KHONG phai khai bao lai OAuth redirect.
+            #      LUU Y: mot Worker THUONG (khong Durable Object) KHONG cuu duoc —
+            #      Worker chay o PoP gan nguoi goi nhat, tuc la van Hong Kong.
+            #   2. Tao lai App Service o vung Google co phuc vu (Japan East, Korea
+            #      Central, Southeast Asia). Vung cua App Service KHONG doi tai cho
+            #      duoc, phai tao moi roi tro lai deploy — va URL doi theo.
+            #   3. Doi sang Vertex AI (MODEL_PROVIDER=google_vertexai): Vertex CHAY
+            #      DUOC o Hong Kong vi no thuoc nhom san pham doanh nghiep, chinh sach
+            #      vung khac han. Doi lai phai co project GCP + bat thanh toan.
+            msg = ("🌏 Google không phục vụ Gemini API cho khu vực mà máy chủ này đang đặt "
+                   "(Azure East Asia = Hong Kong). Đây là hạn chế theo vị trí MÁY CHỦ, không "
+                   "phải lỗi tài khoản hay hết lượt — nên bản chạy máy cục bộ vẫn dùng agent "
+                   "bình thường. Cách sửa nhanh nhất: dựng proxy trong infra/cf-gemini-proxy "
+                   "rồi đặt AI_BASE_URL. Các thao tác bấm-nút (đọc/gắn nhãn/gửi) vẫn dùng được.")
+        elif "resource_exhausted" in low or "429" in text or "quota" in low:
             # Quota Gemini free hết (theo phút hoặc theo ngày). max_retries=6 đã tự thử lại các
             # lỗi chớp nhoáng; tới đây là hết lượt thật → khuyên người dùng cách xử lý.
             msg = ("🚦 Gemini đã hết lượt miễn phí (quota) lúc này. Chờ ít phút rồi thử lại, "
@@ -1609,6 +1786,13 @@ def dev_list_users(db: Session = Depends(get_db)):
 
 # ── Nấc 4b: gắn router đăng nhập + endpoint /me ──────────────────────
 app.include_router(auth_routes.router)  # thêm /auth/google/start, /callback, /auth/logout
+app.include_router(avatar_routes.router)  # /avatars/{ten_mien} — biểu tượng người gửi (có cache)
+
+# /tra-cuu/* — tra cứu chuyến bay & phòng, gọi THẲNG không qua mô hình. Tách khỏi
+# đường agent để phần trình bày không phụ thuộc hạn mức Gemini (20 lượt/ngày cho mỗi
+# model) — một buổi bảo vệ chết vì hết lượt thì không cứu được tại chỗ.
+from app.api import dat_cho_routes  # noqa: E402
+app.include_router(dat_cho_routes.router)
 
 
 @app.get("/me", response_model=UserOut)
@@ -1616,6 +1800,65 @@ def me(current_user: User = Depends(get_current_user)):
     """Trả thông tin user của phiên hiện tại.
     `Depends(get_current_user)` = "cửa có bảo vệ": chưa đăng nhập → tự động 401."""
     return current_user
+
+
+# ── Sở thích cá nhân (PA2 §1.5.2) — thứ làm trợ lý viết ra GIỌNG CỦA NGƯỜI NÀY ──
+from pydantic import BaseModel, Field                    # noqa: E402
+from app.models.user_preference import TONES             # noqa: E402
+
+
+class PreferenceBody(BaseModel):
+    """Thân yêu cầu cập nhật. Mọi trường đều tuỳ chọn — client gửi cái nào sửa cái đó,
+    không phải gửi lại toàn bộ. Trần độ dài đặt ở đây vì nội dung này đi thẳng vào
+    system prompt: không giới hạn thì một chữ ký dài vài nghìn từ sẽ đẩy prompt phình
+    ra mỗi lượt chat, vừa tốn hạn ngạch vừa làm loãng phần chỉ dẫn quan trọng."""
+    language: str | None = Field(None, max_length=8)
+    display_name: str | None = Field(None, max_length=80)
+    theme: str | None = Field(None, max_length=16)
+    tone_preference: str | None = None
+    signature_note: str | None = Field(None, max_length=500)
+    custom_instruction: str | None = Field(None, max_length=1000)
+
+
+def _pref_out(pref) -> dict:
+    return {
+        "language": pref.language,
+        "displayName": pref.display_name,
+        "theme": pref.theme,
+        "tonePreference": pref.tone_preference,
+        "signatureNote": pref.signature_note,
+        "customInstruction": pref.custom_instruction,
+        # Trả kèm bản kết tinh để giao diện cho người dùng XEM TRƯỚC đúng thứ mà trợ lý
+        # sẽ đọc. Không có nó thì người dùng gõ vào một ô rồi đoán xem có tác dụng gì.
+        "promptPreview": pref.to_prompt_context(),
+        "availableTones": TONES,
+    }
+
+
+@app.get("/me/preferences")
+def get_preferences(session: AuthSession = Depends(get_current_session),
+                    db: Session = Depends(get_db)):
+    return _pref_out(user_preference_repo.get_or_create(db, session.user_id))
+
+
+@app.patch("/me/preferences")
+def update_preferences(body: PreferenceBody,
+                       session: AuthSession = Depends(get_current_session),
+                       db: Session = Depends(get_db)):
+    if body.tone_preference is not None and body.tone_preference not in TONES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Giọng văn không hợp lệ. Chọn một trong: {', '.join(TONES)}")
+
+    # exclude_unset: chỉ lấy trường client THẬT SỰ gửi. Thiếu nó thì mọi trường không
+    # gửi sẽ về None và xoá sạch thiết lập cũ của người dùng — mất dữ liệu âm thầm.
+    pref, da_doi = user_preference_repo.update(
+        db, session.user_id, body.model_dump(exclude_unset=True))
+
+    if da_doi:
+        audit_repo.log(db, user_id=session.user_id, action="update_preferences",
+                       actor_type="user", details={"fields": da_doi})
+    return _pref_out(pref)
 
 
 # ── Gửi tệp đính kèm: nhận FILE upload từ frontend (multipart/form-data) ──
@@ -1634,3 +1877,15 @@ async def upload_file(
                             detail=f"Tệp vượt quá {settings.upload_max_mb}MB cho phép.")
     # Cất vào kho tạm; trả {id, name, size} để FE GIỮ `id` rồi gửi kèm khi soạn xong.
     return upload_store.save(file.filename or "tep", content, file.content_type)
+
+
+# ── Gộp frontend (tuỳ chọn) — PHẢI đặt CUỐI FILE ────────────────────────────
+# Starlette duyệt route theo đúng thứ tự đăng ký, nên bộ bắt-tất-cả của SPA phải
+# nằm sau mọi route API. Đặt nhầm lên trên là API bị nuốt sạch.
+#
+# Không có thư mục build thì hàm này lặng lẽ bỏ qua — backend chạy y như trước.
+# Nhờ vậy Vercel vẫn là đường chính (đúng sơ đồ PA2 §1.1), còn đây là đường dự
+# phòng khi cần một URL duy nhất.
+from app.api.spa import gan_frontend  # noqa: E402
+
+gan_frontend(app, settings.frontend_dist or None)

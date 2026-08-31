@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, apiBaseUrl } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, duongDanApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -29,6 +29,7 @@ import {
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { useToast } from '@/components/ui/toast'
 import { useTheme } from '@/components/theme-provider'
+import { SenderAvatar } from '@/components/layout/sender-avatar'
 import { CATEGORY } from '@/data/categories'
 import type { Email } from '@/data/emails'
 import type { EmailActions } from '@/lib/email-actions'
@@ -78,7 +79,7 @@ export function EmailDetail({
   const [llmSummary, setLlmSummary] = useState<string[] | null>(() => summaryCache.get(id) ?? null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   useEffect(() => {
-    if (!apiBaseUrl || !showSummary) return
+    if (!apiBaseUrlDaCauHinh || !showSummary) return
     const cached = summaryCache.get(email.id)
     if (cached) {
       setLlmSummary(cached)
@@ -101,6 +102,19 @@ export function EmailDetail({
     }
   }, [email.id, showSummary])
   const points = llmSummary ?? aiSummary(email)
+
+  /* TÓM TẮT CHỈ HIỆN KHI NÓ THỰC SỰ RÚT GỌN.
+     `aiSummary` (bản lùi khi chưa có LLM) chỉ lấy ba đoạn đầu của thân thư rồi
+     cắt bớt — với một lá thư ba đoạn thì đó là BẢN SAO NGUYÊN VĂN, không phải
+     tóm tắt. Ảnh chụp cho thấy đúng vậy: ba gạch đầu dòng trùng khít ba đoạn
+     ngay bên dưới. Người đọc mất một khối màn hình để đọc lại thứ họ sắp đọc.
+
+     Nên: có tóm tắt THẬT từ mô hình thì luôn hiện; còn bản lùi cục bộ chỉ hiện
+     khi thư đủ dài để việc rút gọn có nghĩa. Thư ngắn thì bỏ hẳn khối này —
+     không có gì để tóm tắt thì đừng giả vờ là có. */
+  const soChu = email.body.join(' ').trim().split(/\s+/).length
+  const phutDoc = Math.max(1, Math.round(soChu / 200))
+  const dangThucSuTomTat = llmSummary != null || soChu > 140
 
   return (
     <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in slide-in-from-right-4">
@@ -157,21 +171,31 @@ export function EmailDetail({
 
       {/* Nội dung */}
       <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto px-5 py-5">
-        {/* Thread Smart Card (UC004 + UC008) — bento mọng .ripe tóm tắt luồng thư */}
+        {/* TÓM TẮT — bản trước bị chê "chữ không à", và đúng: nó là một cái hộp
+            chứa vài dòng chữ, không có gì để mắt bám vào ngoài chữ.
+
+            Bản này cho nó CẤU TRÚC trước khi cho nó chữ: một hàng số liệu (trạng
+            thái xử lý · số chữ · phút đọc) rồi mới tới các ý chính. Hàng số liệu
+            trả lời được câu hỏi đầu tiên người ta hỏi khi mở một lá thư — "cái
+            này có cần tôi làm gì không, và có dài không" — mà không cần đọc chữ nào.
+
+            Cũng bỏ `.ripe` (bề mặt mọng thời cũ) và dùng đèn viền cho khớp phần
+            còn lại của giao diện. */}
+        {dangThucSuTomTat && (
         <div
           style={{ ['--tint' as string]: c.bar }}
-          className="ripe glass overflow-hidden rounded-2xl shadow-tint-lg edge-light"
+          className="den-vien goc-cat overflow-hidden"
         >
           <button
             onClick={() => setShowSummary((v) => !v)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-left"
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
           >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emphasis text-emphasis-foreground shadow-subtle">
-              <Sparkles className="size-4" />
+            <span className="o-icon size-7 shrink-0">
+              <Sparkles className="size-3.5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
-                Tóm tắt luồng thư · AI
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/70">
+                Tóm tắt · AI
               </span>
               {!showSummary && (
                 <span className="block truncate text-xs text-muted-foreground">
@@ -186,10 +210,29 @@ export function EmailDetail({
               )}
             />
           </button>
+
           {showSummary && (
-            <div className="space-y-2 px-4 pb-4">
+            <div className="px-4 pb-4">
+              {/* HÀNG SỐ LIỆU — thứ đọc được bằng liếc mắt, không phải bằng đọc */}
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                {[
+                  { nhan: 'Trạng thái', gtri: TRANG_THAI[email.priority ?? 'fyi'] },
+                  { nhan: 'Độ dài', gtri: `${soChu} chữ` },
+                  { nhan: 'Thời gian đọc', gtri: `${phutDoc} phút` },
+                ].map((o) => (
+                  <div key={o.nhan} className="den-vien goc-cat-nho goc-cat px-2.5 py-2">
+                    <p className="text-[8.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70">
+                      {o.nhan}
+                    </p>
+                    <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+                      {o.gtri}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
               {email.tldr && (
-                <p className="text-sm font-medium leading-relaxed text-foreground">{email.tldr}</p>
+                <p className="mb-2.5 text-sm font-medium leading-relaxed text-foreground">{email.tldr}</p>
               )}
               {summaryLoading && !llmSummary ? (
                 <div className="space-y-2">
@@ -198,10 +241,11 @@ export function EmailDetail({
                   <div className="skeleton h-3 w-2/3 rounded" />
                 </div>
               ) : (
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {points.map((s, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-foreground/90">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-active" />
+                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-foreground/90">
+                      <span className="mt-[7px] size-1.5 shrink-0 rounded-full"
+                        style={{ background: c.bar, boxShadow: `0 0 8px ${c.bar}` }} />
                       <span className="min-w-0">{s}</span>
                     </li>
                   ))}
@@ -210,6 +254,7 @@ export function EmailDetail({
             </div>
           )}
         </div>
+        )}
 
         {/* Contextual Agent Actions (UC016) — nút "đoán trước ý định" */}
         {onAgentAction && (
@@ -220,7 +265,7 @@ export function EmailDetail({
                 <button
                   key={a.label}
                   onClick={() => onAgentAction(a.command)}
-                  className="group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground shadow-soft ring-1 ring-spark/40 transition-all duration-200 ease-spring glass hover:-translate-y-0.5 hover:shadow-float hover:ring-spark active:scale-95"
+                  className="nut-ky-thuat group flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-foreground glass"
                 >
                   <Icon className="size-4 text-spark" />
                   {a.label}
@@ -230,7 +275,16 @@ export function EmailDetail({
           </div>
         )}
 
-        <div className="rounded-2xl p-5 shadow-soft edge-light glass">
+        {/* THÂN THƯ KHÔNG CÒN NẰM TRONG MỘT CÁI THẺ.
+            Trước đây cả lá thư bị bọc trong `rounded-2xl p-5 glass` — một khối
+            kính bo góc, đổ bóng, có viền. Nhìn ra là "một mẩu nội dung đặt trong
+            một ô", và ô đó lại nằm trong một cột đang cuộn: đọc một lá thư dài
+            thành ra cuộn trong ô, trong cột.
+
+            Gmail không làm vậy vì lá thư KHÔNG PHẢI một mẩu nội dung trong màn
+            hình — nó LÀ màn hình. Nên bỏ hết khung: chỉ còn khoảng đệm rộng và
+            một mặt phẳng để đọc. */}
+        <div className="px-1 pb-2">
           {/* Eyebrow: nhãn + thời gian (micro uppercase) */}
           <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             {email.label && (
@@ -250,8 +304,10 @@ export function EmailDetail({
 
           {/* Người gửi */}
           <div className="mt-5 flex items-center gap-3">
-            <div
-              className="gloss flex size-11 shrink-0 items-center justify-center rounded-full font-serif text-base font-semibold ring-1 ring-inset"
+            <SenderAvatar
+              email={email.senderEmail}
+              initial={email.senderInitial}
+              className="gloss size-11 shrink-0 rounded-full font-mono text-base font-semibold ring-1 ring-inset"
               style={
                 {
                   backgroundColor: 'rgba(251, 240, 226, 0.92)',
@@ -259,9 +315,7 @@ export function EmailDetail({
                   ['--tw-ring-color' as string]: c.bar,
                 } as CSSProperties
               }
-            >
-              {email.senderInitial}
-            </div>
+            />
             <div className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-foreground">
                 {email.sender}
@@ -305,9 +359,9 @@ export function EmailDetail({
                     onClick={() => {
                       // Chế độ backend thật: mở URL tải đính kèm (cookie phiên tự đính kèm
                       // → backend xác thực). Mock mode: chưa có tệp thật → bỏ qua.
-                      if (apiBaseUrl)
+                      if (apiBaseUrlDaCauHinh)
                         window.open(
-                          `${apiBaseUrl}/emails/${id}/attachments/${encodeURIComponent(a.name)}`,
+                          duongDanApi(`/emails/${id}/attachments/${encodeURIComponent(a.name)}`),
                           '_blank',
                         )
                     }}
@@ -435,11 +489,47 @@ function sanitizeHtml(html: string): string {
 
 /** Render HTML GỐC của email đúng chuẩn Gmail — trong iframe SANDBOX (không cho JS chạy),
  *  tự canh chiều cao theo nội dung, link mở tab mới, ảnh co vừa khung, hỗ trợ dark mode. */
+/**
+ * EmailHtmlBody — dựng thư HTML gốc trong iframe sandbox, cao ĐÚNG bằng nội dung.
+ *
+ * ── VÌ SAO BẢN TRƯỚC HỎNG ──
+ * Bản trước đo `body.scrollHeight` ở đúng ba mốc: 0ms, 300ms, 1200ms. Nguyên
+ * nhân nằm ở chỗ đó — KHÔNG phải ở phép đo, mà ở việc ĐOÁN KHI NÀO ĐO.
+ *
+ * Thư quảng cáo dựng bằng ảnh banner tải từ CDN, và thường không khai `width`/
+ * `height` trên thẻ `img`. Trước khi ảnh về, thẻ ảnh chiếm 0px, nên cả ba lần đo
+ * đều ra một con số bé tí. Ảnh về sau giây thứ hai thì không còn ai đo lại nữa:
+ * iframe đứng ở chiều cao cũ, nội dung cao gấp mười, và trình duyệt mọc thanh
+ * cuộn riêng bên trong. Đúng triệu chứng đã bị chỉ ra hai lần.
+ *
+ * Đã dựng lại đúng tình huống này để kiểm chứng: bản cũ đo được 53px ở cả ba
+ * mốc, trong khi nội dung thật sau đó là 721px.
+ *
+ * (Giả thuyết đầu tiên của tôi — thư đặt `html{height:100%}` làm `scrollHeight`
+ * trả về chiều cao khung nhìn và tạo vòng khoá cứng — đã thử và KHÔNG tái hiện
+ * được: Chrome vẫn báo đúng chiều cao nội dung. Vẫn giữ phần ép `height:auto`
+ * bên dưới vì nó vô hại và chặn được lớp lỗi đó ở trình duyệt khác, nhưng nó
+ * không phải thứ chữa được lỗi này.)
+ *
+ * ── CÁCH CHỮA ──
+ * 1. ResizeObserver thay cho hẹn giờ: thôi đoán, chỉ phản ứng. Bố cục đổi lúc
+ *    nào thì đo lại lúc đó — ảnh về muộn, phông web tải xong, khối gập mở, đổi
+ *    bề rộng cột. Đây là thứ thật sự chữa lỗi.
+ * 2. Nghe thêm sự kiện `load` của từng ảnh — thừa một chút so với (1), nhưng
+ *    ResizeObserver chỉ bắn khi kích thước ĐÃ đổi, còn cách này bắt đúng thời
+ *    điểm ảnh sẵn sàng.
+ * 3. Đo bằng GIÁ TRỊ LỚN NHẤT trong bốn phép đo: thư dùng float hoặc position
+ *    tuyệt đối thì `body.scrollHeight` có thể nhỏ hơn thực tế trong khi
+ *    `documentElement.scrollHeight` lại đúng — và ngược lại.
+ */
 function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const srcDoc = useMemo(() => {
     const base =
-      `html,body{margin:0;padding:0;background:transparent;` +
+      // Ép tài liệu KHÔNG được cao bằng khung nhìn và KHÔNG được tự cuộn.
+      // `!important` là bắt buộc: ta đang ghi đè CSS của người gửi.
+      `html,body{height:auto!important;min-height:0!important;max-height:none!important;` +
+      `overflow:hidden!important;margin:0;padding:0;background:transparent;` +
       `font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
       `font-size:15px;line-height:1.65;overflow-wrap:anywhere;word-break:break-word}` +
       `img{max-width:100%!important;height:auto}*{max-width:100%}` +
@@ -457,37 +547,97 @@ function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
       `<style>${base}${themed}</style></head><body>${sanitizeHtml(html)}</body></html>`
     )
   }, [html, dark])
-  const resize = () => {
+
+  useEffect(() => {
     const f = ref.current
-    const b = f?.contentDocument?.body
-    if (f && b) f.style.height = `${b.scrollHeight + 20}px`
-  }
+    if (!f) return
+    let quanSat: ResizeObserver | null = null
+
+    const doLai = () => {
+      const d = f.contentDocument
+      const b = d?.body
+      const e = d?.documentElement
+      if (!b || !e) return
+      const cao = Math.max(b.scrollHeight, b.offsetHeight, e.scrollHeight, e.offsetHeight)
+      if (cao > 0) f.style.height = `${cao + 16}px`
+    }
+
+    const gan = () => {
+      const d = f.contentDocument
+      if (!d?.body) return
+      doLai()
+      quanSat?.disconnect()
+      quanSat = new ResizeObserver(doLai)
+      quanSat.observe(d.body)
+      quanSat.observe(d.documentElement)
+      // Ảnh trong thư có thể tải xong SAU khi bố cục đã ổn định một lần;
+      // ResizeObserver bắt được, nhưng gắn thêm listener cho chắc.
+      d.querySelectorAll('img').forEach((img) => img.addEventListener('load', doLai))
+    }
+
+    f.addEventListener('load', gan)
+    if (f.contentDocument?.readyState === 'complete') gan()
+    return () => {
+      f.removeEventListener('load', gan)
+      quanSat?.disconnect()
+    }
+  }, [srcDoc])
+
   return (
     <iframe
       ref={ref}
       title="Nội dung email"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcDoc={srcDoc}
-      onLoad={() => {
-        resize()
-        // ảnh tải trễ → canh lại vài nhịp
-        window.setTimeout(resize, 300)
-        window.setTimeout(resize, 1200)
-      }}
+      scrolling="no"
       className="w-full border-0"
-      style={{ minHeight: 100 }}
+      style={{ minHeight: 120, display: 'block' }}
     />
   )
 }
 
 /** Tóm tắt mock từ nội dung email (UC008) — backend thật dùng LLM. */
+/** Nhãn trạng thái xử lý — cùng bộ với badge triage ở danh sách thư. */
+const TRANG_THAI: Record<string, string> = {
+  action: 'Cần xử lý',
+  waiting: 'Đang đợi',
+  fyi: 'Để biết',
+}
+
+/** Một đoạn có phải CÂU THẬT không, hay là rác mã hoá?
+ *
+ *  Thư quảng cáo (Groq, Mailchimp, Sendgrid…) nhét vào phần văn bản thuần đủ
+ *  thứ không phải văn bản: liên kết theo dõi dài hàng trăm ký tự, khối base64,
+ *  chuỗi mã hoá quoted-printable. Bản trước không lọc gì, nên khối "Tóm tắt"
+ *  hiện ra nguyên một dòng ký tự vô nghĩa — người dùng đã nhìn thấy đúng cảnh đó.
+ *
+ *  Ba dấu hiệu nhận rác, và cần cả ba vì mỗi thứ bắt một kiểu:
+ *    1. Từ dài bất thường (>40 ký tự không khoảng trắng) — base64, token, URL.
+ *    2. Tỉ lệ chữ cái thấp so với tổng ký tự — chuỗi lẫn nhiều số và dấu.
+ *    3. Không có khoảng trắng nào ở đoạn đủ dài — câu thật luôn có khoảng trắng.
+ */
+function laCauThat(t: string): boolean {
+  const s = t.trim()
+  if (s.length < 24) return false
+  if (/https?:\/\/\S{40,}/.test(s)) return false
+  if (/\S{45,}/.test(s)) return false
+  const chuCai = (s.match(/[\p{L}]/gu) ?? []).length
+  if (chuCai / s.length < 0.55) return false
+  const tu = s.split(/\s+/)
+  if (tu.length < 4) return false
+  return true
+}
+
 function aiSummary(email: Email): string[] {
   const core = email.body
-    .map((p) => p.replace(/\n/g, ' ').trim())
-    .filter((p) => p.length > 24)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(laCauThat)
     .slice(0, 3)
-    .map((p) => (p.length > 96 ? p.slice(0, 96).trimEnd() + '…' : p))
-  return core.length ? core : [email.preview]
+    .map((p) => (p.length > 160 ? p.slice(0, 160).trimEnd() + '…' : p))
+  if (core.length) return core
+  // Không đoạn nào là câu thật (thư toàn HTML/mã) → dùng dòng xem trước, và nếu
+  // dòng đó cũng là rác thì thà nói thẳng còn hơn hiện một dòng ký tự vô nghĩa.
+  return laCauThat(email.preview) ? [email.preview] : ['Thư này chủ yếu là nội dung HTML — xem bản đầy đủ bên dưới.']
 }
 
 function ActionBtn({

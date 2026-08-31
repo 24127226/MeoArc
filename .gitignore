@@ -139,10 +139,15 @@ out/
 **/.pytest_cache/
 **/meoarc.db
 
+# Frontend build — sinh ra bằng `npm run build` / `npm run build:gop`, không commit
+src/frontend/dist/
+# Frontend duoc chep vao day luc trien khai — sinh ra tu build, khong commit
+src/backend/static/
 
-.opencode/
-opencode.json
-skills-lock.json
-AGENTS.md
-.agent/
-docs/superpowers/
+# Tệp nguồn video/ảnh chưa nén — KHÔNG đưa vào repo.
+# Bản gốc glass-flower là 30.9 MB (2888x2160, 19.9 Mbit/s, có cả tiếng); bản đã
+# chuyển mã cho web là 1.28 MB. Đưa bản gốc vào git thì clone nào cũng phải kéo
+# về 30 MB không bao giờ được phục vụ tới trình duyệt.
+src/frontend/public/**/*.zip
+src/frontend/public/**/*-goc.*
+src/frontend/public/**/*-raw.*

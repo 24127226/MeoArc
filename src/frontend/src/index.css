@@ -24,63 +24,73 @@
 :root {
   --radius: 1rem;
 
-  /* === LIGHT — "Twilight Sky" ===
-     KHÔNG dùng trắng. Nền lấy đúng dải trời hoàng hôn ở khung hình đầu trang giới
-     thiệu: xanh lam pha tím, sáng dần lên phía chân trời. Sáng hơn hẳn theme tối
-     nhưng vẫn giữ nguyên sắc tím–lam, nên hai theme là một gia đình màu. */
-  --background: #C6CBF4; /* khung trang — trời lam tím */
-  --list: #DCE0FB; /* dải Hộp thư — trời sáng hơn về chân trời */
-  --surface: #D5DAF9;
-  --elevated: #E9ECFE; /* chip/card nổi — tầng mây sáng nhất */
-  --panel: #CFD4F7; /* panel AI */
-  --rail: #B2B8EF; /* nav — dải trời sẫm nhất */
+  /* ══ LIGHT — bảng Attitude ══════════════════════════════════════════════
+     #FCCBF0 hồng phấn · #FF5A57 san hô · #E02F75 hồng sen
+     #6700A3 tím thẫm · #1B2062 chàm · #050C38 mực đêm
 
-  /* Chữ = mực tím đêm (đỉnh trời trong ảnh) */
-  --foreground: #171142;
+     NGUYÊN TẮC PHÂN VAI (đúng như đã dặn): MẢNG LỚN dùng màu SÁNG, CHI TIẾT NHỎ
+     dùng màu ĐẬM. Đây không chỉ là sở thích — nó là cách duy nhất để một bảng
+     màu bão hoà mạnh như thế này còn dùng được. Bê #6700A3 hay #E02F75 lên làm
+     nền cả trang thì mắt mỏi sau hai phút và mọi chữ đặt lên đều phải là trắng;
+     để chúng ở chỗ nhỏ — chữ, viền, chấm trạng thái, nhãn — thì chính độ bão hoà
+     ấy thành sức mạnh: mỗi chi tiết bé xíu vẫn đọc được từ xa.
+
+     KHÔNG CÓ MÀU TRẮNG BỆT ở đâu cả. Mặt sáng nhất là #FFF2FB — vẫn ngả hồng,
+     vẫn thuộc bảng, chỉ là chặng nhạt nhất của nó. */
+  --background: #FBD3EE; /* khung trang — hồng phấn, mảng lớn nhất nên nhạt nhất */
+  --list: #FDE4F5;       /* dải Hộp thư — nhạt hơn nền để thẻ thư nổi lên trên */
+  --surface: #FCDCF2;
+  --elevated: #FFF2FB;   /* thẻ/chip nổi — mặt sáng nhất, vẫn ngả hồng */
+  --panel: #FAD0EC;      /* panel trợ lý */
+  --rail: #F6BFE4;       /* nav — hồng đậm nhất, để cột này lùi ra sau */
+
+  /* Chữ = mực đêm #050C38. Đây là "chi tiết nhỏ dùng màu đậm" ở dạng thuần tuý
+     nhất, và cũng cho tương phản cao nhất trên nền hồng phấn. */
+  --foreground: #050C38;
   --card: var(--elevated);
-  --card-foreground: #171142;
-  --popover: #E9ECFE;
-  --popover-foreground: #171142;
+  --card-foreground: #050C38;
+  --popover: #FFF2FB;
+  --popover-foreground: #050C38;
 
   /* CTA — tím điện */
-  --primary: #4B23D9;
+  --primary: #6700A3; /* tím thẫm — hành động chính */
   --primary-foreground: #FFFFFF;
 
   /* Nền phụ / hover */
-  --secondary: #B9BFF2;
-  --secondary-foreground: #171142;
-  --muted: #B9BFF2;
-  --muted-foreground: #453D7C; /* tím trầm cho text phụ */
+  --secondary: #F7C6E8;
+  --secondary-foreground: #050C38;
+  --muted: #F7C6E8;
+  --muted-foreground: #1B2062; /* chàm — chữ phụ, vẫn thuộc nhóm màu đậm */
 
   /* Teal — accent/viền/nhãn (vệt sáng trong ảnh, ghì đậm để đọc được) */
-  --accent: #BEEBE8;
-  --accent-foreground: #08514B;
-  --emphasis: #201856;
+  --accent: #FF5A57; /* san hô — nhấn */
+  --accent-foreground: #FFF2FB;
+  --emphasis: #1B2062;
   --emphasis-foreground: #FFFFFF;
-  --success: #096158;
+  --success: #6700A3;
   --success-foreground: #FFFFFF;
 
   /* Violet — icon active, trạng thái đang chọn */
-  --active: #4B23D9;
+  --active: #6700A3;
   --active-foreground: #FFFFFF;
 
   /* Teal đậm — chấm chưa đọc + badge */
-  --spark: #096158;
-  --gold: #B36A08; /* Toxic Amber ghì đậm cho nền sáng */
+  --spark: #E02F75; /* hồng sen — trạng thái, chưa đọc */
+  --gold: #FF5A57;
   --star: transparent;
 
   /* Magenta ghì đậm — destructive */
-  --destructive: #B31260;
+  --destructive: #E02F75;
   --destructive-foreground: #FFFFFF;
 
   /* Viền hairline + focus ring */
-  --border: #A9B0EA;
-  --input: #A9B0EA;
-  --ring: #4B23D9;
+  --border: #EDA9D6;
+  --input: #EDA9D6;
+  --ring: #6700A3;
 
   /* Glass — mây sáng ánh lam, không phải trắng đục */
-  --glass-bg: rgba(233, 236, 254, 0.66);
-  --glass-border: rgba(23, 17, 66, 0.12);
+  --glass-bg: rgba(255, 242, 251, 0.66);
+  --glass-border: rgba(5, 12, 56, 0.12);
 
   /* NEBULA — dải màu "loang" cho khối kính chat (.rose-glass).
      Giữ nguyên tên biến để không phải sửa component; đổi tông sang tím–lam thiên hà. */
@@ -95,8 +105,8 @@
   --rose-marble-op: 0.22;    /* nền sáng nên vệt loang phải nhẹ */
 
   /* Khung cột thư. LIGHT: trời lam tím + chữ mực tím (đọc rõ). */
-  --sc-base: #AFB6EE;
-  --sc-ink: #1B1450;
+  --sc-base: #F6BFE4;
+  --sc-ink: #050C38;
 
   /* Bóng tím lam — nền trời cần bóng có sắc, không xám đục */
   --shadow-sm: 0 1px 2px rgba(23, 17, 66, 0.1), 0 1px 3px rgba(23, 17, 66, 0.08);
@@ -111,12 +121,18 @@
      Rút từ khung hình đầu trang giới thiệu: nền là TÍM ĐÊM (không phải đen thuần —
      đúng như đỉnh trời trong ảnh), vệt sáng cyan #87F5F5 làm trạng thái, tím
      #977DFF làm hành động, hồng chân trời #FF6FB5 làm cảnh báo, amber làm nhấn. */
-  --background: #0A0718; /* nền trang — tím đêm */
-  --list: #120C2C; /* dải Hộp thư — tím đậm, sáng hơn nền 1 bậc */
-  --surface: #120C2C;
-  --elevated: #1D1444; /* card nổi */
-  --panel: #0D0920; /* nền panel AI */
-  --rail: #05030F; /* nav — tầng tối nhất */
+  /* NỀN HẠ SÂU cho neon (2026-08).
+     Bản trước là tím đêm #0A0718 — đủ tối để đọc, nhưng KHÔNG đủ tối để phát sáng.
+     Neon là hiện tượng tương phản: một nguồn sáng bão hoà trên nền gần như đen.
+     Nền càng ngả tím thì ánh sáng cyan/magenta càng bị hoà vào nền, và kết quả là
+     "nhiều màu" chứ không phải "phát sáng".
+     Giữ nguyên toàn bộ màu nhấn bên dưới — chúng đã đúng; chỉ hạ nền để chúng nổi. */
+  --background: #05060D; /* nền trang — gần đen, ngả lam rất nhẹ */
+  --list: #0A0B16; /* dải Hộp thư — sáng hơn nền đúng 1 bậc */
+  --surface: #0A0B16;
+  --elevated: #121423; /* card nổi */
+  --panel: #07080F; /* nền panel AI — tối hơn danh sách để chat lùi về sau */
+  --rail: #030409; /* nav — tầng tối nhất */
 
   /* Chữ ngọc trai (Holographic Pearl) trên nền tím đêm */
   --foreground: #F5F7FF;
@@ -187,10 +203,10 @@
    ============================================================ */
 @theme inline {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --font-serif: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   /* Display "maison" — chữ khắc thời trang cao cấp: watermark, masthead, số liệu lớn.
      Cormorant Garamond (thanh mảnh, tương phản cao) = chất Vogue/old-money. */
-  --font-display: 'Cormorant Garamond', 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   /* Bộ chữ công nghệ — DÙNG RIÊNG cho trang giới thiệu & đăng nhập, không đụng app.
      tech  = tiêu đề/nhãn (Space Grotesk: hình học, sắc, hiện đại)
      techMono = số liệu, mã, chỉ số (JetBrains Mono: chữ số đều li) */
@@ -410,12 +426,28 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
+    /* GRADIENT 1 của bảng: #FCCBF0 → #FF5A57. Đây là mảng lớn nhất của cả giao
+       diện nên phải lấy hai màu SÁNG nhất bảng — đúng nguyên tắc phân vai. San hô
+       #FF5A57 đã pha loãng và dồn xuống đáy: nguyên bản nó đủ đậm để chữ mực đêm
+       đặt lên bắt đầu khó đọc.
+       `fixed` để khi cuộn thì dải màu đứng yên, nội dung trôi trên nó — cuộn mà
+       nền chạy theo thì mắt đọc ra là "ảnh nền", không đọc ra là "ánh sáng của
+       căn phòng". */
+    background-image:
+      linear-gradient(168deg,
+        color-mix(in srgb, #FCCBF0 74%, transparent) 0%,
+        color-mix(in srgb, #FCCBF0 46%, transparent) 42%,
+        color-mix(in srgb, #FF5A57 30%, transparent) 100%);
+    background-attachment: fixed;
     font-family: var(--font-sans);
     font-weight: 400;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Theme tối giữ nền gần như đen: neon chỉ nổi trên nền tối, phủ dải chuyển
+     sáng lên đó là mất sạch tương phản. */
+  .dark body { background-image: none; }
   h1, h2, h3, h4, .font-serif {
     font-family: var(--font-serif);
     letter-spacing: -0.022em;
@@ -1339,6 +1371,30 @@
   animation-timing-function: var(--ease-soft);
 }
 
+/* ── CHUYỂN CẢNH TOÀN TRANG ───────────────────────────────────────────────────
+   Mặc định của trình duyệt là mờ chồng 0.25s — đúng kỹ thuật nhưng quá nhạt, nên
+   người dùng vẫn thấy màn hình "hiện ra một cái". Thêm một chút TRƯỢT vào: chuyển
+   động có hướng thì mắt biết được cái cũ đi đâu và cái mới từ đâu tới, còn mờ
+   chồng thuần thì không cho biết gì cả.
+
+   Cái cũ trượt ra CHẬM HƠN cái mới trượt vào (0.34s so với 0.28s) và hai đường
+   cong lệch pha nhau — nếu để bằng nhau thì hai lớp chồng khít, ảnh nhoè thành
+   một mảng xám ở giữa. */
+::view-transition-old(root) {
+  animation: canh-cu 0.34s var(--ease-soft) both;
+}
+::view-transition-new(root) {
+  animation: canh-moi 0.28s var(--ease-soft) both;
+}
+@keyframes canh-cu {
+  from { opacity: 1; transform: none }
+  to   { opacity: 0; transform: translateY(-8px) scale(0.994) }
+}
+@keyframes canh-moi {
+  from { opacity: 0; transform: translateY(10px) scale(1.006) }
+  to   { opacity: 1; transform: none }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panel-flash {
     animation: none;
@@ -1867,3 +1923,1180 @@
 @media (prefers-reduced-motion: reduce) {
   .cat-bob, .cat-hop, .cat-stretch { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BỘ NEON (2026-08)
+   Neon không phải "màu tối". Neon là bốn thứ cùng lúc: nền gần đen · nguồn
+   sáng bão hoà · ánh sáng RỈ RA ngoài viền · cấu trúc hình học.
+   Nền đã hạ ở khối .dark. Bốn tiện ích dưới đây lo ba thứ còn lại.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Lưới mảnh — không để nhìn thấy, để CẢM THẤY.
+   Mắt không đọc ra từng đường, nhưng não nhận ra "đây là môi trường kỹ thuật".
+   Chính chi tiết này phân biệt bảng điều khiển với tờ giấy. */
+.grid-faint {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 78%);
+}
+
+/* Chấm nhịp — dấu hiệu tối giản nhất để nói "hệ thống đang sống".
+   Một chấm thở còn thuyết phục hơn một dòng chữ "đang hoạt động". */
+.pulse-dot {
+  width: 5px; height: 5px; border-radius: 999px;
+  background: var(--spark);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--spark) 70%, transparent);
+  animation: pulse-dot 2.4s ease-out infinite;
+  flex: none;
+}
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--spark) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Viền phát sáng — ĐÂY là kỹ thuật cốt lõi của neon.
+   Hai lớp bóng: một đường viền 1px sắc nét, và một quầng nhoè TRÀN RA NGOÀI.
+   Thiếu lớp thứ hai thì chỉ là cái viền màu; có nó mới thành đèn.
+   Màu lấy từ --tint nên mỗi thẻ tự phát đúng màu nội dung của nó. */
+.neon-edge {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 42%, transparent);
+  box-shadow:
+    inset 0 0 18px -10px color-mix(in srgb, var(--tint) 55%, transparent),
+    0 0 22px -6px color-mix(in srgb, var(--tint) 45%, transparent);
+}
+.neon-edge-strong {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 75%, transparent);
+  box-shadow:
+    inset 0 0 22px -8px color-mix(in srgb, var(--tint) 65%, transparent),
+    0 0 34px -4px color-mix(in srgb, var(--tint) 62%, transparent);
+}
+
+/* Chip nhãn kiểu ống neon: rỗng ruột, viền sáng, chữ cùng màu.
+   Thay cho chip nền pastel đặc — nền đặc hút ánh sáng, ống neon phát ánh sáng. */
+.neon-chip {
+  --tint: var(--spark);
+  background: color-mix(in srgb, var(--tint) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tint) 38%, transparent);
+  color: color-mix(in srgb, var(--tint) 88%, var(--foreground));
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--tint) 60%, transparent);
+}
+
+/* Chỉ áp ở chế độ tối. Trên nền sáng, quầng nhoè biến thành vệt bẩn xám. */
+:root:not(.dark) .neon-edge,
+:root:not(.dark) .neon-edge-strong { box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot { animation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ÁNH SÁNG CHO TRANG GIỚI THIỆU
+
+   Vấn đề: trang bị chê tối và "chưa ra neon". Nguyên nhân KHÔNG phải nền quá đen —
+   nền đen là đúng, neon chỉ nổi trên nền đen. Nguyên nhân là không có gì để ánh
+   sáng CHẠM VÀO. Một ống neon trong phòng trống nhìn như một vệt màu; vẫn ống ấy
+   đặt cạnh một mép tường thì đọc ra ngay là đèn, vì ta thấy nó rọi lên cạnh tường.
+
+   Nên cách chữa không phải là kéo nền sáng lên (làm thế thì mất tương phản, neon
+   càng chìm) mà là DỰNG THÊM CẠNH cho ánh sáng bám: viền phát sáng, sàn lưới, vệt
+   quét. Đó là việc của các lớp dưới đây.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Vầng sáng chân trời — thở nhẹ để khung hình không bị chết cứng */
+@keyframes lt-fade { 0%,100% { opacity: 0.82 } 50% { opacity: 1 } }
+.lt-fade { animation: lt-fade 6s ease-in-out infinite; transition: background 1.2s ease }
+
+/* Sàn lưới trôi về phía người xem — tạo cảm giác đang tiến tới */
+@keyframes lt-floor { from { background-position: 0 0, 0 0 } to { background-position: 0 54px, 0 0 } }
+.lt-floor { animation: lt-floor 2.6s linear infinite; transition: background-image 1.2s ease }
+
+/* Vệt đèn quét ngang khung */
+@keyframes lt-beam { 0% { transform: translateX(-40%) } 100% { transform: translateX(340%) } }
+.lt-beam { animation: lt-beam 11s ease-in-out infinite; filter: blur(28px); transition: background 1.2s ease }
+
+/* ── VIỀN HẮT SÁNG dùng chung cho thẻ/khối trên landing ──
+   Ba tầng cùng lúc, và cần đủ cả ba mới ra "vật thể được đèn rọi":
+     1. sợi viền 1px gần bão hoà  → chính cái ống đèn
+     2. quầng hắt VÀO TRONG       → ánh sáng rọi lên mặt trong của thành
+     3. quầng bleed RA NGOÀI      → không khí quanh đèn bị nhuộm màu
+   Đặt --lit để đổi màu; mặc định tím thương hiệu. */
+.lit-edge {
+  --lit: #9D7BFF;
+  border: 1px solid color-mix(in srgb, var(--lit) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    inset 0 0 34px -14px color-mix(in srgb, var(--lit) 85%, transparent),
+    0 0 26px -6px color-mix(in srgb, var(--lit) 42%, transparent);
+  transition: box-shadow 0.35s var(--ease-soft), border-color 0.35s var(--ease-soft);
+}
+.lit-edge:hover {
+  border-color: color-mix(in srgb, var(--lit) 85%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    inset 0 0 44px -10px color-mix(in srgb, var(--lit) 95%, transparent),
+    0 0 54px -4px color-mix(in srgb, var(--lit) 68%, transparent);
+}
+
+/* Đường kẻ phát sáng — dùng để chia mục, thay cho border xám chìm nghỉm */
+.lit-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lit, #9D7BFF) 90%, transparent), transparent);
+  box-shadow: 0 0 14px 1px color-mix(in srgb, var(--lit, #9D7BFF) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-fade, .lt-floor, .lt-beam { animation: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CHỮ BÊN TRONG HỘP THƯ — bỏ hẳn serif
+
+   Trang giới thiệu giữ serif, ở đó nó đúng: một trang bán hàng được phép mang
+   giọng biên tập. Nhưng BÊN TRONG hộp thư thì serif đọc ra là thiệp mời, là văn
+   phòng phẩm, là trang trọng — tức là chậm. Sai hoàn toàn với thứ đang chạy:
+   một cỗ máy đọc hộ vài trăm lá thư mỗi sáng.
+
+   Cách sửa không phải đi sửa từng chỗ `font-serif` (có hơn hai chục chỗ, và chỗ
+   nào bỏ sót thì lộ ra ngay). Quy tắc `h1..h4, .font-serif` đọc từ BIẾN
+   `--font-serif`, nên chỉ cần định nghĩa lại biến đó trong phạm vi app là toàn
+   bộ đổi cùng lúc — mà trang giới thiệu nằm ngoài phạm vi này nên không suy
+   suyển gì. Cần trả serif về sau này thì xoá đúng khối này.
+   ══════════════════════════════════════════════════════════════════════════════ */
+/* Đổi biến --font-serif KHÔNG đủ. Tailwind v4 sinh ra HAI định nghĩa `.font-serif`:
+   một cái qua biến, và một cái GHI CỨNG nguyên dãy phông (Fraunces, ui-serif…) —
+   cái ghi cứng đứng sau nên nó thắng, và biến trở thành vô nghĩa. Phải thắng lại
+   bằng ĐỘ ƯU TIÊN của selector: `.giao-dien-app .font-serif` (hai lớp) mạnh hơn
+   `.font-serif` (một lớp). Vẫn giữ việc đổi biến cho các chỗ đọc biến trực tiếp. */
+/* Khối này TRƯỚC ĐÂY ép serif → sans để diệt Fraunces trong hộp thư. Giờ
+   `--font-serif` chính là Panchang — mặt chữ ta muốn — nên phải gỡ ép buộc đó ra,
+   nếu không tiêu đề trong app lại rơi về Inter và mất giọng.
+   Vẫn giữ phần siết chân chữ: Panchang ở cỡ lớn giãn hơi rộng. */
+.giao-dien-app h1,
+.giao-dien-app h2,
+.giao-dien-app h3,
+.giao-dien-app .font-serif {
+  letter-spacing: -0.015em;
+}
+/* Sans thay serif ở cỡ lớn dễ bị rời rạc — siết chân chữ lại cho thành một khối */
+.giao-dien-app h1,
+.giao-dien-app h2,
+.giao-dien-app h3,
+.giao-dien-app .font-serif {
+  letter-spacing: -0.022em;
+}
+/* Chữ cái đại diện trong vòng tròn: dùng monospace. Đây là chi tiết nhỏ nhưng
+   đọc rất rõ — monospace là chữ của bảng điều khiển, serif là chữ của danh thiếp. */
+.giao-dien-app .rounded-full.font-serif {
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TRƯỜNG SÁNG (LIGHT FIELD) — nền cho panel trợ lý, và chữ ký thị giác của app
+
+   ── Vì sao panel cũ bị chê "mặt trơn" ──
+   Nền cũ là ba quầng tròn nhoè + một quầng nến + hạt nhiễu. Tất cả đều KHUẾCH
+   TÁN: không lớp nào có cạnh, không lớp nào có lõi sáng, độ tương phản trong
+   từng lớp gần bằng không. Chồng bao nhiêu lớp mờ lên nhau cũng chỉ ra một mảng
+   xám — mắt không bắt được gì để nhìn, nên đọc ra là "phẳng".
+
+   Ảnh tham chiếu thì ngược hẳn. Thứ khiến chúng nổi bật không phải màu, mà là
+   CẤU TRÚC SẮC: sợi sáng có lõi trắng nét, ống neon có cạnh rõ, đường tụ phối
+   cảnh, viền tán sắc cầu vồng. Ánh sáng chỉ đọc ra là ánh sáng khi nó có HÌNH.
+
+   ── Vì sao light mode phải khác cách, không phải khác màu ──
+   Neon là hiện tượng PHÁT XẠ: một nguồn bão hoà trên nền tối. Bê nguyên nó lên
+   nền sáng thì hỏng, vì không còn tối để mà phát ra — đó là lý do light mode cũ
+   nhạt thếch dù dùng đúng bảng màu.
+
+   Nhưng ánh sáng còn một hiện tượng thứ hai, và nó chỉ hiện rõ trên nền SÁNG:
+   TÁN SẮC — chùm trắng đi qua lăng kính tách thành phổ. Đó chính là thứ trong
+   mấy tấm ảnh có viền cầu vồng, có màng dichroic, có bóng ngũ sắc.
+
+   Nên hai theme không phải một thiết kế đổi màu, mà là hai hiện tượng vật lý
+   của cùng một thứ ánh sáng:
+       TỐI  → phát xạ  → sợi sáng, lõi trắng, quầng neon
+       SÁNG → tán sắc  → viền phổ, ánh ngũ sắc, sai sắc màu
+   Cùng một bộ lớp, đảo cơ chế. Đó là chữ ký, không phải lớp trang trí.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. SỢI SÁNG ──────────────────────────────────────────────────────────────
+   Ba dải sợi chồng nhau, chu kỳ lệch nhau (37/53/71px) và đều là số nguyên tố —
+   cố ý, để ba dải không bao giờ trùng pha, nếu không sẽ hiện vân moiré như lưới
+   in hỏng. Mỗi sợi mảnh 1px, lõi gần trắng, hai bên là quầng màu. */
+.tia-sang {
+  position: absolute;
+  inset: -25%;
+  background-image:
+    /* Sợi CHỦ — dày 2.5px, lõi TRẮNG. Đây là thứ mắt bám vào; thiếu lõi trắng thì
+       chỉ còn mấy vạch màu, không ra vật phát sáng. Thưa (chu kỳ 149px) để mỗi
+       sợi còn là một sự kiện, không thành hoa văn. */
+    repeating-linear-gradient(102deg, transparent 0 146px,
+      #ffffff 146px 148.5px, transparent 148.5px 149px),
+    /* Ba dải sợi phụ, chu kỳ số nguyên tố 37/53/71 — cố ý lệch pha nhau vĩnh viễn,
+       nếu trùng pha sẽ hiện vân moiré như lưới in hỏng. */
+    repeating-linear-gradient(102deg, transparent 0 35px,
+      color-mix(in srgb, var(--spark) 55%, #fff) 35px 37px, transparent 37px 74px),
+    repeating-linear-gradient(99deg, transparent 0 51px,
+      color-mix(in srgb, var(--active) 45%, #fff) 51px 53px, transparent 53px 106px),
+    repeating-linear-gradient(105deg, transparent 0 69px,
+      color-mix(in srgb, var(--accent) 40%, #fff) 69px 71px, transparent 71px 142px);
+  /* Bó sợi lại thành một CHÙM chạy chéo, thay vì rải đều kín khung: ánh sáng có
+     nguồn thì mới ra ánh sáng, rải đều thì ra hoa văn giấy dán tường. */
+  /* HAI mask nhân nhau:
+       1. radial — bó sợi thành một CHÙM có nguồn ở góc trên trái. Ánh sáng phải
+          có nguồn; rải đều kín khung thì ra giấy dán tường, không ra chùm sáng.
+       2. linear — tắt dần về đáy, chừa sạch vùng ô nhập và các chip gợi ý.
+          Không có lớp này thì sợi sáng chạy xuyên qua chữ người dùng cần đọc. */
+  mask-image:
+    radial-gradient(66% 96% at 24% 2%, #000 0%, rgba(0,0,0,0.8) 40%, transparent 82%),
+    linear-gradient(to bottom, #000 0%, #000 46%, rgba(0,0,0,0.35) 72%, transparent 88%);
+  -webkit-mask-image:
+    radial-gradient(66% 96% at 24% 2%, #000 0%, rgba(0,0,0,0.8) 40%, transparent 82%),
+    linear-gradient(to bottom, #000 0%, #000 46%, rgba(0,0,0,0.35) 72%, transparent 88%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+  animation: troi-tia 26s linear infinite;
+}
+@keyframes troi-tia { from { transform: translate3d(0,0,0) } to { transform: translate3d(-74px, 22px, 0) } }
+
+/* Lớp quầng: CHÍNH dải sợi đó, nhoè mạnh và dày hơn, đặt phía sau. Đây là thứ
+   biến "mấy cái gạch" thành "sợi sáng" — vật phát sáng luôn kéo theo quầng. */
+/* Quầng: cùng dải sợi, nhoè mạnh. Nhân đôi thành hai tầng — một quầng gần (nhoè
+   vừa, sáng) và một quầng xa (nhoè rất mạnh, rộng) — vì bloom thật không phải một
+   lớp mờ đều mà là nhiều tầng chồng nhau, gần thì gắt, xa thì loang. */
+.tia-sang.quang     { filter: blur(9px);  opacity: 0.9; animation-duration: 34s }
+.tia-sang.quang-xa  { filter: blur(34px); opacity: 0.7; animation-duration: 44s }
+
+/* ── 2. TÁN SẮC (chỉ có nghĩa ở nền sáng) ────────────────────────────────────
+   Sai sắc màu: cùng một dải sợi, nhân ba, lệch nhau vài pixel theo trục màu
+   đỏ / lục / lam — đúng cách ống kính rẻ tiền tách phổ ở rìa khung. Trên nền
+   sáng thì đây là thứ thay thế cho quầng neon. */
+.tan-sac { mix-blend-mode: multiply; opacity: 0.5 }
+.tan-sac.kenh-do   { transform: translate3d(3px, -2px, 0);  filter: blur(2px) hue-rotate(-38deg) saturate(1.7) }
+.tan-sac.kenh-lam  { transform: translate3d(-3px, 2px, 0);  filter: blur(2px) hue-rotate(42deg) saturate(1.7) }
+/* Ở nền tối thì tán sắc phải CỘNG sáng chứ không nhân tối, và nhẹ hơn nhiều */
+.dark .tan-sac { mix-blend-mode: screen; opacity: 0.32 }
+
+/* ── 3. LƯỚI SÀN TỤ XA — chiều sâu, mượn từ khung hình đường hầm ────────────── */
+.san-tu {
+  position: absolute; left: -30%; right: -30%; bottom: -12%; height: 46%;
+  background-image:
+    repeating-linear-gradient(to right,
+      color-mix(in srgb, var(--active) 55%, transparent) 0 1px, transparent 1px 78px),
+    repeating-linear-gradient(to bottom,
+      color-mix(in srgb, var(--spark) 45%, transparent) 0 1px, transparent 1px 46px);
+  transform: perspective(460px) rotateX(72deg);
+  transform-origin: bottom center;
+  mask-image: linear-gradient(to top, #000 0%, transparent 82%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 82%);
+  opacity: 0.5;
+  animation: san-chay 3.4s linear infinite;
+}
+@keyframes san-chay { from { background-position: 0 0, 0 0 } to { background-position: 0 0, 0 46px } }
+
+/* ── 4. VIỀN NGŨ SẮC — chữ ký của LIGHT MODE ─────────────────────────────────
+   Viền không phải một màu mà là cả dải phổ chạy vòng, đúng như màng dichroic
+   trên áo trong ảnh. Dựng bằng hai lớp nền + mask hình vành khuyên: đây là cách
+   duy nhất vẽ được gradient CHỈ ở phần viền mà vẫn bo góc theo khối. */
+.vien-ngu-sac {
+  position: relative;
+  isolation: isolate;
+}
+.vien-ngu-sac::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  background: conic-gradient(from var(--goc, 0deg),
+    #FCCBF0, #FF5A57, #E02F75, #6700A3, #FCCBF0);
+  /* mask vành khuyên: tô đặc trừ đi phần lõi → chỉ còn lại đúng dải viền */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.85;
+  pointer-events: none;
+  animation: xoay-pho 9s linear infinite;
+}
+@property --goc { syntax: '<angle>'; initial-value: 0deg; inherits: false }
+@keyframes xoay-pho { to { --goc: 360deg } }
+/* Nền tối: hạ xuống, để quầng neon làm việc chính chứ không tranh nhau */
+.dark .vien-ngu-sac::before { opacity: 0.42 }
+
+/* ── 5. ÁNH NGŨ SẮC LƯỚT TRÊN MẶT — dichroic sheen ─────────────────────────── */
+.anh-ngu-sac { position: relative; overflow: hidden }
+.anh-ngu-sac::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 32%,
+    color-mix(in srgb, #87F5F5 40%, transparent) 43%,
+    color-mix(in srgb, #FFE5F1 55%, transparent) 50%,
+    color-mix(in srgb, #F042FF 35%, transparent) 57%, transparent 68%);
+  transform: translateX(-120%);
+  transition: transform 1.1s var(--ease-soft);
+  pointer-events: none;
+}
+.anh-ngu-sac:hover::after { transform: translateX(120%) }
+
+/* ── 6. CHỮ SAI SẮC — dùng RẤT tiết chế, chỉ cho tiêu đề chính ──────────────
+   Bản sao đỏ và lam lệch nhau 1px hai bên. Đây là hiệu ứng dễ lạm dụng: rải ra
+   nhiều chỗ thì thành trang lỗi font, dùng đúng một chỗ thì thành chữ ký. */
+.chu-sai-sac {
+  text-shadow:
+    -1px 0 0 color-mix(in srgb, #F042FF 55%, transparent),
+     1px 0 0 color-mix(in srgb, #87F5F5 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tia-sang, .san-tu, .vien-ngu-sac::before { animation: none }
+  .anh-ngu-sac::after { transition: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — ĐỔI CƠ CHẾ, KHÔNG PHẢI ĐỔI MÀU
+
+   Ảnh chụp bản sáng đã chứng minh đúng điều dự đoán: cùng bộ sợi sáng đó, trên
+   nền tối là chùm neon rực, bê lên nền sáng thì bạc thành mấy vệt xám. Không
+   phải chỉnh sai độ mờ — mà vì trên nền sáng KHÔNG CÒN GÌ ĐỂ PHÁT RA. Sáng cộng
+   sáng vẫn là sáng.
+
+   Nên bản sáng không dùng phát xạ nữa, mà dùng TÁN SẮC: một chùm trắng đi qua
+   lăng kính, đập vào tường trắng, để lại một dải PHỔ. Trên nền sáng thứ đọc
+   được không phải tia sáng loé lên, mà là màu bị tách ra.
+
+   Cụ thể: cùng cấu trúc dải, nhưng lõi trắng đổi thành các băng phổ rộng
+   lam → tím → hồng → hổ phách, và hoà trộn kiểu NHÂN (multiply) để chúng ăn bớt
+   nền chứ không cộng thêm vào. Đây là chữ ký riêng của bản sáng — thứ mà Gmail
+   không có và không thể có, vì Gmail không coi ánh sáng là một vật liệu.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root:not(.dark) .tia-sang {
+  background-image:
+    /* Băng phổ — MỖI MÀU CHỈ MỘT ĐIỂM DỪNG, không phải một đoạn.
+       Ghi kiểu đoạn (`104px 118px`) thì mỗi màu tô đặc rồi cắt phựt sang màu kế,
+       ra sọc cứng như bảng thử màu. Ghi kiểu điểm thì trình duyệt nội suy giữa
+       các điểm — đúng cách phổ thật chuyển màu: không có ranh giới nào cả.
+       Chu kỳ rộng (330px) để cả khung chỉ có vài dải, mỗi dải còn là một sự kiện. */
+    repeating-linear-gradient(102deg,
+      transparent 0,
+      color-mix(in srgb, #FCCBF0 46%, transparent) 96px,
+      color-mix(in srgb, #E02F75 26%, transparent) 132px,
+      color-mix(in srgb, #6700A3 22%, transparent) 168px,
+      color-mix(in srgb, #FF5A57 24%, transparent) 198px,
+      transparent 264px,
+      transparent 330px);
+  mix-blend-mode: multiply;
+  opacity: 0.42;
+  /* Nhoè nhẹ: chùm sáng qua lăng kính không bao giờ có mép nét */
+  filter: blur(6px);
+}
+/* Quầng ở bản sáng phải rất nhẹ: nhoè một màu nhân tối chỉ làm bẩn nền */
+:root:not(.dark) .tia-sang.quang    { opacity: 0.3; filter: blur(16px) }
+:root:not(.dark) .tia-sang.quang-xa { opacity: 0.22; filter: blur(46px) }
+/* Sàn lưới ở bản sáng cũng phải nhân tối, nếu không nó tàng hình */
+:root:not(.dark) .san-tu { mix-blend-mode: multiply; opacity: 0.34 }
+
+/* ── Chặn chi phí của viền ngũ sắc ───────────────────────────────────────────
+   `@property --goc` chạy hoạt ảnh nghĩa là trình duyệt phải VẼ LẠI conic-gradient
+   mỗi khung hình, cho TỪNG thẻ mang lớp này. Hộp thư mẫu chỉ có 2 thư chưa đọc
+   nên không thấy gì, nhưng hộp thư thật có thể có hàng chục — lúc đó là hàng chục
+   gradient vẽ lại 60 lần/giây, và máy yếu sẽ khựng ngay.
+
+   Chỉ 8 thẻ ĐẦU danh sách được xoay phổ. Đó cũng gần đúng số thẻ lọt trong màn
+   hình, nên thứ người dùng nhìn thấy không đổi. Các thẻ dưới vẫn có viền phổ,
+   chỉ là phổ đứng yên — vẽ một lần, không tốn gì thêm. */
+.vien-ngu-sac:nth-child(n + 9)::before { animation: none }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BONG BÓNG NGŨ SẮC — thay cho chùm vạch sáng
+
+   Vạch sáng bị chê "kinh" và đúng là vậy: chúng phủ kín khung, cắt ngang mọi thứ
+   người dùng đang đọc, và vì trải đều nên không bao giờ trở thành một VẬT — chỉ
+   là hoa văn. Một bong bóng thì ngược lại: nó là một vật thể duy nhất, có tâm,
+   có mép, có chỗ để nhìn vào, và nó chừa sạch phần còn lại của khung.
+
+   ── Vì sao bong bóng lại đúng cho MeoArc ──
+   Màu ngũ sắc trên bong bóng xà phòng KHÔNG phải màu của xà phòng — nước xà
+   phòng trong suốt. Màu sinh ra do giao thoa màng mỏng: ánh sáng phản xạ ở mặt
+   ngoài và mặt trong của màng lệch pha nhau, một số bước sóng triệt tiêu, số còn
+   lại nổi lên. Nói cách khác đây LẠI LÀ tán sắc — cùng một hiện tượng đã dùng
+   cho light mode, nhưng lần này bọc quanh một khối cầu.
+
+   Nhờ vậy nó ăn nhập với cả hai theme mà không phải làm hai bản.
+
+   ── Vật lý được mô phỏng ──
+   • Màng mỏng dần từ trên xuống (nước chảy xuống do trọng lực) → vân màu xếp
+     thành BĂNG NGANG, không phải loang ngẫu nhiên.
+   • Nhìn nghiêng ở rìa thì tia sáng đi qua nhiều màng hơn → rìa đậm màu và sáng
+     hơn hẳn tâm. Tâm bong bóng gần như trong suốt.
+   • Một điểm loé chính (nguồn sáng) và một điểm loé phụ mờ ở phía đối diện
+     (ánh sáng phản xạ từ môi trường).
+   ══════════════════════════════════════════════════════════════════════════════ */
+.bb-khoi {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: bb-troi 22s ease-in-out infinite;
+}
+@keyframes bb-troi {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) }
+  50%      { transform: translate3d(-14px, -26px, 0) scale(1.035) }
+}
+
+/* Thân: gần như trong suốt ở tâm, đậm dần ra rìa — đúng cách nhìn xuyên một
+   khối cầu rỗng có màng mỏng bọc ngoài. */
+.bb-than {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      transparent 0%, transparent 42%,
+      color-mix(in srgb, #FCCBF0 22%, transparent) 62%,
+      color-mix(in srgb, #E02F75 34%, transparent) 78%,
+      color-mix(in srgb, #6700A3 30%, transparent) 90%,
+      transparent 100%);
+}
+
+/* Vân giao thoa: băng NGANG vì màng mỏng dần từ đỉnh xuống đáy.
+   Che bằng một mặt nạ hình vành khuyên để vân chỉ hiện ở rìa, tâm để trống. */
+.bb-van {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-linear-gradient(178deg,
+    color-mix(in srgb, #FCCBF0 46%, transparent) 0%,
+    color-mix(in srgb, #E02F75 42%, transparent) 7%,
+    color-mix(in srgb, #6700A3 38%, transparent) 13%,
+    color-mix(in srgb, #FF5A57 30%, transparent) 19%,
+    color-mix(in srgb, #FCCBF0 46%, transparent) 27%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 74%, transparent 99%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 38%, #000 74%, transparent 99%);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  animation: bb-chay-van 17s ease-in-out infinite;
+}
+@keyframes bb-chay-van {
+  0%, 100% { background-position: 0 0 }
+  50%      { background-position: 0 -46px }
+}
+
+/* Sợi sáng ở mép — màng nhìn nghiêng nên dày nhất, sáng nhất */
+.bb-mep {
+  position: absolute; inset: 0; border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 55%, transparent),
+    inset 0 0 26px -6px color-mix(in srgb, #FCCBF0 75%, transparent),
+    0 0 90px -10px color-mix(in srgb, #E02F75 50%, transparent);
+}
+
+/* Điểm loé chính + loé phụ đối diện. Thiếu hai điểm này thì khối cầu mất chất
+   "bề mặt bóng" và tụt xuống thành một vòng tròn tô màu. */
+.bb-loe {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle at 31% 23%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.25) 5%, transparent 15%),
+    radial-gradient(circle at 68% 79%, rgba(255,255,255,0.3) 0%, transparent 12%);
+}
+
+/* Light mode: bong bóng thật trên nền sáng thì màu ĂN BỚT nền chứ không cộng
+   thêm, và mép không loé trắng mà thẫm lại. Cùng khối, đảo cơ chế — y như
+   nguyên tắc phát xạ/tán sắc ở trên. */
+:root:not(.dark) .bb-van  { mix-blend-mode: multiply; opacity: 0.5 }
+:root:not(.dark) .bb-than { mix-blend-mode: multiply; opacity: 0.62 }
+:root:not(.dark) .bb-mep {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #7A5BE0 30%, transparent),
+    inset 0 0 30px -8px color-mix(in srgb, #6700A3 40%, transparent),
+    0 0 70px -14px color-mix(in srgb, #E02F75 45%, transparent);
+}
+:root:not(.dark) .bb-loe { opacity: 0.75 }
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-khoi, .bb-van { animation: none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KÍNH SỌC (FLUTED GLASS) — nền cho khung tiêu đề trợ lý
+
+   Kính sọc là tấm kính đúc thành nhiều gân bán trụ dọc. Mỗi gân là một thấu kính
+   trụ: nhìn qua nó thì ảnh phía sau bị NÉN theo chiều ngang, nên cảnh phía sau
+   vỡ thành từng dải dọc — thấy có gì đó ở sau, nhưng không đọc được là gì.
+
+   Mô phỏng bằng ba thứ cộng lại:
+     1. backdrop-filter blur — phần "không đọc được là gì"
+     2. dải sáng/tối lặp lại — mỗi gân bắt sáng ở giữa (chỗ mặt cong hướng thẳng
+        về phía mắt) và tối dần về hai mép gân, nơi mặt cong nghiêng đi
+     3. một sợi sáng mảnh ở đỉnh mỗi gân — phản xạ gương của nguồn sáng
+
+   Chu kỳ 14px: hẹp hơn thì thành vân nhiễu, rộng hơn thì thành sọc trang trí.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.kinh-soc {
+  position: relative;
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  background-image:
+    /* sợi phản xạ gương ở đỉnh gân */
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.16) 0px, rgba(255,255,255,0.16) 1px,
+      transparent 1px, transparent 14px),
+    /* độ cong của gân: sáng giữa, tối về hai mép */
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,0.16) 0px,
+      rgba(255,255,255,0.07) 5px,
+      rgba(255,255,255,0.11) 7px,
+      rgba(255,255,255,0.07) 9px,
+      rgba(0,0,0,0.16) 14px);
+}
+/* Mép trên/dưới của tấm kính — cạnh vát bắt sáng */
+.kinh-soc::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(255,255,255,0.10);
+}
+/* Nền sáng: gân phải NHÂN TỐI mới thấy, cộng sáng lên nền sáng thì tàng hình */
+:root:not(.dark) .kinh-soc {
+  background-image:
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 1px,
+      transparent 1px, transparent 14px),
+    repeating-linear-gradient(90deg,
+      rgba(90,70,150,0.13) 0px,
+      rgba(255,255,255,0.34) 5px,
+      rgba(255,255,255,0.5) 7px,
+      rgba(255,255,255,0.34) 9px,
+      rgba(90,70,150,0.13) 14px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KÍNH KHÚC XẠ — lớp trình bày cho <KinhKhucXa>
+
+   Ba tầng chồng nhau bên trong mỗi khối kính:
+     z 0 — bản sao đã khúc xạ (canvas mang bộ lọc SVG)
+     z 1 — lớp sương: phản xạ mép trên/dưới, cho biết đây là một tấm có bề dày
+     z 2 — chữ và nội dung
+   ══════════════════════════════════════════════════════════════════════════════ */
+.glass-defs { position: absolute; width: 0; height: 0; pointer-events: none }
+
+/* Khung bản sao — vị trí và kích thước do JS ghi lại mỗi khung hình */
+.kkx-khung { position: absolute; left: 0; top: 0; z-index: 0; overflow: hidden; pointer-events: none }
+.kkx-anh {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  /* Bộ lọc do component gán theo cỡ (kkx-lon / kkx-nho) */
+}
+
+/* Lớp sương: KHÔNG phải để làm mờ, mà để tạo bề dày. Một tấm kính thật bắt sáng
+   ở cạnh vát trên và hắt một vệt tối mảnh ở cạnh dưới. */
+.kkx-suong {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.15);
+  transition: background 400ms;
+}
+.kkx:hover .kkx-suong { background: rgba(255, 255, 255, 0.1) }
+
+/* Mọi thứ không phải hai lớp trên đều nằm ở tầng chữ */
+.kkx > *:not(.kkx-khung):not(.kkx-suong) { position: relative; z-index: 2 }
+
+/* Nền phim của panel trợ lý */
+.phim-nen {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KÍNH MỜ BÓNG — thay cho các khung kẻ sọc
+
+   Sọc là một hoa văn: nó lặp lại, nó có nhịp, và vì thế mắt LUÔN thấy nó. Đặt
+   sau chữ thì nó tranh chỗ với chữ; đặt cạnh nhau nhiều chỗ thì cả màn hình
+   thành vải kẻ. Kính mờ thì ngược lại — nó không có hoa văn nào để nhìn, chỉ có
+   độ trong và một vệt bóng. Mắt lướt qua nó, và đó đúng là việc của một cái nền.
+
+   Ba tầng, và cần đủ ba mới ra chất kính chứ không ra "ô màu mờ mờ":
+     1. backdrop-filter — cái làm mờ thứ phía sau (bản chất của kính mờ)
+     2. vệt bóng chéo — phản xạ gương của nguồn sáng trên mặt kính
+     3. cạnh vát trên/dưới — bề dày; thiếu nó thì tấm kính mỏng như tờ giấy
+   ══════════════════════════════════════════════════════════════════════════════ */
+.kinh-mo {
+  position: relative;
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  background: color-mix(in srgb, var(--elevated) 26%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10);
+}
+/* Vệt bóng chéo — cố định, không chạy: một mặt kính đứng yên thì vệt phản xạ
+   trên nó cũng đứng yên. Vệt biết chạy là vệt của phim hoạt hình. */
+.kinh-mo::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 26%,
+    transparent 46%,
+    transparent 70%,
+    rgba(255, 255, 255, 0.09) 100%);
+}
+.dark .kinh-mo {
+  background: color-mix(in srgb, var(--elevated) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ĐÈN NEON CHIẾU VÀO — thay cho kính sọc ở khung trợ lý
+
+   Khác biệt cốt lõi so với mọi thứ đã làm: đây không phải một BỀ MẶT được trang
+   trí, mà là một KHỐI KHÔNG GIAN ĐANG ĐƯỢC RỌI SÁNG. Ống đèn nằm ở mép trên,
+   ánh sáng đổ xuống, và thứ ta nhìn thấy là chùm sáng ấy chạm vào không khí.
+
+   Bốn tầng:
+     1. ống đèn   — sợi 2px lõi trắng, đây là chính cái đèn
+     2. quầng ống — ánh sáng ngay quanh ống, gắt nhất
+     3. chùm đổ  — hình nón sáng loang xuống, nhạt dần
+     4. sàn hắt  — vệt sáng nơi chùm đổ chạm mép dưới
+   Thiếu tầng 3 thì chỉ còn một cái gạch sáng; thiếu tầng 4 thì ánh sáng đổ vào
+   hư không và khối mất đáy.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.den-neon {
+  --den: #E02F75;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* 1 + 2 — ống đèn và quầng của nó */
+.den-neon::before {
+  content: '';
+  position: absolute; z-index: -1;
+  /* Đặt cách mép trên 7px, KHÔNG dán sát 0. Quầng sáng toả đều hai phía ống,
+     mà khối này `overflow: hidden` — dán sát mép thì nửa quầng phía trên bị xén
+     phẳng, và một quầng bị cắt ngang thì đọc ra là mảng đặc, không đọc ra là
+     đèn. Chừa 7px là đủ để quầng khép kín bên trong khung. */
+  left: 18%; right: 18%; top: 7px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #ffffff 22%, #ffffff 78%, transparent);
+  box-shadow:
+    0 0 10px 1px color-mix(in srgb, var(--den) 95%, transparent),
+    0 0 34px 6px color-mix(in srgb, var(--den) 62%, transparent),
+    0 0 80px 18px color-mix(in srgb, var(--den) 34%, transparent);
+}
+/* 3 + 4 — chùm sáng đổ xuống và vệt hắt ở đáy */
+.den-neon::after {
+  content: '';
+  position: absolute; z-index: -1; inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(84% 150% at 50% -18%,
+      color-mix(in srgb, var(--den) 72%, transparent) 0%,
+      color-mix(in srgb, var(--den) 32%, transparent) 30%,
+      color-mix(in srgb, var(--den) 12%, transparent) 54%,
+      transparent 80%),
+    linear-gradient(to top,
+      color-mix(in srgb, var(--den) 15%, transparent) 0%,
+      transparent 40%);
+}
+/* Bản sáng: ánh sáng phải NHÌN THẤY ĐƯỢC trên nền hồng phấn, nên dùng tím thẫm
+   #6700A3 — trên nền sáng, thứ đọc ra là ánh sáng chính là chỗ SẪM lại. */
+:root:not(.dark) .den-neon { --den: #6700A3 }
+:root:not(.dark) .den-neon::before {
+  background: linear-gradient(90deg, transparent, #6700A3 22%, #6700A3 78%, transparent);
+  box-shadow:
+    0 0 10px 1px color-mix(in srgb, #6700A3 60%, transparent),
+    0 0 34px 6px color-mix(in srgb, #E02F75 40%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ĐOẠN PHIM NỀN — hai theme, hai phép hoà trộn ngược nhau
+
+   Đây lại đúng nguyên tắc phát xạ/tán sắc, lần này áp cho một đoạn phim thật.
+
+   NỀN TỐI dùng bông hoa thuỷ tinh, và mấu chốt là ĐOẠN PHIM ĐÓ CÓ NỀN ĐEN.
+   `screen` lấy giá trị sáng hơn của hai lớp, nên mọi vùng đen của đoạn phim
+   triệt tiêu hoàn toàn trên nền #05060D — không còn hình chữ nhật, chỉ còn lại
+   đúng bông hoa lơ lửng trong bóng tối.
+
+   Trước đó dùng đoạn bong bóng nền studio TRẮNG và phải ghì brightness xuống
+   0.38 để nền trắng đó tụt ngang tầm nền tối. Cách ấy chạy được nhưng là chữa
+   cháy: nó dập tắt cả những vùng đáng giữ. Chọn đúng đoạn phim thì không cần
+   chữa gì — chỉ cần nhấc nhẹ độ bão hoà.
+
+   NỀN SÁNG. Ngược hẳn: screen ở đây làm mọi thứ hoá trắng, đoạn phim tàng hình.
+   Phải `multiply` — đoạn phim ĂN BỚT nền hồng thay vì cộng thêm vào, và giữ
+   nguyên độ sáng gốc. Trên nền sáng, thứ đọc ra là ánh sáng chính là chỗ SẪM lại.
+
+   Mặt nạ tắt dần về đáy dùng chung cho cả hai: dưới đó là chip gợi ý và ô nhập,
+   chữ phải đọc được.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.phim-nen {
+  mix-blend-mode: screen;
+  filter: contrast(1.12) saturate(1.35) hue-rotate(-10deg);
+  opacity: 0.92;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, #000 24%, #000 58%, rgba(0,0,0,0.22) 84%, transparent 96%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, #000 24%, #000 58%, rgba(0,0,0,0.22) 84%, transparent 96%);
+}
+:root:not(.dark) .phim-nen {
+  mix-blend-mode: multiply;
+  filter: contrast(1.2) saturate(1.55) hue-rotate(-8deg);
+  opacity: 0.5;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   HỆ ĐÈN VIỀN — ánh sáng nằm ở CẠNH
+
+   Đây là tư duy cốt lõi của giao diện neon, và cũng là chỗ dự án làm chưa tới.
+   Trước đó ánh sáng chỉ có ở NỀN — bông hoa, dải phổ, chùm đèn — còn mọi khung
+   kết cấu vẫn dùng viền xám chết: border-foreground/[0.06], border-border/40.
+   Kết quả là một căn phòng có đèn nhưng đồ đạc trong đó không phản chiếu gì.
+
+   Neon thật hoạt động ngược lại: cái ta nhìn thấy hầu như luôn là ÁNH SÁNG BÁM
+   TRÊN MỘT CẠNH. Ống đèn trong phòng trống chỉ là một vệt màu; đặt cạnh mép
+   tường thì nó thành đèn, vì ta thấy nó rọi lên cạnh tường.
+
+   ── VÌ SAO PHẢI CÓ CẤP BẬC ──
+   Cho mọi thứ phát sáng bằng nhau thì không thứ gì nổi lên, và màn hình thành
+   một mớ đèn nhấp nháy — đó là lý do phần lớn giao diện "neon" trông rẻ tiền.
+   Nên bốn cấp, mỗi cấp một vai rõ ràng, và cấp càng cao thì càng HIẾM:
+
+     cấp 0  đường nối kết cấu — chỉ một sợi sáng, KHÔNG toả. Dùng cho ranh giới
+            giữa các cột: chúng dài hàng trăm pixel, cho toả thì cả màn hình mờ.
+     cấp 1  nghỉ  — sợi viền mờ + quầng hắt vào trong. Mặc định của mọi khung.
+     cấp 2  chạm  — sáng lên và bắt đầu toả ra ngoài. Hover/focus.
+     cấp 3  đang chọn — sáng nhất, toả rộng nhất. Chỉ một thứ tại một thời điểm.
+
+   ── BẢN SÁNG DÙNG CƠ CHẾ KHÁC ──
+   Quầng sáng trên nền hồng phấn thì tàng hình: sáng cộng sáng vẫn là sáng. Nên
+   ở bản sáng, "cạnh được chiếu sáng" biểu hiện thành SỢI VIỀN BÃO HOÀ + bóng đổ
+   MÀU thay vì quầng phát. Đúng nguyên tắc chi-tiết-nhỏ-màu-đậm của bảng Attitude.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Cấp 0: đường nối kết cấu, một cạnh, không toả ────────────────────────── */
+.den-noi-phai, .den-noi-trai, .den-noi-duoi { position: relative }
+.den-noi-phai::after, .den-noi-trai::after, .den-noi-duoi::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(var(--huong, 180deg),
+    transparent, color-mix(in srgb, var(--tint, var(--spark)) 65%, transparent) 18%,
+    color-mix(in srgb, var(--tint, var(--spark)) 65%, transparent) 82%, transparent);
+}
+.den-noi-phai::after { top: 0; bottom: 0; right: -0.5px; width: 1px }
+.den-noi-trai::after { top: 0; bottom: 0; left: -0.5px; width: 1px }
+.den-noi-duoi::after { left: 0; right: 0; bottom: -0.5px; height: 1px; --huong: 90deg }
+
+/* ── Cấp 1 → 3: khung có đèn ──────────────────────────────────────────────── */
+.den-vien {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 26%, transparent);
+  box-shadow: inset 0 0 14px -9px color-mix(in srgb, var(--tint) 60%, transparent);
+  transition: border-color 0.3s var(--ease-soft), box-shadow 0.3s var(--ease-soft);
+}
+.den-vien-cham,
+.den-vien:hover {
+  border-color: color-mix(in srgb, var(--tint) 58%, transparent);
+  box-shadow:
+    inset 0 0 20px -8px color-mix(in srgb, var(--tint) 75%, transparent),
+    0 0 24px -8px color-mix(in srgb, var(--tint) 55%, transparent);
+}
+.den-vien-chon {
+  --tint: var(--spark);
+  border: 1px solid color-mix(in srgb, var(--tint) 88%, transparent);
+  box-shadow:
+    inset 0 0 26px -7px color-mix(in srgb, var(--tint) 85%, transparent),
+    0 0 38px -6px color-mix(in srgb, var(--tint) 70%, transparent);
+}
+
+/* Bản sáng: đổi quầng phát thành sợi bão hoà + bóng đổ MÀU */
+:root:not(.dark) .den-vien {
+  border-color: color-mix(in srgb, var(--tint) 40%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--tint) 14%, transparent);
+}
+:root:not(.dark) .den-vien-cham,
+:root:not(.dark) .den-vien:hover {
+  border-color: color-mix(in srgb, var(--tint) 85%, transparent);
+  box-shadow:
+    0 2px 10px -2px color-mix(in srgb, var(--tint) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+:root:not(.dark) .den-vien-chon {
+  border-color: var(--tint);
+  box-shadow:
+    0 3px 16px -3px color-mix(in srgb, var(--tint) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+:root:not(.dark) .den-noi-phai::after,
+:root:not(.dark) .den-noi-trai::after,
+:root:not(.dark) .den-noi-duoi::after {
+  background: linear-gradient(var(--huong, 180deg),
+    transparent, color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 18%,
+    color-mix(in srgb, var(--tint, var(--spark)) 45%, transparent) 82%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PANCHANG — CHỈ CHO TIÊU ĐỀ TRANG GIỚI THIỆU
+
+   Trước đó Panchang được đặt làm `--font-serif` toàn cục, và nó tràn vào mọi chỗ
+   có class `.font-serif` bên trong hộp thư: tên người gửi, tiêu đề thư, chữ cái
+   đại diện, tiêu đề khối tóm tắt. Hệ quả là màn hình đọc thư có ba bốn mặt chữ
+   cùng lúc — Panchang, Inter, monospace — và trông lộn xộn.
+
+   Lý do sâu hơn để không dùng nó ở đó: Panchang là mặt chữ HIỂN THỊ. Chân chữ
+   vuông, các nét gần như cùng độ dày, khoảng trong chữ rộng — đọc rất mạnh ở cỡ
+   lớn, nhưng ở 13-15px thì các chữ cái bắt đầu giống nhau và mắt phải làm việc
+   nhiều hơn. Hộp thư là nơi người ta đọc hàng trăm dòng nhỏ mỗi ngày.
+
+   Nên: Panchang chỉ ở tiêu đề trang giới thiệu — nơi chữ to, ít, và nhiệm vụ là
+   gây ấn tượng. Bên trong ứng dụng dùng Space Grotesk cho tiêu đề (vẫn là mặt
+   chữ hình học, vẫn giữ chất công nghệ, nhưng dựng để đọc) và Inter cho phần
+   thân. Nếu Panchang không tải được thì Space Grotesk đỡ ngay — cùng giọng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.ld-tech h1,
+.ld-tech h2,
+.ld-tech h3,
+.ld-tech .font-serif,
+.ld-tech .font-display,
+.ld-tech .ld-title {
+  font-family: 'Chakra Petch', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.012em;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   KHUNG GÓC CẮT — ngôn ngữ hình học lấy từ Arwes
+
+   Đọc mã nguồn `packages/frames` của Arwes thì thấy điều này: KHÔNG khung nào
+   của họ dùng `border-radius`. Mọi khung đều là SVG path với góc CẮT VÁT 45°,
+   và — chi tiết đáng học nhất — chỉ HAI góc đối nhau được cắt (mặc định là trên
+   trái + dưới phải), hai góc còn lại để vuông.
+
+   Vì sao bất đối xứng lại quan trọng: cắt cả bốn góc thì ra hình bát giác, mà
+   bát giác là một hình CÂN — nó đứng yên, không có hướng. Cắt hai góc đối nhau
+   thì khung có một trục chéo, và mắt đọc ra một chiều chuyển động. Đó là khác
+   biệt giữa "một cái khung tám cạnh" và "một tấm panel trên bảng điều khiển".
+
+   Đây cũng là điều giao diện này thiếu: mọi thứ đang là `rounded-xl`/`rounded-2xl`
+   — góc bo tròn nói "thân thiện, tiêu dùng, an toàn". Không sai, nhưng không phải
+   thứ đang được yêu cầu.
+
+   Dựng bằng `clip-path` thay vì SVG: nó cắt được cả nền, cả backdrop-filter, và
+   cả phần tràn của con — thứ mà một đường viền SVG không làm được.
+
+   Lưu ý đánh đổi: `clip-path` cắt luôn `box-shadow`, nên quầng sáng ngoài của
+   đèn viền biến mất. Bù bằng một lớp ::before nằm dưới, cùng hình, phóng to vài
+   pixel và tô màu đèn — đó là quầng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+/* CẨN THẬN: lớp này đặt `position: relative`, và vì toàn bộ CSS tự viết ở file
+   này nằm NGOÀI `@layer` của Tailwind nên nó THẮNG các tiện ích vị trí của
+   Tailwind (`fixed`, `absolute`, `sticky`).
+   Muốn định vị khác thì phải ghi bằng style nội tuyến, đừng dựa vào class —
+   đã dính đúng lỗi này một lần: nút trợ lý `fixed bottom-6 right-6` bị ép về
+   `relative` và rơi lên góc trên phải. */
+.goc-cat {
+  --cat: 14px;
+  position: relative;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+}
+/* Biến thể nhỏ cho chip/nút */
+.goc-cat-nho { --cat: 8px }
+
+/* Quầng sáng cho khung đã bị clip-path cắt mất box-shadow */
+.goc-cat-den { position: relative }
+.goc-cat-den::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--tint, var(--spark)) 55%, transparent);
+  clip-path: polygon(
+    var(--cat, 14px) 0, 100% 0, 100% calc(100% - var(--cat, 14px)),
+    calc(100% - var(--cat, 14px)) 100%, 0 100%, 0 var(--cat, 14px)
+  );
+  filter: blur(0.5px);
+  pointer-events: none;
+  transition: background 0.3s var(--ease-soft);
+}
+.goc-cat-den:hover::before {
+  background: color-mix(in srgb, var(--tint, var(--spark)) 100%, transparent);
+}
+
+/* ══ NHÁY KHI HIỆN RA ══════════════════════════════════════════════════════
+   Arwes cho phần trang trí hiện lên theo nhịp [0, 1, 0.5, 1] chứ không mờ dần
+   đều. Một phần tư giây nhấp nháy đó là toàn bộ khác biệt giữa "phần tử xuất
+   hiện" và "màn hình vừa được BẬT LÊN". Rẻ đến mức vô lý so với hiệu quả. */
+@keyframes nhay-bat { 0% { opacity: 0 } 40% { opacity: 1 } 60% { opacity: 0.45 } 100% { opacity: 1 } }
+.nhay-bat { animation: nhay-bat 0.45s steps(1, end) both }
+
+@media (prefers-reduced-motion: reduce) { .nhay-bat { animation: none; opacity: 1 } }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NÚT & Ô ICON THEO NGÔN NGỮ CÔNG NGHỆ
+
+   Nút bo tròn nói "chạm vào tôi, tôi mềm" — ngôn ngữ ứng dụng tiêu dùng. Nút
+   góc cắt nói "đây là một điều khiển trên bảng máy". Cùng một hành động, hai
+   câu chuyện khác nhau, và câu thứ hai mới là câu sản phẩm này muốn kể.
+
+   Ba thứ làm nên một nút "công nghệ", và thiếu thứ nào cũng hụt:
+     1. HÌNH góc cắt — đã có ở .goc-cat
+     2. CẠNH bắt sáng, và sáng thêm khi chạm — trạng thái đọc được bằng ánh sáng
+        chứ không bằng đổi màu nền
+     3. VẠCH CHỈ THỊ — một sợi ngắn ở mép, thứ có mặt trên mọi bảng điều khiển
+        thật và gần như không bao giờ có trên nút web. Chi tiết nhỏ nhất nhưng
+        là thứ khiến mắt đọc ra "thiết bị" thay vì "trang web".
+   ══════════════════════════════════════════════════════════════════════════════ */
+.nut-ky-thuat {
+  --tint: var(--spark);
+  --cat: 9px;
+  position: relative;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+  border: 1px solid color-mix(in srgb, var(--tint) 30%, transparent);
+  transition: border-color 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft),
+    background-color 0.25s var(--ease-soft);
+}
+.nut-ky-thuat:hover {
+  border-color: color-mix(in srgb, var(--tint) 75%, transparent);
+  box-shadow: inset 0 0 18px -8px color-mix(in srgb, var(--tint) 85%, transparent);
+}
+.nut-ky-thuat:active { transform: translateY(0.5px) }
+
+/* Vạch chỉ thị ở mép trên-trái, chạy dài ra khi chạm.
+   Đặt ở mép ĐỐI DIỆN với góc cắt trên-trái để hai chi tiết không chồng nhau. */
+.nut-ky-thuat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: calc(var(--cat) + 4px);
+  height: 1.5px; width: 12px;
+  background: color-mix(in srgb, var(--tint) 90%, #fff);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--tint) 70%, transparent);
+  transition: width 0.3s var(--ease-soft);
+  pointer-events: none;
+}
+.nut-ky-thuat:hover::before { width: 34px }
+
+/* Ô ICON — vuông góc cắt, icon phát sáng theo màu đèn của khối */
+.o-icon {
+  --tint: var(--spark);
+  --cat: 7px;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  clip-path: polygon(
+    var(--cat) 0, 100% 0, 100% calc(100% - var(--cat)),
+    calc(100% - var(--cat)) 100%, 0 100%, 0 var(--cat)
+  );
+  border: 1px solid color-mix(in srgb, var(--tint) 34%, transparent);
+  color: color-mix(in srgb, var(--tint) 82%, #fff);
+  transition: border-color 0.25s var(--ease-soft), filter 0.25s var(--ease-soft);
+}
+.o-icon:hover {
+  border-color: color-mix(in srgb, var(--tint) 80%, transparent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tint) 70%, transparent));
+}
+/* Bản sáng: quầng phát tàng hình trên nền hồng, nên dùng viền bão hoà + nét đậm */
+:root:not(.dark) .nut-ky-thuat:hover { box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--tint) 40%, transparent) }
+:root:not(.dark) .o-icon { color: color-mix(in srgb, var(--tint) 88%, #000) }
+:root:not(.dark) .o-icon:hover { filter: none; border-color: var(--tint) }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS — lấy đúng thông số từ bản mẫu Asme
+
+   Khác với `.kinh-mo` đã có: kính mờ dựa vào backdrop-filter để làm mờ thứ phía
+   sau. Liquid glass thì gần như KHÔNG làm mờ (blur chỉ 4px) — thứ tạo ra cảm giác
+   kính nằm ở VIỀN, và đó mới là điểm đáng học.
+
+   Viền không phải một màu, mà là một dải sáng chạy dọc: gắt ở mép trên và mép
+   dưới (45%), tắt hẳn ở giữa (0%). Đó chính là cách ánh sáng đập vào một tấm
+   kính có bề dày — hai cạnh vát bắt sáng, mặt phẳng ở giữa thì không. Viền tô
+   đều một màu không bao giờ ra được hiệu ứng này, dù chỉnh độ mờ thế nào.
+
+   Dựng bằng mask vành khuyên (tô đặc trừ đi phần lõi) vì đó là cách duy nhất vẽ
+   được gradient CHỈ ở phần viền mà vẫn bo góc theo khối.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.15) 80%,
+    rgba(255, 255, 255, 0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Bản mạnh — cho nút chính: nhoè sâu hơn nhiều và viền gắt hơn */
+.liquid-glass-strong {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(50px);
+  -webkit-backdrop-filter: blur(50px);
+  border: none;
+  box-shadow: 4px 4px 4px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass-strong::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.2) 80%,
+    rgba(255, 255, 255, 0.5) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   THANG RỦI RO — ánh sáng mã hoá hậu quả
+
+   Hệ đèn viền (.den-vien) đã có từ trước mã hoá TRẠNG THÁI CON TRỎ: nghỉ, chạm,
+   đang chọn. Thang này mã hoá thứ khác hẳn và quan trọng hơn nhiều: HỎNG THÌ MẤT GÌ.
+
+   Vì sao dùng độ sáng chứ không dùng chữ: khi MeoArc thôi chỉ gắn nhãn thư và bắt
+   đầu đặt phòng, mua vé, thì người dùng phải quyết trong vài giây — thường trên
+   điện thoại, thường đang bận. Nếu mọi thứ trên màn hình trông giống nhau thì họ
+   hoặc bấm duyệt theo quán tính, hoặc đọc lại toàn bộ mỗi lần rồi cũng quay về
+   bấm theo quán tính. Độ sáng là thứ mắt xử lý nhanh nhất — trước cả hình dạng
+   và chữ viết — nên nó trả lời được câu "việc này nguy hiểm cỡ nào" TRƯỚC khi
+   người ta đọc chữ.
+
+   ── MÀU NGỮ NGHĨA, TÁCH HẲN KHỎI MÀU THƯƠNG HIỆU ──
+   Tím MeoArc nói "đây là sản phẩm của chúng tôi". Ba màu dưới đây nói "việc này
+   hỏng thì mất gì". Trộn hai vai đó vào nhau là cách chắc chắn nhất để người dùng
+   thôi tin vào cả hai.
+
+   ── ĐIỀU LÀM THANG NÀY HỎNG ──
+   Cho quá nhiều thứ vào cấp 3. Nếu gắn nhãn cũng sáng rực như mua vé máy bay thì
+   trong hai ngày người dùng học được rằng ánh đỏ KHÔNG CÓ NGHĨA GÌ CẢ, và đúng
+   lúc cần nó nhất thì nó đã mất tác dụng. Cấp 3 phải hiếm mới giữ được sức nặng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --rr-hoan:    #0E8F63;  /* hoàn tác được */
+  --rr-can:     #D9481F;  /* người khác đã thấy */
+  --rr-khong:   #C41E63;  /* mất tiền thật */
+}
+.dark {
+  --rr-hoan:    #2ED8A0;
+  --rr-can:     #FF7A4D;
+  --rr-khong:   #FF5C9B;
+}
+
+/* Cấp 1 — hoàn tác được. Gần như không phát sáng: sai thì bấm hoàn tác là xong,
+   làm nó nổi bật chỉ khiến người dùng mệt và học cách bấm duyệt cho nhanh. */
+.rui-ro-1 {
+  --rr: var(--rr-hoan);
+  border: 1px solid color-mix(in srgb, var(--rr) 28%, transparent);
+  box-shadow: inset 0 0 16px -12px color-mix(in srgb, var(--rr) 60%, transparent);
+}
+/* Cấp 2 — hoàn tác được về kỹ thuật, nhưng đã có người khác nhìn thấy. */
+.rui-ro-2 {
+  --rr: var(--rr-can);
+  border: 1px solid color-mix(in srgb, var(--rr) 48%, transparent);
+  box-shadow:
+    inset 0 0 22px -10px color-mix(in srgb, var(--rr) 70%, transparent),
+    0 0 18px -10px color-mix(in srgb, var(--rr) 50%, transparent);
+}
+/* Cấp 3 — tiền đã đi thì không quay lại. Sáng nhất, và HIẾM NHẤT. */
+.rui-ro-3 {
+  --rr: var(--rr-khong);
+  border: 1px solid color-mix(in srgb, var(--rr) 62%, transparent);
+  box-shadow:
+    inset 0 0 30px -8px color-mix(in srgb, var(--rr) 85%, transparent),
+    0 0 34px -8px color-mix(in srgb, var(--rr) 62%, transparent);
+}
+/* Bản sáng: quầng phát tàng hình trên nền hồng phấn, nên chuyển sang sợi viền
+   bão hoà + bóng đổ MÀU — cùng cách đã dùng cho hệ đèn viền. */
+:root:not(.dark) .rui-ro-1 { box-shadow: 0 1px 2px color-mix(in srgb, var(--rr) 16%, transparent) }
+:root:not(.dark) .rui-ro-2 { box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--rr) 34%, transparent) }
+:root:not(.dark) .rui-ro-3 { box-shadow: 0 3px 18px -4px color-mix(in srgb, var(--rr) 48%, transparent) }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   THANG ƯU TIÊN — TRỤC KHÁC HẲN THANG RỦI RO Ở TRÊN
+
+   Thang rủi ro trả lời "hỏng thì mất gì" và cố ý giữ cấp 3 cực hiếm. Đúng với vai
+   trò của nó — nhưng nghĩa là ở màn lịch gần như MỌI việc đều cấp 1, nên mọi thanh
+   hiện ra y hệt nhau và không đọc được cái nào cần làm trước. Đo thật trên bộ demo:
+   13/13 việc đều rủi ro cấp 1.
+
+   Thang này trả lời câu khác: "làm cái nào trước". Nó được phép dùng thường xuyên
+   — cấp 3 ở đây chỉ nghĩa là "sát hạn", chuyện xảy ra hằng tuần, không phải biến cố.
+
+   TÁCH MÀU LÀ BẮT BUỘC. Nếu dùng chung dải màu với thang rủi ro thì đỏ mất nghĩa:
+   người dùng không biết đỏ đang nói "mất tiền" hay "làm ngay". Nên thang này đi
+   theo hệ màu thương hiệu (lam → tím → hổ phách) chứ không mượn đỏ/hồng.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --ut-thuong: #5B7FA6;  /* còn xa, cứ để đó */
+  --ut-quan:   #6D4BC7;  /* nặng, hoặc đang tới gần */
+  --ut-gap:    #E07A0C;  /* sát hạn hoặc đã trễ */
+}
+.dark {
+  --ut-thuong: #7FA6C9;
+  --ut-quan:   #A98BFF;
+  --ut-gap:    #FFB13D;
+}
+
+/* Cấp 1 — chưa gấp. Gần như không phát sáng: cả tháng phần lớn là cấp này, làm
+   nó nổi bật thì lưới thành một biển sáng và mắt hết chỗ nghỉ. */
+.uu-tien-1 { --ut: var(--ut-thuong) }
+/* Cấp 2 — nặng, hoặc đang tới gần. */
+.uu-tien-2 { --ut: var(--ut-quan) }
+/* Cấp 3 — sát hạn hoặc đã trễ. Sáng nhất trong ba, và có nhịp thở nhẹ để bắt mắt
+   ngay cả khi người dùng đang nhìn chỗ khác trên lưới. */
+.uu-tien-3 { --ut: var(--ut-gap) }
+
+@keyframes tho-gap {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--ut), 0 0 12px -4px var(--ut) }
+  50%      { box-shadow: inset 0 0 0 1px var(--ut), 0 0 20px -2px var(--ut) }
+}
+.tho-gap { animation: tho-gap 2.6s ease-in-out infinite }
+@media (prefers-reduced-motion: reduce) { .tho-gap { animation: none } }
+
+/* Chấm chỉ mức rủi ro — dùng trong danh sách từng bước */
+.cham-rr { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--rr); }
+.rui-ro-3 .cham-rr, .cham-rr.c3 { box-shadow: 0 0 8px var(--rr-khong); background: var(--rr-khong) }
+.cham-rr.c2 { background: var(--rr-can) }
+.cham-rr.c1 { background: var(--rr-hoan) }

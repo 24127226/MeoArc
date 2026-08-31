@@ -27,5 +27,14 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+
+  /* Kịch bản kiểm thử KHÔNG thuộc bản dựng production.
+     Chúng nhập `node:test` / `node:fs` — những thứ chỉ có ở Node, không có trong
+     trình duyệt — nên `tsc -b` báo lỗi và cả bản dựng đỏ. Đúng lỗi đã làm CI hỏng
+     năm commit liền (fb51b7a → 3e09de1): file test được thêm vào `src/`, chạy bằng
+     `node --test` thì xanh, nhưng không ai chạy lại `npm run build`.
+     Chúng vẫn được kiểm chứng bằng cách CHẠY THẬT (`npm run test:camket`), vốn là
+     bằng chứng mạnh hơn typecheck. */
+  "exclude": ["src/**/*.test.ts"]
 }

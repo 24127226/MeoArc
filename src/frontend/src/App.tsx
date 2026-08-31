@@ -3,6 +3,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider, useAuth } from '@/auth/auth-context'
 import { ToastProvider } from '@/components/ui/toast'
 import { AppShell } from '@/components/layout/app-shell'
+import { SchedulePage } from '@/pages/schedule'
 import { LoginPage } from '@/pages/login'
 import { LandingPage } from '@/pages/landing'
 
@@ -35,6 +36,19 @@ function App() {
                 element={
                   <RequireAuth>
                     <AppShell />
+                  </RequireAuth>
+                }
+              />
+              {/* Lịch trình là TRANG RIÊNG, không phải một tab trong hộp thư.
+                  Hộp thư cố ý chiếm một cột hẹp vì người ta không vào MeoArc để
+                  đọc thư như Gmail. Lịch trình thì ngược lại — đó chính là thứ
+                  MeoArc làm mà Gmail không làm, nên nhét nó vào một cột giữa ba
+                  cột là tự hạ nó xuống ngang hàng với "Thùng rác". */}
+              <Route
+                path="/lich"
+                element={
+                  <RequireAuth>
+                    <SchedulePage />
                   </RequireAuth>
                 }
               />

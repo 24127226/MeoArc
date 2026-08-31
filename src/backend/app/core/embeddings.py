@@ -31,9 +31,15 @@ def _get_embedder():
         if not settings.ai_api_key:
             raise RuntimeError("Chưa cấu hình AI_API_KEY nên không dùng được tìm kiếm ngữ nghĩa.")
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
-        _embedder = GoogleGenerativeAIEmbeddings(
-            model=_EMBED_MODEL, google_api_key=settings.ai_api_key,
-        )
+        kw = {"model": _EMBED_MODEL, "google_api_key": settings.ai_api_key}
+        # Embedding cũng gọi generativelanguage.googleapis.com nên DÍNH ĐÚNG lệnh chặn
+        # theo vùng như chat. Quên chỗ này thì agent chạy được nhưng tìm-theo-nghĩa vẫn
+        # hỏng — một nửa tính năng sống, một nửa chết, rất khó lần ra.
+        if settings.ai_base_url:
+            kw["base_url"] = settings.ai_base_url.rstrip("/")
+            if settings.ai_proxy_secret:
+                kw["additional_headers"] = {"x-meoarc-proxy": settings.ai_proxy_secret}
+        _embedder = GoogleGenerativeAIEmbeddings(**kw)
     return _embedder
 
 

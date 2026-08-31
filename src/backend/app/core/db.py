@@ -12,7 +12,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
 # Lấy URL từ cấu hình (.env). Postgres: postgresql+psycopg://...  SQLite: sqlite:///./meoarc.db
-DATABASE_URL = settings.database_url
+# db_url (không phải database_url thô): đã chuẩn hoá driver cho chuỗi mà các nền tảng
+# lưu trữ phát ra — xem app/core/config.py.
+DATABASE_URL = settings.db_url
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
 # connect_args chỉ cần cho SQLITE (check_same_thread=False để web đa luồng dùng được).

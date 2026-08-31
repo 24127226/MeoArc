@@ -28,17 +28,27 @@ import {
   Volume2,
   VolumeX,
   ArrowUpRight,
+  Plane,
+  Hotel,
+  ShieldCheck,
+  FlaskConical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
+import { LogoMark } from '@/components/logo'
+import { useTheme } from '@/components/theme-provider'
 import { VoiceMode } from '@/components/layout/voice-mode'
 import { ChatAmbience } from '@/components/layout/chat-ambience'
+import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
+// Dùng LẠI thành phần vẽ của khung "Tra cứu đi lại" — không vẽ bản thứ hai. Vẽ hai lần
+// thì hai chỗ sẽ trôi xa nhau và cùng một chuyến bay hiện hai kiểu.
+import { DongBay, DongPhong } from '@/components/layout/tra-cuu-panel'
 import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
-import { api, apiBaseUrl, type StoredMessage } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, type StoredMessage } from '@/lib/api'
 import { useSubscription, isOutOfTokens } from '@/lib/subscription'
 import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
 import { PricingScreen } from '@/components/layout/pricing-screen'
@@ -181,10 +191,14 @@ function doneText(op: PlanOp): string {
   }
 }
 
-/** Câu ngắn để TTS đọc cho từng loại phản hồi. */
+/** Câu ngắn để TTS đọc cho từng loại phản hồi.
+ *
+ *  `intro` của thẻ 'dilai' có thể vắng (nhà cung cấp không kèm câu mô tả), nên phải
+ *  lui về `title` — thiếu bước này thì máy đọc thành tiếng chữ "null". */
 function replyToSpeech(reply: AgentReply): string {
   if ('text' in reply) return reply.text
-  if ('intro' in reply) return reply.intro
+  if ('intro' in reply && reply.intro) return reply.intro
+  if ('title' in reply && reply.title) return reply.title
   return ''
 }
 
@@ -366,6 +380,55 @@ function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: st
 }
 
 /** Meeting Brief — bento: thời gian/deadline · người tham gia · checklist · điểm chính. */
+/** Kết quả tra cứu đi lại, hiện NGAY TRONG CHAT.
+ *
+ *  Dùng lại đúng `DongBay`/`DongPhong` của khung "Tra cứu đi lại" — không vẽ lại một
+ *  bản riêng. Vẽ hai lần thì hai chỗ sẽ TRÔI XA NHAU: sửa cột giá ở khung mà quên
+ *  trong chat là cùng một chuyến bay hiện hai kiểu, và không ai biết bên nào đúng.
+ *
+ *  Nhãn nguồn giữ nguyên kiểu của khung (xanh = thật, hổ phách = mô phỏng) để người
+ *  xem nhận ra ngay là CÙNG MỘT THỨ, dù tới bằng hai đường khác nhau. */
+function DiLaiWidget({ reply }: { reply: Extract<AgentReply, { kind: 'dilai' }> }) {
+  return (
+    <Card className="rose-glass shadow-float">
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {reply.loai === 'bay' ? (
+            <Plane className="size-4 text-primary" />
+          ) : (
+            <Hotel className="size-4 text-primary" />
+          )}
+          {reply.title}
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1',
+              'font-mono text-[10px] font-semibold uppercase tracking-[0.08em]',
+              reply.la_that
+                ? 'bg-[var(--rr-hoan,#0E8F63)]/15 text-[var(--rr-hoan,#0E8F63)]'
+                : 'bg-[var(--ut-gap,#B45309)]/15 text-[var(--ut-gap,#B45309)]',
+            )}
+          >
+            {reply.la_that ? <ShieldCheck className="size-3" /> : <FlaskConical className="size-3" />}
+            {reply.nhan}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <div className="flex flex-col gap-1.5">
+          {reply.items.map((k, i) => (
+            <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
+              {reply.loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
+            </div>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[11px] text-muted-foreground/80">
+          Chỉ tra cứu — không đặt, không thanh toán.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> }) {
   const [done, setDone] = useState<Set<number>>(new Set())
   const toggle = (i: number) =>
@@ -610,181 +673,152 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 
 /* ---------- Panel ---------- */
 
-/** GIỌT SƠN HÌNH CẦU rơi như giọt nước: phồng ra từ band header → rơi → ĐẬP lên
- *  mép trên khu nhập liệu (--roof-y đo runtime) → cột jet bật giữa + GIỌT CON văng
- *  vòng cung ra hai bên, đáp mái lăn tăn dần ra xa + ripple loang ngang → tan.
- *  Đặt trong đúng lane từng màu (khớp dải header). Nằm SAU bong bóng chat (z-0)
- *  nên KHÔNG che chữ. --pc = màu sơn; d = đường kính giọt (đỏ trĩu nặng nhất). */
-const S_NAVY = '#0b1d3a'
-const S_WHITE = '#e9e3d6'
-const S_RED = '#b0302e'
-const PAINT_DROPS: { x: string; c: string; d: number; dur: number; delay: number }[] = [
-  { x: '5%', c: S_NAVY, d: 7, dur: 5.5, delay: 0.0 },
-  { x: '13%', c: S_NAVY, d: 5, dur: 7.2, delay: 2.4 },
-  { x: '20%', c: S_NAVY, d: 7, dur: 6.0, delay: 3.6 },
-  { x: '27%', c: S_WHITE, d: 5, dur: 6.6, delay: 1.1 },
-  { x: '31%', c: S_WHITE, d: 6, dur: 5.8, delay: 3.0 },
-  { x: '38%', c: S_RED, d: 8, dur: 5.0, delay: 0.5 },
-  { x: '43%', c: S_RED, d: 6, dur: 6.3, delay: 2.7 },
-  { x: '58%', c: S_RED, d: 8, dur: 5.3, delay: 1.5 },
-  { x: '63%', c: S_RED, d: 6, dur: 6.9, delay: 3.3 },
-  { x: '69%', c: S_WHITE, d: 6, dur: 6.0, delay: 0.8 },
-  { x: '73%', c: S_WHITE, d: 5, dur: 7.4, delay: 2.5 },
-  { x: '80%', c: S_NAVY, d: 6, dur: 5.6, delay: 1.0 },
-  { x: '88%', c: S_NAVY, d: 5, dur: 6.7, delay: 3.5 },
-  { x: '95%', c: S_NAVY, d: 6, dur: 6.1, delay: 2.0 },
-]
+/* ĐÃ XOÁ hai thành phần MeltingWave (sơn tan chảy) và WaterDivider (mặt hồ
+   gợn sóng) cùng dữ liệu đi kèm. Xem giải thích ở chỗ chúng từng được gắn.
+   Lịch sử vẫn còn trong git nếu cần dựng lại. */
 
-/** Quỹ đạo giọt con văng ra sau cú đập (--dx px, âm = sang trái) — 3 bộ xoay vòng
- *  theo index để các điểm rơi không giọt nào giống giọt nào. */
-const SPLAT_PATTERNS: number[][] = [
-  [-18, -9, 10, 19],
-  [-22, -11, 13, 24],
-  [-15, -7, 8, 16],
-]
+/** Đoạn phim nền — MỖI THEME MỘT ĐOẠN, và đây không phải chuyện thẩm mỹ.
+ *
+ *  Phép hoà trộn quyết định đoạn phim nào dùng được ở đâu:
+ *
+ *  TỐI  → `screen` (lấy giá trị sáng hơn). Đoạn phim phải có NỀN ĐEN thì vùng
+ *         nền mới triệt tiêu hoàn toàn và chỉ còn lại vật thể phát sáng. Bông
+ *         hoa thuỷ tinh đúng như vậy: nền đen tuyền, hoa rực ngũ sắc. Nhờ nó
+ *         mà bản tối không còn phải ghì brightness xuống 0.38 như đoạn bong
+ *         bóng trước — cái đó là chữa cháy cho một đoạn phim sai nền.
+ *
+ *  SÁNG → `multiply` (lấy giá trị tối hơn). Ở đây cần ngược lại: nền phải SÁNG
+ *         thì mới triệt tiêu, còn vật thể sẫm hơn mới hiện ra. Bong bóng xà
+ *         phòng trên nền studio trắng đúng vai này. Bê bông hoa nền đen sang
+ *         đây thì cả khung hoá đen kịt.
+ *
+ *  Cùng một nguyên tắc phát xạ/tán sắc đã dùng cho toàn bộ giao diện, lần này
+ *  quyết định luôn cả việc CHỌN TỆP.
+ *
+ *  Cả hai đều đã chuyển mã cho web: H.264, không tiếng, +faststart. Bản gốc của
+ *  bông hoa là 30.9 MB (2888x2160, 19.9 Mbit/s) — bản dùng thật 1.28 MB.
+ */
+const PHIM_TOI = '/landing/space-bubble.mp4'   // nền đen  → dùng với screen
+const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với multiply
 
-/** MeltingWave — sơn tan chảy theo ĐÚNG LANE từng dải màu header (dùng lại viewBox 320 →
- *  khớp x 1-1). Mép dưới lượn KHÔNG ĐỀU (bất đối xứng, nhiều bướu) cho tự nhiên. Kèm giọt
- *  sơn rơi ĐÁP lên mép khu nhập liệu như mưa trên mái (roofRef = canvas chat: chiều cao
- *  canvas CHÍNH LÀ quãng rơi tới mái). ĐẶT SAU bong bóng chat (z-0) để không che tin nhắn. */
-function MeltingWave({ roofRef }: { roofRef: React.RefObject<HTMLDivElement | null> }) {
-  const rootRef = useRef<HTMLDivElement>(null)
-  // epoch tăng mỗi lần panel HIỆN LẠI (từ display:none khi mở chi tiết thư) →
-  // đổi key giọt để animation vô hạn khởi động sạch. Fix bug: điều hướng qua
-  // lại làm trình duyệt hủy animation đang chạy, hiện lại thì giọt "chết" dù
-  // splash vẫn chạy.
-  const [epoch, setEpoch] = useState(0)
-  // --roof-y = chiều cao canvas (khoảng cách band → mép trên khu nhập liệu). Đo bằng
-  // ResizeObserver để giọt luôn đáp ĐÚNG mái kể cả khi panel đổi cỡ / textarea cao lên.
-  useEffect(() => {
-    const roof = roofRef.current
-    const root = rootRef.current
-    if (!roof || !root) return
-    const update = () => {
-      const h = roof.offsetHeight
-      // Panel đang ẩn (display:none) → h = 0: GIỮ giá trị tốt cuối, đừng ghi rác
-      if (h > 0) root.style.setProperty('--roof-y', `${h - 2}px`)
-    }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(roof)
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        update()
-        setEpoch((n) => n + 1) // panel vừa hiện lại → remount giọt, animation chạy lại từ đầu
-      }
-    })
-    io.observe(roof)
-    return () => {
-      ro.disconnect()
-      io.disconnect()
-    }
-  }, [roofRef])
+/**
+ * TheDuDinh — agent xin phép TRƯỚC khi làm việc có hậu quả ra ngoài hộp thư.
+ *
+ * Đây là màn quan trọng nhất khi MeoArc gọi MCP đi đặt vé, đặt phòng — và cũng
+ * là chỗ dễ làm sai nhất. Ba quyết định thiết kế, mỗi cái chữa một cách hỏng:
+ *
+ * 1. MỖI BƯỚC MỘT MỨC RỦI RO RIÊNG, không gộp thành một cục "đặt chuyến đi".
+ *    Gộp lại thì người dùng không thấy được bước nào rút lại được, bước nào
+ *    không — và họ sẽ duyệt cả cụm mà không biết mình vừa duyệt cái gì.
+ *
+ * 2. NÚT GIỮA LÀ NÚT QUAN TRỌNG NHẤT. "Chỉ thêm vào lịch" cho phép lấy phần an
+ *    toàn và bỏ phần tốn tiền. Thiếu nó thì người dùng chỉ có duyệt tất hoặc bỏ
+ *    tất — và khi phải chọn giữa hai cực đó, họ sẽ bỏ tất.
+ *
+ * 3. AGENT NÓI RA CHỖ NÓ ĐOÁN. Không giấu phần suy đoán đi. Một trợ lý nói rõ
+ *    chỗ mình không chắc thì đáng tin hơn hẳn một trợ lý lúc nào cũng quả quyết.
+ *
+ * Mức rủi ro CAO NHẤT trong các bước quyết định độ sáng của cả thẻ — vì đó mới
+ * là thứ người dùng đang thật sự đánh cược khi bấm duyệt.
+ */
+function TheDuDinh({
+  reply,
+  resolved,
+  dangChay,
+  onDuyet,
+  onBoQua,
+}: {
+  reply: Extract<AgentReply, { kind: 'dudinh' }>
+  resolved?: boolean
+  /** Đang gọi backend — khoá nút để một cú bấm không thành hai đơn. */
+  dangChay?: boolean
+  onDuyet: () => void
+  onBoQua: () => void
+}) {
+  const capCao = Math.max(...reply.buoc.map((b) => b.mucRuiRo)) as 1 | 2 | 3
+  const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+  const coTienThat = reply.buoc.some((b) => b.mucRuiRo === 3)
 
   return (
-    <div ref={rootRef} aria-hidden className="pointer-events-none relative z-0 h-0 select-none">
-      {/* Giọt cầu rơi + splash đáp mái (jet ::after + ripple ::before + giọt con
-          .paint-splat) — tất cả cùng duration/delay nên ĐỒNG PHA từng cụm */}
-      {PAINT_DROPS.map((s, i) => (
-        <Fragment key={`${epoch}-${i}`}>
-          <span
-            className="paint-drop"
-            style={
-              {
-                left: s.x,
-                width: s.d,
-                height: s.d,
-                ['--pc' as string]: s.c,
-                animationDuration: `${s.dur}s`,
-                animationDelay: `${s.delay}s`,
-              } as React.CSSProperties
-            }
-          />
-          <span
-            className="paint-splash"
-            style={
-              {
-                left: s.x,
-                ['--pc' as string]: s.c,
-                animationDuration: `${s.dur}s`,
-                animationDelay: `${s.delay}s`,
-              } as React.CSSProperties
-            }
-          >
-            {SPLAT_PATTERNS[i % SPLAT_PATTERNS.length].map((dx, j) => (
-              <span key={j} className="paint-splat" style={{ ['--dx' as string]: `${dx}px` } as CSSProperties} />
-            ))}
-          </span>
-        </Fragment>
-      ))}
-
-      {/* Band sơn ở mép header — drop-shadow đổ bóng xuống mặt chat */}
-      <div className="absolute inset-x-0 top-[-2px] h-[62px] filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.32)]">
-        <svg
-          className="h-full w-full"
-          viewBox="0 0 320 80"
-          preserveAspectRatio="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="mw-navy" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#1b3a63" />
-              <stop offset="0.5" stopColor="#0b1d3a" />
-              <stop offset="1" stopColor="#050f22" />
-            </linearGradient>
-            <linearGradient id="mw-white" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#F5F7FF" />
-              <stop offset="0.5" stopColor="#E2E6FB" />
-              <stop offset="1" stopColor="#C6CBF4" />
-            </linearGradient>
-            {/* dải thứ ba: tím điện thay cho đỏ cũ, khớp palette Iridescent */}
-            <linearGradient id="mw-red" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#977DFF" />
-              <stop offset="0.5" stopColor="#6B3FE8" />
-              <stop offset="1" stopColor="#3E1FA8" />
-            </linearGradient>
-          </defs>
-
-          {/* ── LANE NAVY (0–75 & 245–320) ── mép lượn KHÔNG ĐỀU (bướu lệch, sâu nông khác nhau) */}
-          <path fill="url(#mw-navy)" d="M0,0 L75,0 C75,18 71,44 63,52 C56,58 52,40 43,50 C33,60 24,70 13,57 C7,49 2,20 0,0 Z" />
-          <path fill="url(#mw-navy)" d="M245,0 L320,0 C320,20 316,52 306,58 C299,62 296,45 286,52 C276,60 264,49 255,58 C250,50 246,18 245,0 Z" />
-
-          {/* ── LANE TRẮNG NGÀ (75–110 & 210–245) ── opacity 0.9 để khúc xạ nền chat */}
-          <path fill="url(#mw-white)" opacity="0.9" d="M75,0 L110,0 C110,5 107,55 99,48 C93,53 89,37 82,46 C79,50 76,18 75,0 Z" />
-          <path fill="url(#mw-white)" opacity="0.9" d="M210,0 L245,0 C245,14 242,46 235,50 C229,55 225,39 218,48 C214,52 211,16 210,0 Z" />
-
-          {/* ── LANE ĐỎ MẬN (110–145 & 175–210) ── TRĨU NẶNG nhất, bướu lệch, sườn dốc sắc */}
-          <path fill="url(#mw-red)" d="M110,0 L145,0 C145,66 142,75 133,66 C127,72 123,50 117,61 C114,66 111,24 110,0 Z" />
-          <path fill="url(#mw-red)" d="M175,0 L210,0 C210,24 205,60 198,66 C193,70 189,50 183,62 C179,66 176,22 175,0 Z" />
-        </svg>
+    <div
+      className={cn(
+        // NỀN ĐỤC, không để trong suốt. Panel trợ lý có đoạn phim chạy phía sau;
+        // thẻ này chứa SỐ TIỀN và các bước không hoàn tác được, nên nó là chỗ
+        // cuối cùng được phép hy sinh độ đọc để lấy hiệu ứng. Vẫn giữ backdrop-blur
+        // để nó còn thuộc về khung kính chung.
+        'goc-cat mt-2 flex flex-col gap-3.5 bg-[var(--elevated)]/92 p-4 backdrop-blur-md',
+        capCao === 3 ? 'rui-ro-3' : capCao === 2 ? 'rui-ro-2' : 'rui-ro-1',
+        resolved && 'opacity-60',
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em]"
+          style={{ color: 'var(--rr)' }}>
+          {coTienThat ? 'Không hoàn tác · tiêu tiền thật' : 'Cần bạn duyệt'}
+        </span>
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--rr)' }}>
+          {reply.buoc.length} bước
+        </span>
       </div>
-    </div>
-  )
-}
 
-/** WaterDivider — MẶT HỒ lượn sóng ở dải phân cách chat ↔ composer. 2 lớp sóng SVG
- *  (period 100, 4 chu kỳ trên viewBox 400 → dịch -50% khớp 2 chu kỳ = cuộn liền mạch)
- *  trôi ngược chiều. Giọt sơn của MeltingWave rơi đáp đúng lên mặt này (cùng --roof-y)
- *  → ripple loang = mưa rơi mặt hồ. Màu champagne (--gold) cho hợp tông, không chọi. */
-const WAVE_FRONT =
-  'M0,12 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 L400,20 L0,20 Z'
-const WAVE_BACK =
-  'M0,11 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 q25,6 50,0 q25,-6 50,0 L400,20 L0,20 Z'
-function WaterDivider() {
-  return (
-    <div aria-hidden className="water-surface">
-      <svg className="water-wave water-wave--b" viewBox="0 0 400 20" preserveAspectRatio="none">
-        <path d={WAVE_BACK} fill="color-mix(in srgb, var(--gold) 16%, transparent)" />
-      </svg>
-      <svg className="water-wave water-wave--a" viewBox="0 0 400 20" preserveAspectRatio="none">
-        <path
-          d={WAVE_FRONT}
-          fill="color-mix(in srgb, var(--gold) 24%, transparent)"
-          stroke="color-mix(in srgb, var(--gold) 72%, #fff)"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+      <h3 className="text-[15px] font-semibold leading-snug text-foreground">{reply.title}</h3>
+
+      <div className="flex flex-col">
+        {reply.buoc.map((b, i) => (
+          <div key={i}
+            className="grid grid-cols-[14px_1fr_auto] items-center gap-2.5 border-t border-foreground/[0.07] py-2.5 first:border-t-0">
+            <span className={cn('cham-rr', `c${b.mucRuiRo}`)} aria-hidden />
+            <span className="min-w-0 text-[13px] text-foreground">
+              {b.mo_ta}{' '}
+              <span className="text-muted-foreground">· {b.hau_qua}</span>
+            </span>
+            <span className="font-mono text-[12px] tabular-nums"
+              style={{ color: b.tien ? `var(--rr-${b.mucRuiRo === 3 ? 'khong' : b.mucRuiRo === 2 ? 'can' : 'hoan'})` : undefined }}>
+              {b.tien ? `${b.tien.toLocaleString('vi-VN')} ₫` : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {tong > 0 && (
+        <div className="flex items-baseline justify-between border-t border-foreground/[0.07] pt-2.5">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">
+            Tổng chi
+          </span>
+          <span className="font-mono text-[15px] font-bold tabular-nums" style={{ color: 'var(--rr)' }}>
+            {tong.toLocaleString('vi-VN')} ₫
+          </span>
+        </div>
+      )}
+
+      {reply.cho_doan && (
+        <p className="border-l-2 py-2 pl-3 pr-2 text-[12.5px] leading-relaxed text-muted-foreground"
+          style={{ borderColor: 'var(--rr)', background: 'color-mix(in srgb, var(--rr) 5%, transparent)' }}>
+          {reply.cho_doan}
+        </p>
+      )}
+
+      {/* Ba nút này TỪNG KHÔNG GẮN HÀNH ĐỘNG NÀO — thẻ chỉ để nhìn. Và một trong ba
+          ("Chỉ thêm vào lịch") hứa việc MeoArc không làm được: nó không ghi được vào
+          Google Calendar. Một nút hứa sai còn tệ hơn không có nút, vì người dùng bấm
+          rồi tưởng đã xong. Đã bỏ nút đó và nối hai nút còn lại vào đường thật. */}
+      {!resolved && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onDuyet}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-60"
+            style={{ ['--tint' as string]: 'var(--rr)', background: 'var(--rr)' }}>
+            {dangChay ? 'Đang xử lý…' : coTienThat ? 'Duyệt & đặt' : 'Duyệt'}
+          </button>
+          <button
+            onClick={onBoQua}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-muted-foreground disabled:opacity-60">
+            Bỏ qua
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -823,6 +857,11 @@ export function ChatPanel({
   // Gói + hạn mức token: hiện cạnh ô nhập, chặn gửi khi cạn, mở trang nâng cấp.
   const { status: sub, refresh: refreshSub, setStatus: setSub } = useSubscription()
   const [pricingOpen, setPricingOpen] = useState(false)
+  /** Đoạn phim nền + cờ báo hỏng để rơi về bong bóng dựng bằng CSS. */
+  const videoNenRef = useRef<HTMLVideoElement>(null)
+  const [phimHong, setPhimHong] = useState(false)
+  const { theme } = useTheme()
+  const phimNen = theme === 'dark' ? PHIM_TOI : PHIM_SANG
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
   const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
@@ -942,8 +981,27 @@ export function ChatPanel({
     setCurrentId(s.id)
   }
 
-  // UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP). Mock trả [] → giữ initSessions (demo SRS).
-  // Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation phiên đó.
+  /* UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP).
+     Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation.
+
+     ── LỖI ĐÃ SỬA: CÂU HỎI BỐC HƠI SAU VÀI GIÂY ──
+     Bản trước, khi lời gọi này trả về nó chạy `setSessions([fresh, ...loaded])` rồi
+     `setCurrentId(fresh.id)` — tức THAY SẠCH phiên đang mở bằng một phiên TRỐNG.
+
+     Trên máy nhà, lời gọi về trong vài chục mili-giây nên không ai thấy. Trên bản
+     chạy thật nó mất vài giây, và trong khoảng đó người dùng đã kịp bấm "Hỏi trợ lý"
+     từ trang Lịch trình: câu hỏi hiện lên, agent bắt đầu nghĩ, rồi lịch sử về và
+     XOÁ luôn phiên chứa câu hỏi đó. Màn hình quay về lời chào, câu trả lời đang tới
+     thì rơi vào một phiên không còn được hiển thị.
+
+     Triệu chứng người dùng mô tả: "hỏi xong khoảng 10 mấy giây thì AI bị refresh và
+     hiện lại đoạn Chào Quân". Đúng là refresh — do chính đoạn mã này.
+
+     Nay: GIỮ NGUYÊN phiên đang mở, chỉ ghép lịch sử vào SAU nó, và KHÔNG đụng tới
+     `currentId`. Người dùng đang đứng ở đâu thì ở nguyên đó. */
+  const currentIdRef = useRef(currentId)
+  useEffect(() => { currentIdRef.current = currentId }, [currentId])
+
   useEffect(() => {
     let alive = true
     api
@@ -958,9 +1016,14 @@ export function ChatPanel({
           pinned: c.pinned,
           messages: [],
         }))
-        const fresh = freshSession()
-        setSessions([fresh, ...loaded]) // thêm 1 phiên mới ở đầu để chat ngay
-        setCurrentId(fresh.id)
+        setSessions((prev) => {
+          const dangMo = prev.find((s) => s.id === currentIdRef.current) ?? prev[0]
+          // Bỏ bản trùng: phiên đang mở có thể đã được lưu xuống backend rồi.
+          const conLai = loaded.filter((c) => c.id !== dangMo?.backendId)
+          return dangMo ? [dangMo, ...conLai] : [freshSession(), ...loaded]
+        })
+        // KHÔNG setCurrentId — đổi phiên dưới chân người dùng là cách chắc chắn
+        // nhất làm mất câu hỏi họ vừa gửi.
       })
       .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI
     return () => {
@@ -1089,9 +1152,21 @@ export function ChatPanel({
       })
   }
 
-  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào
+  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào.
+  //
+  // CỜ CHỐNG GỬI HAI LẦN. React StrictMode gọi effect hai lượt khi mount, và cả hai
+  // lượt đều chạy TRƯỚC khi cha kịp xoá lệnh — nên một lần bấm "Hỏi trợ lý" cho ra
+  // HAI câu hỏi và HAI thẻ trả lời giống hệt nhau. Đã chụp được đúng vậy.
+  //
+  // Cờ tự đặt lại khi `injectedCommand` về null (tức cha đã tiêu thụ xong), nên bấm
+  // lại đúng việc đó lần nữa vẫn gửi được. Nếu chỉ so sánh nội dung lệnh thì lần bấm
+  // thứ hai vào CÙNG một việc sẽ bị nuốt — một cách sửa tưởng đúng mà lại chặn nhầm
+  // thao tác hợp lệ.
+  const dangGuiLenh = useRef(false)
   useEffect(() => {
-    if (!injectedCommand) return
+    if (!injectedCommand) { dangGuiLenh.current = false; return }
+    if (dangGuiLenh.current) return
+    dangGuiLenh.current = true
     send(injectedCommand)
     onInjectConsumed?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1143,6 +1218,70 @@ export function ChatPanel({
       }
     }
     window.setTimeout(tick, 550)
+  }
+
+  /* ── DUYỆT THẺ DỰ ĐỊNH ────────────────────────────────────────────────────
+     Đây là mắt xích cuối để cả ý tưởng chạy được đầu-cuối: agent đề xuất → người
+     bấm → hệ thống thực thi qua cổng tiền.
+
+     Đi qua `/confirmations/{id}/approve` — đường TẤT ĐỊNH, KHÔNG qua mô hình. Mô
+     hình đã làm xong phần việc của nó (đề xuất) trước khi thẻ hiện ra; để nó tham
+     gia lần nữa lúc thực thi thì thứ chạy có thể khác thứ người dùng vừa duyệt.
+
+     Chế độ mock không có `confirmationId`. Vẫn cho duyệt, nhưng nói THẲNG là mô
+     phỏng — im lặng để người dùng tưởng đã đặt thật là kiểu nói dối tệ nhất ở đây. */
+  const [dangDuyetId, setDangDuyetId] = useState<string | null>(null)
+
+  const onDuyetDuDinh = async (
+    id: string,
+    reply: Extract<AgentReply, { kind: 'dudinh' }>,
+  ) => {
+    if (dangDuyetId) return          // khoá: một cú bấm không được thành hai đơn
+    setDangDuyetId(id)
+    const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+    try {
+      let ma = ''
+      if (reply.confirmationId) {
+        const ra = await api.approveConfirmation(reply.confirmationId)
+        const d = (ra?.result ?? {}) as { data?: { ma_dat_cho?: string }; message?: string }
+        ma = d.data?.ma_dat_cho ?? ''
+      }
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'result',
+          title: ma ? `Đã đặt (mô phỏng) · ${ma}` : 'Đã duyệt (mô phỏng)',
+          intro: 'Xong rồi — nhưng đọc kỹ dòng cuối nhé:',
+          lines: [
+            reply.title,
+            tong > 0 ? `Tổng chi ghi nhận: ${tong.toLocaleString('vi-VN')} ₫` : 'Không phát sinh chi phí.',
+            'ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán vé hay phòng nào. '
+            + 'Không có khoản tiền nào được thanh toán, và bạn sẽ KHÔNG nhận được vé thật.',
+          ],
+        },
+      })
+      triggerFlash()
+    } catch (e) {
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: { kind: 'text', text: `Chưa duyệt được: ${String(e).slice(0, 140)}. Bạn thử lại giúp mình nhé.` },
+      })
+    } finally {
+      setDangDuyetId(null)
+    }
+  }
+
+  const onBoQuaDuDinh = (id: string) => {
+    markResolved(id)
+    push({
+      id: uid(),
+      role: 'agent',
+      reply: { kind: 'text', text: 'Đã bỏ qua dự định này — mình chưa làm gì cả. Bạn muốn đổi phương án nào?' },
+    })
   }
 
   const rejectPlan = (id: string) => {
@@ -1264,52 +1403,47 @@ export function ChatPanel({
       : null
 
   return (
-    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col overflow-hidden border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
-      {/* Nền sinh động: aurora ấm trôi + quầng nến + tàn lửa (đặt sau nội dung) */}
-      <ChatAmbience />
-      {/* Watermark maison — Phiên bản SÁNG BÓNG ÁNH KIM cho Dark Mode, chốt hạ bài toán tàng hình */}
-      <div aria-hidden className="maison-watermark relative z-[2]">
-        <style>{`
-          .wm-title {
-            font-family: var(--font-display);
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            /* Light Mode: Giữ độ nét thanh lịch, xám Champagne dập khối tinh tế */
-            color: color-mix(in srgb, var(--foreground) 16%, transparent);
-            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.45);
-            transition: all 0.3s ease;
-          }
-          
-          .dark .wm-title {
-            /* Dark Mode lột xác: Đẩy mạnh lên 38% để sắc trắng bạc ánh kim lộ diện rực rỡ */
-            color: color-mix(in srgb, var(--foreground) 38%, #ffffff);
-            /* Quầng sáng neon bóng bẩy hắt ra từ lòng chữ, giả lập hiệu ứng kim loại bóng loáng phản quang dưới ánh đèn */
-            text-shadow: 
-              0 0 1px rgba(255, 255, 255, 0.6),
-              0 0 8px color-mix(in srgb, var(--active) 30%, transparent),
-              1px 2px 3px rgba(0, 0, 0, 0.7);
-          }
+    <aside className="ai-panel-bg den-noi-trai relative z-10 flex h-full flex-1 flex-col overflow-hidden shadow-soft duration-300 animate-in fade-in">
+      {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ, và nó PHẢI ĂN NHẬP VỚI NỀN, KHÔNG PHẢI DÁN LÊN NỀN.
+          Bản thô là một bong bóng TRẮNG LOÁ trên nền studio sáng. Đặt nguyên nó
+          lên nền #05060D thì nó không thuộc về căn phòng ấy — nó là một tấm ảnh
+          dán lên tường tối, và mắt đọc ra ngay.
 
-          .wm-sign span {
-            font-family: var(--font-serif);
-            font-style: italic;
-            color: color-mix(in srgb, var(--foreground) 18%, transparent);
-            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-          }
-          
-          .dark .wm-sign span {
-            /* Chữ ký phụ cũng được tráng bạc nhạt mờ ảo để không bị chìm nghỉm */
-            color: color-mix(in srgb, var(--foreground) 24%, #ffffff);
-            text-shadow: 0 0 4px rgba(255, 255, 255, 0.2), 1px 1px 2px rgba(0, 0, 0, 0.5);
-          }
-        `}</style>
+          Thử `mix-blend-mode: screen` trước và nó KHÔNG ăn thua, vì một lý do đáng
+          ghi lại: screen lấy giá trị sáng hơn của hai lớp, mà nền ở đây là #05060D
+          — gần như đen tuyệt đối. Screen với đen chính là phép đồng nhất, nên nó
+          không đổi được gì cả. Vẫn giữ screen vì ở những chỗ nền không thuần đen
+          nó có tác dụng, nhưng nó không phải đòn bẩy.
 
-        <div className="wm-title">MEOARC</div>
-        <div className="wm-sign">
-          <span>Designed by Eugene</span>
-        </div>
-      </div>
+          Đòn bẩy là `filter`. Ghì brightness xuống 0.38 để nền studio trắng của
+          đoạn phim tụt xuống ngang tầm nền tối của mình, rồi đẩy contrast và
+          saturate lên bù lại — làm thế thì chỉ những vân ngũ sắc rực nhất mới
+          sống sót, đúng những thứ đáng giữ. hue-rotate kéo phổ về phía tím/hồng
+          của thương hiệu để đoạn phim không mang một hệ màu riêng.
+
+          Bản gốc dặn "không phủ lớp làm tối nào lên phim" — vẫn giữ đúng: đây
+          không phải lớp phủ, đây là cách chính đoạn phim hoà vào nền. Riêng
+          phần mờ dần về đáy thì cần, vì dưới đó là chip gợi ý và ô nhập, chữ
+          phải đọc được. */}
+      <video
+        ref={videoNenRef}
+        className="phim-nen"
+        aria-hidden
+        autoPlay muted loop playsInline preload="auto"
+        key={phimNen}
+        src={phimNen}
+        onError={() => setPhimHong(true)}
+      />
+      {/* Định nghĩa bộ lọc khúc xạ — gắn một lần, các khối kính trỏ tới bằng id */}
+      <KinhKhucXaDefs />
+      {/* Bong bóng dựng bằng CSS: nền dự phòng khi đoạn phim không tải được
+          (mạng chặn, CDN hỏng). Không có nó thì panel thành một mảng đen trơn. */}
+      {phimHong && <ChatAmbience />}
+      {/* CHỮ "MEOARC" LÀM NỀN ĐÃ GỠ HẲN, cùng toàn bộ khối <style> đi kèm.
+          Nó từng là chữ ký của khung này, rồi bị hạ xuống 12% để thôi tranh chỗ
+          với hội thoại. Nhưng hạ độ mờ chỉ chữa triệu chứng: nền panel giờ đã có
+          một VẬT THẬT — bông hoa thuỷ tinh — nên chồng thêm một dòng chữ khổng lồ
+          sau nó là hai thứ cùng đòi làm hình nền. Bỏ hẳn thì bông hoa mới có chỗ. */}
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
@@ -1324,7 +1458,24 @@ export function ChatPanel({
       />
       
       {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
-      <header data-cat-perch="bottom" className="relative px-6 pt-6 pb-6 bg-gradient-to-b from-foreground/[0.04] to-foreground/[0.01] backdrop-blur-xl z-20 shrink-0 overflow-hidden group">
+      {/* Khung tiêu đề: nền KÍNH SỌC (fluted glass).
+          Kính sọc là tấm kính đúc thành nhiều gân bán trụ dọc; mỗi gân là một
+          thấu kính trụ nên ảnh phía sau bị nén ngang và vỡ thành dải — thấy có
+          gì đó ở sau nhưng không đọc được là gì. Đúng vai của một thanh tiêu đề:
+          phải tách khỏi nội dung bên dưới, nhưng không được là một mảng đặc chặn
+          hết mọi thứ. Bong bóng phía sau vẫn thấp thoáng qua các gân. */}
+      {/* Thanh tiêu đề: ĐÈN NEON CHIẾU VÀO, không phải một bề mặt được trang trí.
+          Ống đèn nằm ở mép trên, chùm sáng đổ xuống, và thứ nhìn thấy là chùm ấy
+          chạm vào không khí trong khối. Khác hẳn kính sọc trước đó — sọc là hoa
+          văn nên mắt luôn thấy nó và nó tranh chỗ với nội dung; ánh sáng thì
+          không có hoa văn nào để nhìn, nó chỉ làm khối này sáng lên.
+
+          CHỮ ĐÃ BỎ, thay bằng dấu hiệu thương hiệu. Dòng "Trợ lý MeoArc" không
+          nói thêm được gì: người dùng vừa tự tay mở khung này, họ biết thừa nó
+          là gì. Một chữ ở chỗ trang trọng nhất mà không mang thông tin thì chỉ
+          là chỗ trống được lấp. Dấu hiệu thì nhận ra tức thì, không phải đọc, và
+          nó chừa lại khoảng thở cho chùm sáng. */}
+      <header data-cat-perch="bottom" className="den-neon relative z-20 shrink-0 overflow-hidden px-6 pb-5 pt-5">
         
         {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
@@ -1334,33 +1485,12 @@ export function ChatPanel({
           <div className="w-full h-[1px] bg-[#000000]/40 shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
         </div>
 
-        {/* ĐỒ HỌA SVG CHUẨN MÃ OTO: Đuôi lớp đa giác nối tiếp, sửa lỗi đè sọc Trắng và chốt khối Tam giác Navy ngoài góc */}
-        <div className="absolute inset-0 pointer-events-none z-0">
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 320 90">
-            <defs>
-              <linearGradient id="french-glow-edge-left" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
-                <stop offset="100%" stopColor="transparent" />
-              </linearGradient>
-              <linearGradient id="french-glow-edge-right" x1="100%" y1="0%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor="color-mix(in srgb, var(--active) 35%, transparent)" />
-                <stop offset="100%" stopColor="transparent" />
-              </linearGradient>
-            </defs>
-
-            {/* CÁNH TRÁI: Xuất phát từ góc trên cùng, phủ kín góc bằng Navy và tăng độ dày Trắng-Đỏ */}
-            <path d="M 0,0 L 25,0 L 75,90 L 0,90 Z" fill="#0b1d3a" opacity="0.95" />
-            <path d="M 25,0 L 60,0 L 110,90 L 75,90 Z" fill="#ffffff" opacity="1" />
-            <path d="M 60,0 L 95,0 L 145,90 L 110,90 Z" fill="#a62b2b" opacity="0.95" />
-            <path d="M 95,0 L 115,0 L 165,90 L 145,90 Z" fill="url(#french-glow-edge-left)" opacity="0.35" />
-
-            {/* CÁNH PHẢI: Đối xứng trục tuyệt đối qua tâm diện (320px) */}
-            <path d="M 320,0 L 295,0 L 245,90 L 320,90 Z" fill="#0b1d3a" opacity="0.95" />
-            <path d="M 295,0 L 260,0 L 210,90 L 245,90 Z" fill="#ffffff" opacity="1" />
-            <path d="M 260,0 L 225,0 L 175,90 L 210,90 Z" fill="#a62b2b" opacity="0.95" />
-            <path d="M 225,0 L 205,0 L 155,90 L 175,90 Z" fill="url(#french-glow-edge-right)" opacity="0.35" />
-          </svg>
-        </div>
+        {/* Lưới mảnh + vệt sáng: ngôn ngữ bảng điều khiển, thay cho dải sơn huy hiệu Pháp.
+            Dải cũ (navy/trắng/đỏ + serif + "Maison de L'intellect") nói về thư quán thế kỷ 19,
+            trong khi thứ đang chạy bên dưới là một agent. Hai câu chuyện chỏi nhau ngay trên
+            cùng một màn hình, và người xem cảm nhận được dù không gọi tên ra được. */}
+        {/* Lưới mảnh ĐÃ BỎ: gân kính đã lo phần "cấu trúc nền", chồng thêm một
+            lưới nữa thì hai hoa văn đánh nhau. */}
 
         {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
         <div className="relative flex items-center justify-between w-full z-10">
@@ -1368,55 +1498,32 @@ export function ChatPanel({
               giữ khối đệm trống cho tiêu đề căn giữa cân với nút bên phải */}
           <div className="size-9 shrink-0 ml-12" />
 
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none select-none">
-            {/* KHUNG 2 MÈO PNG xoá nền — bạn chỉ cần thả ảnh vào
-                src/frontend/public/cats/ (tên: cat-1.png & cat-2.png) là tự hiện;
-                CHƯA có ảnh thì tự ẩn (onError). overflow-hidden + object-contain
-                đảm bảo ảnh GÓI GỌN trong khung; nằm SAU chữ (h2/p có relative). */}
-            {/* CONTAINER ẢNH MÈO PNG - Xếp chồng chính giữa, ẩn hiện chuẩn theo Mode */}
-        <div
-          aria-hidden
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[40%] flex items-end justify-center h-24 w-60 overflow-hidden opacity-90 z-0"
-        >
-          {/* MODE SÁNG (Light Mode): Hiện cat-01, ẩn khi qua Dark Mode */}
-          <img
-            src="/cats/cat-1.png"
-            alt=""
-            className="max-h-full w-auto object-contain block dark:hidden mx-auto" 
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-          {/* MODE TỐI (Dark Mode): Mặc định ẩn, chỉ hiện block khi ở Dark Mode */}
-          <img
-            src="/cats/cat-2.png"
-            alt=""
-            className="max-h-full w-auto object-contain hidden dark:block mx-auto"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-        </div>
-            <h2
-              className="relative font-serif text-[23px] font-black uppercase text-foreground leading-none tracking-[0.4em] transition-all duration-700 group-hover:scale-[1.02] group-hover:tracking-[0.44em]"
-              style={{
-                textShadow: '0 1px 1px rgba(255,255,255,0.22), inset 0 1px 2px rgba(0,0,0,0.28)',
-                letterSpacing: '0.4em'
-              }}
-            >
-              Trợ lý MeoArc
-            </h2>
-            <p className="relative mt-2.5 text-[8.5px] font-serif tracking-[0.28em] italic text-muted-foreground/50">
-              Maison de L'intellect
-            </p>
-          </div>
+          {/* VIÊN KÍNH KHÚC XẠ — hẹp so với đoạn phim, và đó là điều kiện bắt buộc.
+              Bản gốc ghi rõ một hiện tượng cố hữu của bộ lọc: khi khối kính rộng
+              gần bằng nguồn, mép của nó rơi vào vùng mặt nạ 45px và lộ ra dải
+              tách kênh màu gắt chạy dọc cạnh. Thanh tiêu đề tràn viền rơi đúng
+              vào bẫy đó — đã thử và đúng là bị. Thu lại thành viên nổi hẹp thì
+              mép ra khỏi vùng ấy, chỉ còn lại phần khúc xạ sạch.
+              Tiện thể nó cũng đúng hơn về mặt hình: một tấm kính có bốn cạnh
+              nhìn thấy được thì mới đọc ra là VẬT đặt lên trên đoạn phim; tràn
+              viền thì chỉ đọc là một mảng nền. */}
+          <KinhKhucXa
+            videoRef={videoNenRef}
+            co="nho"
+            className="kkx pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 select-none items-center justify-center overflow-hidden rounded-full border border-white/[0.16] p-3.5">
+            {/* Dấu hiệu, không phải chữ. Phát sáng bằng drop-shadow theo đúng màu
+                đèn đang rọi — cùng một nguồn sáng thì mọi vật trong khối phải
+                nhận cùng một màu, nếu không khối mất tính nhất quán. */}
+            <LogoMark className="relative size-6 text-foreground drop-shadow-[0_0_10px_var(--den)]" />
+            <span className="sr-only">Trợ lý MeoArc</span>
+          </KinhKhucXa>
 
           <div className="flex items-center gap-1 shrink-0 mr-12">
             <button
               onClick={() => setHistoryOpen((v) => !v)}
               title="Kích hoạt dải phím thao tác"
               className={cn(
-                "flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-gold/40 hover:text-foreground shadow-sm",
+                "o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90",
                 historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
               )}
             >
@@ -1427,7 +1534,7 @@ export function ChatPanel({
                 onClick={onClose}
                 title="Đóng trợ lý — về Hộp thư"
                 aria-label="Đóng trợ lý AI"
-                className="flex size-9 items-center justify-center rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-md text-muted-foreground transition-all duration-300 active:scale-90 hover:border-destructive/40 hover:text-foreground shadow-sm"
+                className="o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90 [--tint:var(--destructive)]"
               >
                 <X className="size-4" />
               </button>
@@ -1444,7 +1551,7 @@ export function ChatPanel({
               : "max-h-0 opacity-0 -translate-y-4 pointer-events-none overflow-hidden mt-0 pt-0 border-t-0"
           )}
         >
-          <div className="flex items-center gap-2 px-4 py-1 rounded-full bg-background/60 backdrop-blur-md border border-foreground/[0.05] shadow-inner">
+          <div className="den-vien goc-cat-nho goc-cat flex items-center gap-2 px-4 py-1 bg-background/60 backdrop-blur-md">
             <kbd className="hidden items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-background px-1.5 py-0.5 text-[9px] font-mono font-medium text-muted-foreground/70 lg:flex">
               ⌘K
             </kbd>
@@ -1478,10 +1585,17 @@ export function ChatPanel({
         </div>
       </header>
 
-      {/* Làn sóng sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header, trĩu xuống đè
-          lên khung chat. Lớp h-0 ngay sau header nên bám đúng mép dưới, không bị
-          overflow-hidden của header cắt. */}
-      <MeltingWave roofRef={scrollRef} />
+      {/* ĐÃ GỠ dải sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header.
+          Nó là một mảng công phu và đẹp, nhưng nó kể sai chuyện: sơn chảy là ẩn dụ
+          của chất lỏng, của thủ công, của thứ diễn ra chậm. Bên dưới nó là một
+          agent đọc vài trăm lá thư trong vài giây. Hai câu chuyện chỏi nhau ngay
+          trên cùng một màn hình.
+          Thay bằng một VẠCH SÁNG mảnh có tán sắc — cùng vai trò phân cách, nhưng
+          nói bằng ngôn ngữ ánh sáng. */}
+      <div aria-hidden className="relative z-10 h-px shrink-0">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-80" />
+        <div className="absolute inset-x-0 top-0 h-px translate-y-[0.5px] bg-gradient-to-r from-transparent via-[#F042FF] to-transparent opacity-40 blur-[1.5px]" />
+      </div>
 
       {/* Canvas hội thoại */}
       <div
@@ -1507,6 +1621,9 @@ export function ChatPanel({
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
                   onOpenEmail={onOpenEmail}
+                  duyetDuDinhId={dangDuyetId}
+                  onDuyetDuDinh={onDuyetDuDinh}
+                  onBoQuaDuDinh={onBoQuaDuDinh}
                 />
               )}
             </div>
@@ -1528,7 +1645,16 @@ export function ChatPanel({
         data-cat-perch="top"
         className="roof-ledge relative px-6 py-4"
       >
-        <WaterDivider />
+        {/* ĐÃ GỠ mặt hồ gợn sóng champagne. Sóng nước là đường cong hữu cơ, mềm —
+            đúng thứ khiến cả panel đọc ra là "mặt phẳng mượt". Thay bằng một
+            đường chân trời phát sáng: cùng nhiệm vụ ngăn khung chat với ô nhập,
+            nhưng là một CẠNH sắc, thứ mà ánh sáng bám được vào. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-[var(--active)] to-transparent" />
+          <div className="h-px w-full -translate-y-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-70 blur-[2px]" />
+          {/* Quầng hắt lên từ đường kẻ — cho biết nó phát sáng chứ không phải một nét vẽ */}
+          <div className="h-10 w-full bg-[radial-gradient(60%_100%_at_50%_0%,color-mix(in_srgb,var(--active)_22%,transparent),transparent_72%)]" />
+        </div>
 
         {/* Cạn hạn mức → nói rõ lý do trợ lý ngừng trả lời + lối nâng cấp */}
         <QuotaBanner status={sub} onUpgrade={() => setPricingOpen(true)} />
@@ -1887,7 +2013,7 @@ function DraftCard({
     setRwOpen(false)
     // Backend thật: nhờ AGENT viết lại đúng bản nháp này (giữ chủ đề + người nhận).
     // Mock/demo (chưa nối backend): biến thể cục bộ GIỮ nội dung gốc, không lạc đề.
-    if (apiBaseUrl && onRewrite) {
+    if (apiBaseUrlDaCauHinh && onRewrite) {
       onRewrite({ to, subject, body, replyToId: reply.replyToId }, instr)
       setRwText('')
       return
@@ -1962,7 +2088,19 @@ function DraftCard({
                 <div className="skeleton h-3 w-2/3 rounded" />
               </div>
             ) : (
-              <div className="mt-2 whitespace-pre-line rounded-xl bg-[#f7ebd9] px-4 py-3.5 font-serif text-[14px] leading-relaxed text-[#3e1717] shadow-[inset_0_1px_3px_rgba(0,0,0,0.1),_0_4px_12px_rgba(0,0,0,0.08)] border border-[#e5d4bc]">
+              /* Bản nháp thư. Trước đây khối này là NỀN KEM #f7ebd9 + MỰC NÂU
+                 #3e1717 + viền ngà — tức là giả một tờ giấy da. Đây là thứ "cổ
+                 điển" lộ liễu nhất trong toàn ứng dụng, lại nằm đúng chỗ người
+                 dùng nhìn lâu nhất: lúc đọc lại thư trước khi bấm gửi.
+
+                 Hai màu đó còn được ghi cứng nên ở theme tối chúng đứng im —
+                 một mảng kem chói giữa nền gần đen.
+
+                 Giờ là một khối kính có viền phát sáng, chữ dùng token nên theo
+                 theme. Vẫn tách khỏi nền để biết "đây là nội dung thư", nhưng
+                 tách bằng ÁNH SÁNG chứ không bằng cách giả vật liệu giấy. */
+              <div className="neon-edge mt-2 whitespace-pre-line rounded-xl bg-elevated/70 px-4 py-3.5 text-[14px] leading-relaxed text-foreground backdrop-blur-sm"
+                style={{ ['--tint' as string]: 'var(--spark)' }}>
                 {body}
               </div>
             )}
@@ -2167,6 +2305,9 @@ function AgentMessage({
   onApplyCategorize,
   onAutopilotApply,
   onOpenEmail,
+  duyetDuDinhId,
+  onDuyetDuDinh,
+  onBoQuaDuDinh,
 }: {
   message: Extract<Message, { role: 'agent' }>
   exec: { id: string; current: number } | null
@@ -2183,6 +2324,16 @@ function AgentMessage({
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
   onOpenEmail?: (id: string) => void
+  /* THẺ DỰ ĐỊNH. Ba prop này TỪNG THIẾU: `AgentMessage` gọi thẳng `dangDuyetId`,
+     `onDuyetDuDinh`, `onBoQuaDuDinh` — vốn là biến trong component CHA. Thẻ dự định
+     chưa bao giờ được render thật (chỉ là mockup) nên không ai vấp; vừa render lần
+     đầu là ReferenceError làm TRẮNG CẢ APP.
+     TypeScript CÓ bắt được (5 lỗi), nhưng chúng bị che bởi bộ nhớ đệm
+     `node_modules/.tmp/tsconfig.app.tsbuildinfo` — tsc coi file không đổi nên dùng
+     lại kết quả cũ. Xoá cache là lộ ra ngay. */
+  duyetDuDinhId: string | null
+  onDuyetDuDinh: (id: string, reply: Extract<AgentReply, { kind: 'dudinh' }>) => void
+  onBoQuaDuDinh: (id: string) => void
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
@@ -2240,6 +2391,15 @@ function AgentMessage({
     )
   }
 
+  if (reply.kind === 'dilai') {
+    return (
+      <AgentRow>
+        {reply.intro && <AgentText>{reply.intro}</AgentText>}
+        <DiLaiWidget reply={reply} />
+      </AgentRow>
+    )
+  }
+
   if (reply.kind === 'brief') {
     return (
       <AgentRow>
@@ -2278,6 +2438,21 @@ function AgentMessage({
           id={message.id}
           onApply={onApplyCategorize}
           onReject={onReject}
+        />
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'dudinh') {
+    return (
+      <AgentRow>
+        <AgentText>{reply.intro}</AgentText>
+        <TheDuDinh
+          reply={reply}
+          resolved={resolved}
+          dangChay={duyetDuDinhId === message.id}
+          onDuyet={() => onDuyetDuDinh(message.id, reply)}
+          onBoQua={() => onBoQuaDuDinh(message.id)}
         />
       </AgentRow>
     )

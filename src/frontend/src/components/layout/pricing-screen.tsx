@@ -26,9 +26,18 @@ import { TOKENS_PER_TURN } from '@/lib/subscription'
 const NEON = '#87F5F5'
 const TIER_ICON: Record<string, React.ElementType> = { free: Sparkles, pro: Zap, max: Crown }
 
-/** Video hoa của bản mẫu getlayers; hỏng mạng thì lùi về clip của chính dự án. */
-const HERO_VIDEO =
-  'https://api.getlayers.ai/storage/v1/object/public/public/assets/loopstack-f8c64439bf/flower.mp4'
+/** Nền màn nâng cấp gói — đoạn phim của bản mẫu Asme, ĐÃ TỰ HOST.
+ *
+ *  Bản gốc là một luồng HLS trên Mux (`.m3u8`). Dùng nguyên nó thì phải kéo thêm
+ *  thư viện `hls.js` (~400 KB) vì ngoài Safari ra không trình duyệt nào phát
+ *  được HLS trực tiếp — tức là bốn trăm kilobyte cho một cái nền trang trí.
+ *
+ *  ffmpeg đọc thẳng được `.m3u8`, nên lấy về rồi chuyển thành mp4 thường: bỏ
+ *  được cả phụ thuộc lẫn rủi ro CDN, và nhẹ hơn (840 KB cho 12 giây).
+ *
+ *  Vẫn giữ đường lùi: nền hỏng thì màn này chỉ mất phần trang trí, chứ các gói
+ *  và nút chọn vẫn dùng được bình thường. */
+const HERO_VIDEO = '/landing/asme-hero.mp4'
 const FALLBACK_VIDEO = '/landing/flower-field.mp4'
 
 function shortNum(n: number): string {
@@ -308,9 +317,11 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
                 key={p.id}
                 style={{ animationDelay: `${0.45 + idx * 0.12}s` }}
                 className={cn(
-                  'ps-card flex min-h-0 flex-col overflow-hidden rounded-2xl border p-4 backdrop-blur-xl',
-                  current ? 'border-white/40 bg-white/[0.1]'
-                    : featured ? 'border-white/25 bg-white/[0.07]' : 'border-white/12 bg-white/[0.04]',
+                  // `liquid-glass` thay cho viền tô đều: viền của nó là một dải
+                  // sáng gắt ở mép trên/dưới và tắt ở giữa — đúng cách ánh sáng đập
+                  // vào một tấm kính có bề dày. Viền một màu không ra được cảm giác đó.
+                  'ps-card liquid-glass flex min-h-0 flex-col rounded-2xl p-4',
+                  current ? 'bg-white/[0.10]' : featured ? 'bg-white/[0.07]' : 'bg-white/[0.035]',
                 )}
               >
                 <div className="flex items-center justify-between">

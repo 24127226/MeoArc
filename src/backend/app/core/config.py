@@ -50,13 +50,64 @@ class Settings(BaseSettings):
     #   • ai_api_key          ← AI_API_KEY        : KHOÁ Gemini (lấy free ở aistudio.google.com).
     #                            ĐỂ TRỐNG = chưa cấu hình → /agent/chat tự lùi về câu trả lời mẫu
     #                            (app KHÔNG sập, vẫn chạy mọi tính năng khác).
-    #   • model_name          ← MODEL_NAME        : tên model, mặc định gemini-2.0-flash (nhanh, rẻ).
+    #   • model_name          ← MODEL_NAME        : tên model.
+    #
+    #     KHÔNG ĐỂ gemini-2.0-flash. Đo thật: model đó có hạn mức GÓI FREE = 0, nên MỌI
+    #     lời gọi hỏng ngay vì hết quota rồi mới rơi xuống model dự phòng. Hậu quả không
+    #     phải "chậm hơn một chút" mà là ĐỐT MỘT LƯỢT GỌI VÔ ÍCH CHO MỖI CÂU HỎI, và
+    #     người dùng chỉ còn hạn mức của MỘT model thay vì hai.
+    #     Triệu chứng nhìn từ ngoài: "vừa thay khoá mới mà đã hết quota" — nên rất dễ
+    #     đổ cho khoá hỏng và đi thay khoá lần nữa, trong khi khoá không hề có lỗi.
     #   • model_provider      ← MODEL_PROVIDER    : nhà cung cấp; "google_genai" cho Gemini.
     #   • local_model_base_url← LOCAL_MODEL_BASE_URL : nếu chạy model LOCAL (Ollama…) thay vì cloud.
     ai_api_key: str = ""
-    model_name: str = "gemini-2.0-flash"
+    model_name: str = "gemini-2.5-flash-lite"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
+    #   • ai_base_url ← AI_BASE_URL : ĐỔI NƠI GỬI lời gọi Gemini (mặc định trống = gọi
+    #     thẳng generativelanguage.googleapis.com).
+    #
+    #     VÌ SAO CẦN: Google chặn Gemini API theo vị trí MÁY CHỦ GỌI. Bản triển khai
+    #     đang nằm trên Azure "East Asia" = HONG KONG — vùng Google KHÔNG phục vụ. Cùng
+    #     một khoá, cùng một dòng mã: chạy ở máy nhà thì 200, chạy trên Azure thì
+    #     FAILED_PRECONDITION. Đây là loại lỗi dễ tưởng là "lỗi lạc" vì nó chỉ xuất hiện
+    #     ở đúng một môi trường.
+    #
+    #     CÁCH DÙNG: đặt bằng URL của Cloudflare Worker trong `infra/cf-gemini-proxy/`.
+    #     Worker đó chuyển tiếp lời gọi qua một Durable Object ghim ở Bắc Mỹ, nên lời
+    #     gọi ĐI RA từ Mỹ chứ không phải Hong Kong. Vị trí máy chủ Azure không đổi, URL
+    #     đăng nhập không đổi → không phải khai báo lại OAuth redirect với Google.
+    #
+    #     CHỈ áp cho nhà cung cấp Google. Groq/OpenAI cũng có field `base_url` nhưng
+    #     nghĩa khác hẳn — bơm nhầm vào đó là gửi thư đi sai nhà.
+    ai_base_url: str = ""
+    #   • ai_proxy_secret ← AI_PROXY_SECRET : bí mật dùng chung với Worker ở trên, gửi
+    #     kèm mỗi lời gọi qua header `x-meoarc-proxy`. Để trống = không gửi.
+    #     Worker chỉ bắt buộc khi phía nó cũng đặt bí mật, nên hai bên phải khớp nhau.
+    #     KHÔNG phải để giấu khoá Gemini (proxy không giữ khoá, nó chuyển tiếp khoá của
+    #     người gọi) mà để URL proxy lộ ra cũng không ai mượn được hạn mức Cloudflare.
+    ai_proxy_secret: str = ""
+    #   • model_fallbacks ← MODEL_FALLBACKS : danh sách model DỰ PHÒNG, cách nhau dấu phẩy.
+    #     Hạn mức Gemini free tính RIÊNG TỪNG MODEL — đo thật: gemini-2.5-flash-lite trần
+    #     20 lượt/ngày, trong khi gemini-2.5-flash còn nguyên hạn mức riêng. Xâu chuỗi thì
+    #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
+    #     Để trống = không dự phòng.
+    model_fallbacks: str = "gemini-3.6-flash"
+
+    # ── Tra cứu chuyến bay / khách sạn (Giai đoạn 2) ──
+    # amadeus_key / amadeus_secret ← AMADEUS_KEY / AMADEUS_SECRET : khoá môi trường TEST
+    #   của Amadeus Self-Service (miễn phí, dữ liệu chuyến bay thật). ĐỂ TRỐNG thì hệ
+    #   thống dùng nhà cung cấp MÔ PHỎNG — chạy được ngay, kết quả tất định, và mọi kết
+    #   quả đều mang nhãn nguồn "mo_phong" để không ai nhầm giá giả thành giá thật.
+    amadeus_key: str = ""
+    amadeus_secret: str = ""
+    # aerodatabox_key ← AERODATABOX_KEY : khoá RapidAPI cho AeroDataBox. Dùng khi Amadeus
+    #   không có khoá (Amadeus đã đóng đăng ký self-service). Nguồn này cho LỊCH BAY THẬT
+    #   — hãng thật, số hiệu thật, giờ thật — nhưng KHÔNG có giá vé vì nó không bán vé.
+    #   Đó là đánh đổi có chủ ý: các nguồn còn mở mà có giá thì môi trường thử nghiệm lại
+    #   trả chuyến bay bịa (hãng ZZ), tra ngoài không ra. Thà thiếu cột giá hơn là hiện
+    #   một bảng giá không có thật.
+    aerodatabox_key: str = ""
     #   • agent_temperature ← AGENT_TEMPERATURE : độ "ngẫu hứng" của LLM (0..1).
     #     Mặc định 0 = bám tool-call/định dạng chặt nhất (đặc biệt cần cho Groq/Llama,
     #     tránh lỗi 400 tool_use_failed). Tăng lên (vd 0.3) nếu muốn văn phong tự nhiên hơn.
@@ -110,6 +161,63 @@ class Settings(BaseSettings):
     # app_env ← APP_ENV : nhãn môi trường ('development'/'staging'/'production'),
     #   gắn vào báo cáo lỗi để phân biệt lỗi máy dev với lỗi người dùng thật gặp.
     app_env: str = "development"
+
+    # cors_origins ← CORS_ORIGINS : danh sách origin của FE, cách nhau bằng dấu phẩy.
+    #   Vd: "https://meoarc.vercel.app,https://meoarc-git-main.vercel.app"
+    #   Khi triển khai thật, FE nằm ở TÊN MIỀN KHÁC backend. Trình duyệt chặn mọi lệnh
+    #   gọi sang origin lạ trừ khi server khai báo — thiếu biến này thì FE deploy xong
+    #   sẽ không gọi được API nào, dù backend hoàn toàn khoẻ.
+    cors_origins: str = ""
+
+    # cookie_cross_site ← COOKIE_CROSS_SITE : bật khi FE và BE nằm ở hai tên miền khác
+    #   nhau (vd FE trên Vercel, BE trên Render). Lúc đó cookie phiên phải mang
+    #   SameSite=None; Secure thì trình duyệt mới chịu gửi kèm.
+    #   Đây là lỗi triển khai khó lần nhất: đăng nhập thành công, chuyển hướng đúng,
+    #   nhưng mọi lệnh gọi sau đó đều 401 — vì cookie mặc định SameSite=Lax KHÔNG được
+    #   gửi trong request khác site. Nhìn từ ngoài giống hệt lỗi xác thực.
+    #   SameSite=None bắt buộc đi kèm Secure, tức phải chạy HTTPS.
+    cookie_cross_site: bool = False
+
+    # frontend_dist ← FRONTEND_DIST : đường dẫn tới thư mục frontend đã build.
+    #   Để trống thì tự dò `src/frontend/dist` theo layout của repo.
+    #   Có thư mục → backend phục vụ luôn giao diện, cả hệ chạy trên MỘT origin nên
+    #   CORS và cookie SameSite không còn là vấn đề. Không có → chỉ chạy API như cũ,
+    #   frontend nằm ở Vercel như sơ đồ PA2 §1.1 mô tả.
+    frontend_dist: str = ""
+
+    @property
+    def db_url(self) -> str:
+        """Chuỗi kết nối đã chuẩn hoá driver.
+
+        Các nền tảng lưu trữ (Render, Railway, Heroku…) phát chuỗi dạng
+        `postgresql://…` hoặc `postgres://…` — không kèm tên driver. SQLAlchemy gặp
+        chuỗi đó sẽ đi tìm psycopg2, thứ dự án này không cài, và chết ngay lúc khởi
+        động với một thông báo chẳng liên quan gì tới cấu hình. Chuẩn hoá ở đây thì
+        dán thẳng chuỗi nền tảng đưa vào là chạy.
+        """
+        url = self.database_url.strip()
+        for tien_to in ("postgresql+", "postgres+"):
+            if url.startswith(tien_to):
+                return url                      # đã khai driver rồi, giữ nguyên
+        if url.startswith("postgresql://"):
+            return "postgresql+psycopg://" + url[len("postgresql://"):]
+        if url.startswith("postgres://"):       # dạng cũ của Heroku
+            return "postgresql+psycopg://" + url[len("postgres://"):]
+        return url
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """Origin được phép gọi API: mặc định của máy dev + những gì khai trong .env."""
+        mac_dinh = ["http://localhost:5173", "http://localhost:5180", "http://localhost:3000"]
+        them = [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
+        return list(dict.fromkeys(mac_dinh + them))
+
+    @property
+    def cookie_kw(self) -> dict:
+        """Tham số cookie phiên, khác nhau giữa máy dev và môi trường thật."""
+        if self.cookie_cross_site:
+            return {"samesite": "none", "secure": True}
+        return {"samesite": "lax"}
 
     # ── Dọn dữ liệu cũ (data retention) — cùng tinh thần "trần + TTL" ở NFR.md ──
     # Ba bảng chỉ thêm không bớt: sessions, audit_logs, notifications.

@@ -266,7 +266,7 @@ export function MovingBorderButton({
         'transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.97]',
         tone === 'amber'
           ? 'bg-[#F0A848] text-[#1a1206] shadow-[0_10px_40px_-8px_rgba(240,168,72,0.55)]'
-          : 'border border-white/15 bg-white/[0.06] text-white backdrop-blur-md hover:bg-white/[0.1]',
+          : 'lit-edge bg-white/[0.06] text-white backdrop-blur-md hover:bg-white/[0.12]',
         className,
       )}
     >
@@ -337,7 +337,7 @@ export function FramedImage({ src, alt, className, glow = 'violet' }: {
   return (
     <div className={cn('relative', className)}>
       <div aria-hidden className={cn('absolute -inset-6 rounded-[2rem] blur-3xl', tint)} />
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
+      <div className="relative overflow-hidden lit-edge rounded-3xl bg-white/[0.045]">
         <div className={cn('absolute inset-0 animate-pulse bg-white/[0.04] transition-opacity duration-700',
           loaded ? 'opacity-0' : 'opacity-100')} />
         <img
@@ -599,7 +599,7 @@ export function AgentDemo() {
   }, [inView, reduced])
 
   return (
-    <div ref={ref} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b12]/90 backdrop-blur-xl">
+    <div ref={ref} className="overflow-hidden lit-edge rounded-2xl bg-[#0b0b12]/90 backdrop-blur-xl [--lit:#4FE9FF]">
       <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-2.5">
         <span className="size-2 rounded-full bg-[#F0A848]/70" />
         <span className="size-2 rounded-full bg-white/15" />
@@ -779,7 +779,7 @@ export function PlayfulLetter({
               initial={{ opacity: 0, y: 6, scale: 0.9 }}
               animate={{ opacity: 1, y: -6, scale: 1 }}
               exit={{ opacity: 0, y: -14 }}
-              className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#0b0b12]/90 px-2.5 py-1 text-[11px] font-medium text-white/90 backdrop-blur-md"
+              className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap lit-edge rounded-full bg-[#0b0b12]/90 px-2.5 py-1 [--lit:#FFB03A] text-[11px] font-medium text-white/90 backdrop-blur-md"
             >
               {line}
             </motion.span>

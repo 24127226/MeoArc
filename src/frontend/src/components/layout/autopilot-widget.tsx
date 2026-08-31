@@ -175,7 +175,7 @@ export function AutopilotWidget({
       )}
     >
       {/* Cockpit — mèo phi công + tiến trình */}
-      <div className="stars-faint relative flex items-center gap-3 border-b border-border/40 px-4 py-3.5">
+      <div className="kinh-mo relative flex items-center gap-3 border-b border-border/40 px-4 py-3.5">
         <span className="bokeh flex size-11 shrink-0 items-center justify-center">
           <MeoMascot
             thinking={phase === 'running' && viewAt === null}

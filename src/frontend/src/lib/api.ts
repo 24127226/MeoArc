@@ -120,6 +120,27 @@ export type Plan = {
 }
 
 /** Toàn bộ năng lực backend mà FE cần. Mỗi nhóm map 1-1 với docs/02-API-CONTRACT.md. */
+/* ------------------------- Cá nhân hoá — PA2 §1.5.2 ------------------------- */
+
+/** Các trường người dùng sửa được. Tách riêng khỏi `Preferences` vì hai thứ do hai
+ *  phía sở hữu: cái này client gửi lên, `promptPreview`/`availableTones` do máy chủ trả. */
+export interface PreferenceFields {
+  language: string
+  displayName: string | null
+  theme: string
+  tonePreference: string
+  signatureNote: string | null
+  customInstruction: string | null
+}
+
+export interface Preferences extends PreferenceFields {
+  /** Đoạn văn kết tinh mà trợ lý thật sự đọc. Cho người dùng XEM TRƯỚC thay vì
+   *  gõ vào ô rồi đoán xem có tác dụng gì. */
+  promptPreview: string
+  /** { khoá: mô tả } — danh sách giọng văn do máy chủ định nghĩa, client không tự bịa. */
+  availableTones: Record<string, string>
+}
+
 export interface MeoArcApi {
   // Auth — UC001/002
   me(): Promise<User | null>
@@ -162,6 +183,12 @@ export interface MeoArcApi {
   plans(): Promise<Plan[]>
   /** Đổi gói. Đồ án: không nối cổng thanh toán, đổi thẳng để trình bày luồng. */
   setTier(tier: string): Promise<SubscriptionStatus>
+
+  // Cá nhân hoá — PA2 §1.5.2
+  /** Sở thích hiện tại + `promptPreview` = đúng đoạn văn trợ lý sẽ đọc. */
+  preferences(): Promise<Preferences>
+  /** Cập nhật CÓ CHỌN LỌC: chỉ gửi trường muốn đổi. Gửi cả object là xoá sạch phần còn lại. */
+  updatePreferences(patch: Partial<PreferenceFields>): Promise<Preferences>
 
   // Human-in-the-loop có trạng thái (PA2 §1.3.5)
   /** Duyệt một hành động không hoàn tác. Gọi lại lần nữa KHÔNG chạy lại — máy chủ
@@ -288,6 +315,38 @@ let mockSub: SubscriptionStatus = {
   tier: 'free', tierLabel: 'Miễn phí', isActive: true, scanDays: 90,
   daily: { used: 34_500, limit: 100_000, remaining: 65_500 },
   monthly: { used: 612_000, limit: 2_000_000, remaining: 1_388_000 },
+}
+
+/* Cá nhân hoá — trạng thái mock. Giữ ngoài hàm để sống qua nhiều lần gọi trong 1 phiên. */
+const MOCK_TONES: Record<string, string> = {
+  formal: 'trang trọng, giữ khoảng cách, xưng hô đầy đủ chức danh',
+  friendly: 'thân thiện, gần gũi nhưng vẫn lịch sự',
+  concise: 'ngắn gọn, đi thẳng vào việc, không rào đón',
+  warm: 'ấm áp, quan tâm tới người nhận',
+}
+
+let mockPrefs: PreferenceFields = {
+  language: 'vi',
+  displayName: null,
+  theme: 'system',
+  tonePreference: 'friendly',
+  signatureNote: null,
+  customInstruction: null,
+}
+
+/** Dựng lại đúng logic của backend (`to_prompt_context`) để bản mock xem trước cũng thật. */
+function mockPromptPreview(): string {
+  const d: string[] = []
+  if (mockPrefs.displayName) d.push(`- Người dùng tên là ${mockPrefs.displayName}. Xưng hô cho đúng.`)
+  if (mockPrefs.tonePreference && mockPrefs.tonePreference !== 'friendly') {
+    const t = MOCK_TONES[mockPrefs.tonePreference]
+    if (t) d.push(`- Khi soạn thư, giữ giọng ${t}.`)
+  }
+  if (mockPrefs.signatureNote)
+    d.push(`- Kết thư bằng đúng chữ ký sau, giữ nguyên từng dòng, KHÔNG tự chế thêm:\n${mockPrefs.signatureNote.trim()}`)
+  if (mockPrefs.customInstruction)
+    d.push(`- Dặn riêng của người dùng: ${mockPrefs.customInstruction.trim()}`)
+  return d.join('\n')
 }
 
 export function createMockApi(): MeoArcApi {
@@ -432,6 +491,15 @@ export function createMockApi(): MeoArcApi {
     async markAllNotificationsRead() {
       mockNotifs = mockNotifs.map((n) => ({ ...n, read: true }))
     },
+
+    // Cá nhân hoá — bản mock giữ trong RAM, đủ để dựng và xem giao diện không cần backend
+    async preferences() {
+      return { ...mockPrefs, promptPreview: mockPromptPreview(), availableTones: MOCK_TONES }
+    },
+    async updatePreferences(patch) {
+      mockPrefs = { ...mockPrefs, ...patch }
+      return { ...mockPrefs, promptPreview: mockPromptPreview(), availableTones: MOCK_TONES }
+    },
   }
 }
 
@@ -526,6 +594,12 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
     plans: async () => (await req<{ plans: Plan[] }>('/subscription/plans')).plans,
     setTier: (tier) => post<SubscriptionStatus>('/subscription/tier', { tier }),
 
+    // Cá nhân hoá — PA2 §1.5.2. PATCH chứ không PUT: chỉ gửi trường muốn đổi, nên
+    // đổi giọng văn không làm mất chữ ký đã lưu.
+    preferences: () => req<Preferences>('/me/preferences'),
+    updatePreferences: (patch) =>
+      req<Preferences>('/me/preferences', { method: 'PATCH', body: JSON.stringify(patch) }),
+
     // Production nên dùng SSE (text/event-stream); ở đây nhận reply cuối dạng JSON cho gọn.
     sendAgentMessage: (message, _ctx, opts) =>
       post<AgentReplyWithId>('/agent/chat', { message, ...opts }),
@@ -559,7 +633,43 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
 /* --------------------------------- Singleton -------------------------------- */
 
 const BASE = import.meta.env.VITE_API_BASE_URL
-/** Có cấu hình backend thật không? (auth-context dùng để biết chế độ mock/thật.) */
-export const apiBaseUrl = BASE
+
+/** Có cấu hình backend thật không? (auth-context dùng để biết chế độ mock/thật.)
+ *
+ *  ĐÃ CẮT gạch chéo cuối. Chỗ này từng gây một lỗi rất khó lần: ở chế độ gộp,
+ *  `VITE_API_BASE_URL` là `"/"`, nên nơi nào ghép `` `${apiBaseUrl}/auth/...` ``
+ *  sẽ ra `"//auth/..."`. Hai gạch chéo đầu là cú pháp URL-không-kèm-giao-thức —
+ *  trình duyệt hiểu `auth` là TÊN MÁY CHỦ và điều hướng sang `https://auth/...`,
+ *  một địa chỉ không tồn tại. Kết quả: bấm nút xong ra trang trắng/đen, không
+ *  báo lỗi gì, và mọi thứ khác vẫn chạy bình thường.
+ *
+ *  Cắt xong thì `"/"` thành `""`, và `"" + "/auth/..."` ra đúng đường dẫn tương đối.
+ *  Lưu ý `""` vẫn là giá trị FALSY — nhưng `USE_BACKEND` phải phân biệt được
+ *  "gộp cùng origin" với "chưa cấu hình backend", nên xem `apiBaseUrlDaCauHinh`.
+ */
+const goc = (BASE ?? '').replace(/\/$/, '')
+
+/** Ghép một đường dẫn API. DÙNG HÀM NÀY thay vì tự nối chuỗi.
+ *
+ *  Vì sao không còn xuất thẳng `apiBaseUrl` nữa: ở chế độ gộp giá trị đúng của
+ *  nó là chuỗi RỖNG — mà chuỗi rỗng là FALSY. Ai vô tình viết `if (apiBaseUrl)`
+ *  thì ở bản triển khai gộp điều kiện đó luôn SAI, nên khối lệnh bên trong không
+ *  bao giờ chạy. Đã dính đúng lỗi này: `if (!apiBaseUrl) return` chặn mất lệnh
+ *  nạp thư, khiến bản deploy hiển thị vĩnh viễn dữ liệu mẫu — mà không báo gì.
+ *
+ *  Nay chỉ còn một hàm (luôn truthy) và một cờ boolean rõ nghĩa, nên viết nhầm
+ *  kiểu đó không còn khả năng xảy ra. */
+export function duongDanApi(duong_dan: string): string {
+  return goc + (duong_dan.startsWith('/') ? duong_dan : '/' + duong_dan)
+}
+
+/** Có khai VITE_API_BASE_URL hay không — dùng để chọn chế độ mock ↔ thật.
+ *  Tách khỏi `apiBaseUrl` vì ở chế độ gộp, đường dẫn đúng là chuỗi RỖNG mà vẫn
+ *  phải gọi backend thật. Dựa vào `!!apiBaseUrl` thì chế độ gộp bị hiểu nhầm
+ *  thành "chưa có backend" và ứng dụng lặng lẽ chạy bằng dữ liệu giả. */
+export const apiBaseUrlDaCauHinh = BASE != null && BASE !== ''
+
 /** Dùng ở mọi nơi: `import { api } from '@/lib/api'`. Tự chọn mock ↔ http. */
-export const api: MeoArcApi = BASE ? createHttpApi(BASE) : createMockApi()
+export const api: MeoArcApi = apiBaseUrlDaCauHinh
+  ? createHttpApi(goc)
+  : createMockApi()

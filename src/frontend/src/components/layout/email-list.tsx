@@ -20,6 +20,7 @@ import {
   Inbox,
   Send,
   SquarePen,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -35,6 +36,7 @@ import {
 import { LabelDialog } from '@/components/layout/label-dialog'
 import { ComposeDialog } from '@/components/layout/compose-dialog'
 import { MailboxChrome } from '@/components/layout/mailbox-chrome'
+import { SenderAvatar } from '@/components/layout/sender-avatar'
 import { MeoMascot } from '@/components/meo-mascot'
 import { useToast } from '@/components/ui/toast'
 import { emailHaystack, interpretNL, matchText } from '@/lib/search'
@@ -155,8 +157,11 @@ function EmailCard({
   onDelete: () => void
 }) {
   const c = CATEGORY[email.category]
+  // Nền thẻ HẠ RẤT SÂU (từ 35 ≈ 21% xuống 14 ≈ 8%).
+  // Nền tô đậm biến thẻ thành khối kẹo pastel: nó HÚT ánh sáng. Neon cần ngược lại —
+  // ruột gần như tối, còn màu dồn hết ra viền và vạch bên trái để PHÁT ra.
   const cardStyle: CSSProperties = {
-    backgroundImage: `linear-gradient(135deg, ${c.bar}35, ${c.bar}0f)`,
+    backgroundImage: `linear-gradient(135deg, ${c.bar}14, transparent 62%)`,
   }
   ;(cardStyle as Record<string, string>)['--tint'] = c.bar
 
@@ -166,12 +171,28 @@ function EmailCard({
       data-idx={index}
       style={cardStyle}
       className={cn(
-        'group relative w-full overflow-hidden rounded-xl p-4 pl-5 text-left transition-all duration-300 ease-soft ripe bloom-hover glass active:scale-[0.99]',
+        // ĐÃ BỎ `ripe` và `bloom-hover`. `ripe` là lớp "bề mặt mọng" thời cũ
+        // (specular gắt + ánh đỏ thấu từ trong) — chính nó khiến thẻ thư trông
+        // như kẹo mềm ở bản sáng. `bloom-hover` thì thừa: `neon-edge` khi rê
+        // chuột đã lo phần quầng sáng, mà nó lại chiếm `::before` — chỗ mà viền
+        // ngũ sắc bên dưới cần dùng.
+        'goc-cat group relative w-full overflow-hidden p-4 pl-5 text-left transition-all duration-300 ease-soft glass active:scale-[0.99]',
+        // VIỀN NGŨ SẮC CHO THƯ CHƯA ĐỌC. Vừa là chữ ký thị giác, vừa mang thông
+        // tin: dải phổ chạy vòng quanh thẻ = thư còn "sống", chưa ai đụng tới.
+        // Chỉ gắn cho thư chưa đọc nên số thẻ chạy animation luôn nhỏ — nếu rải
+        // cho mọi thẻ thì vừa mất nghĩa vừa nặng máy.
+        email.unread && 'vien-ngu-sac',
         selected
           ? 'shadow-[inset_0_4px_12px_rgba(0,0,0,0.35)] bg-black/20 border-t border-black/30 border-b border-white/5 scale-[0.995]'
           : kbActive
-            ? 'shadow-tint-lg ring-1 ring-active'
-            : 'shadow-[0_2px_6px_rgba(0,0,0,0.12)] border border-white/[0.03] hover:-translate-y-0.5 hover:scale-[1.005] hover:shadow-tint-lg',
+            // Đang chọn bằng bàn phím = cấp 3, sáng nhất. Chỉ MỘT thẻ tại một
+            // thời điểm — đó là lý do cấp này được phép rực đến vậy.
+            ? 'den-vien-chon'
+            // NGHỈ giờ là CẤP 1, không còn `border-white/[0.04]` gần như tàng hình.
+            // Thẻ thư là đơn vị nội dung chính của cả ứng dụng; để nó không có
+            // cạnh nào bắt sáng thì mọi thứ khác phát sáng cũng vô nghĩa — mắt
+            // không có gì để so. Rê chuột lên cấp 2: sáng thêm và bắt đầu toả.
+            : 'den-vien hover:-translate-y-0.5',
       )}
     >
       <span
@@ -193,8 +214,10 @@ function EmailCard({
 
       <div className="flex items-start gap-3.5">
         <div className="relative size-9 shrink-0">
-          <div
-            className="gloss flex size-9 items-center justify-center rounded-full font-serif text-sm font-semibold ring-1 ring-inset"
+          <SenderAvatar
+            email={email.senderEmail}
+            initial={email.senderInitial}
+            className="gloss size-9 shrink-0 rounded-full font-mono text-sm font-semibold ring-1 ring-inset"
             style={
               {
                 backgroundColor: 'rgba(251, 240, 226, 0.92)',
@@ -202,9 +225,7 @@ function EmailCard({
                 ['--tw-ring-color' as string]: c.bar,
               } as CSSProperties
             }
-          >
-            {email.senderInitial}
-          </div>
+          />
           <span
             role="checkbox"
             aria-checked={checked}
@@ -330,6 +351,7 @@ export function EmailList({
   refreshing,
   elegant = false,
   fill = false,
+  loi,
 }: {
   emails: Email[]
   folder?: string
@@ -345,6 +367,8 @@ export function EmailList({
   elegant?: boolean
   /** Chiếm trọn bề ngang (flex-1) thay vì cột cố định — khi AI tắt và chưa mở thư. */
   fill?: boolean
+  /** Lỗi nạp thư. Có giá trị = hiện thẳng ra thay vì để danh sách trống không lời giải thích. */
+  loi?: string | null
 }) {
   const [filter, setFilter] = useState<Category | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -446,6 +470,9 @@ export function EmailList({
       }),
     [emails, folder],
   )
+
+  /** Số thư chưa đọc trong thư mục hiện tại — thay cho dòng "MEOARC MAIL" cũ. */
+  const soChuaDoc = useMemo(() => emails.filter((e) => e.unread).length, [emails])
 
   const results = useMemo(() => {
     const text = nl ? nl.text : query
@@ -624,19 +651,35 @@ export function EmailList({
         data-cat-perch="bottom"
         className={cn('relative flex flex-col gap-3.5 px-6 pb-4', elegant ? 'pt-4' : 'pt-5')}
       >
-        {/* LOCKUP poster "Desert Rose" — CHỈ khi AI đang bật (Hộp thư ở cột giữa). */}
+        {/* Thanh đầu cột Hộp thư — CHỈ khi AI đang bật (Hộp thư ở cột giữa).
+            Bản cũ là "lockup poster": ô vuông đặc đổ bóng nặng + tiêu đề serif 26px
+            + dòng "MEOARC MAIL" bên dưới — ngôn ngữ của bìa tạp chí. Đẹp, nhưng nó
+            là thứ đầu tiên trong cột và nó nói sai về sản phẩm.
+
+            Bản này nói đúng thứ đang chạy: nhãn kỹ thuật + SỐ THƯ CHƯA ĐỌC dạng
+            monospace (số là thông tin, "MEOARC MAIL" thì không — người dùng biết
+            thừa họ đang ở đâu) + chấm nhịp báo hệ thống còn sống. */}
         {!elegant && (
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sc-ink)] text-[var(--sc-base)] shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
-                <FolderIcon className="size-[18px]" strokeWidth={2.2} />
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="neon-edge flex size-9 shrink-0 items-center justify-center rounded-xl text-[var(--spark)]"
+                style={{ ['--tint' as string]: 'var(--spark)' }}>
+                <FolderIcon className="size-[17px]" strokeWidth={2} />
               </span>
-              <div className="leading-none">
-                <p className="font-display text-[26px] font-bold leading-none text-[var(--sc-ink)]">
-                  {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
-                </p>
-                <p className="mt-1 text-[8px] font-mono font-medium uppercase tracking-[0.34em] text-[var(--sc-ink)]/45">
-                  Meoarc mail
+              <div className="min-w-0 leading-none">
+                <div className="flex items-baseline gap-2">
+                  <p className="truncate text-[19px] font-semibold leading-none tracking-tight text-foreground">
+                    {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
+                  </p>
+                  {soChuaDoc > 0 && (
+                    <span className="font-mono text-[12px] tabular-nums text-[var(--spark)]">
+                      {String(soChuaDoc).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1.5 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground/60">
+                  <span className="pulse-dot" aria-hidden />
+                  {soChuaDoc > 0 ? `${soChuaDoc} thư chưa đọc` : 'Đã đọc hết'}
                 </p>
               </div>
             </div>
@@ -664,7 +707,7 @@ export function EmailList({
                   ? 'Hỏi: "thư chưa đọc có đính kèm"…'
                   : 'Tìm (phím / để focus)…'
             }
-            className="border border-foreground/[0.08] bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 shadow-[0_4px_12px_rgba(0,0,0,0.12)] backdrop-blur-xl ring-1 ring-foreground/[0.04] focus-visible:ring-gold/40 focus-visible:from-foreground/[0.09]"
+            className="den-vien bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 backdrop-blur-xl focus-visible:den-vien-cham"
           />
           <button
             onClick={() => setNlMode((v) => !v)}
@@ -783,25 +826,13 @@ export function EmailList({
       <div className="px-3 pb-3 flex-1 min-h-0">
         <div 
           ref={listRef} 
-          style={{ 
-            backgroundColor: 'var(--list)',
-            /* Sử dụng color-mix nương theo foreground hệ thống để Light Mode dệt chỉ tối, Dark Mode tráng chỉ bạc phát quang */
-            backgroundImage: `
-              linear-gradient(90deg, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 0, 0, 0.15) 1px, transparent 1px),
-              repeating-linear-gradient(90deg, 
-                transparent, 
-                transparent 26px, 
-                color-mix(in srgb, var(--foreground) 8%, transparent) 26px, 
-                color-mix(in srgb, var(--foreground) 8%, transparent) 27px, 
-                color-mix(in srgb, var(--background) 15%, transparent) 27px, 
-                color-mix(in srgb, var(--background) 15%, transparent) 28px
-              )
-            `,
-            backgroundPosition: '0 0, 1px 0, 0 0',
-            backgroundSize: '100% 100%'
-          }}
-          className="w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin shadow-[inset_0_5px_16px_rgba(0,0,0,0.28)] border border-foreground/[0.08]"
+          /* BA LỚP KẺ SỌC ĐÃ BỎ (hai đường kẻ dọc + một dải lặp 28px giả vân
+             giấy dệt). Chúng là hoa văn: lặp lại, có nhịp, nên mắt luôn thấy —
+             mà đây là nền NẰM NGAY SAU danh sách thư, thứ người dùng phải đọc.
+             Thay bằng kính mờ, lớp duy nhất trong dự án không có hoa văn nào để
+             nhìn. Giữ lại bóng lún phía trong để cột vẫn có chiều sâu. */
+          style={{ backgroundColor: 'var(--list)' }}
+          className="kinh-mo den-vien w-full h-full rounded-2xl p-4 overflow-y-auto space-y-3.5 scrollbar-thin"
         >
           {loading ? (
             [0, 1, 2, 3].map((i) => (
@@ -816,6 +847,22 @@ export function EmailList({
                 </div>
               </div>
             ))
+          ) : loi ? (
+            /* Bao loi THAY CHO danh sach. Truoc day loi bi nuot va man hinh giu
+               nguyen nam la thu mau — trong y het that, nen khong ai biet la hong. */
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+              <span className="neon-edge flex size-12 items-center justify-center rounded-2xl text-[var(--warn,#FF6FB5)]"
+                style={{ ['--tint' as string]: '#FF6FB5' }}>
+                <AlertTriangle className="size-5" />
+              </span>
+              <p className="max-w-[260px] text-[13px] leading-relaxed text-muted-foreground">{loi}</p>
+              {onRefresh && (
+                <button onClick={onRefresh}
+                  className="neon-chip mt-1 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em]">
+                  Thử lại
+                </button>
+              )}
+            </div>
           ) : results.length > 0 ? (
             <>
               {results.map((email, i) => (

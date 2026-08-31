@@ -2,6 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "be-gop",
+      "runtimeExecutable": "src/backend/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.api.app:app", "--port", "8010", "--app-dir", "src/backend"],
+      "port": 8010
+    },
+    {
+      "name": "be",
+      "runtimeExecutable": "src/backend/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.api.app:app", "--port", "8000", "--app-dir", "src/backend"],
+      "port": 8000
+    },
+    {
       "name": "fe",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "src/frontend", "run", "dev", "--", "--port", "5180", "--strictPort"],

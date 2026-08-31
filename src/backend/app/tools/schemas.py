@@ -518,3 +518,176 @@ class RequestConfirmationOutput(ToolResult):
     Agent pauses — user response (yes/no) comes back as next chat message.
     """
     data: dict[str, Any] | None = None  # {action_summary, affected_items, action_type}
+
+# =========================================================
+# =            RANH GIỚI NĂNG LỰC (Chặn 01)               =
+# =========================================================
+
+class NgoaiPhamViInput(BaseModel):
+    """Tham số cho `tu_choi_ngoai_pham_vi`."""
+
+    viec_nguoi_dung_muon: Annotated[str, Field(
+        description="Điều người dùng thực sự yêu cầu, viết lại bằng một câu ngắn. "
+                    "Ví dụ: 'đặt vé máy bay SGN đi Đà Nẵng ngày 12/9'.",
+    )]
+
+    vi_sao_khong_lam_duoc: Annotated[str, Field(
+        description="Lý do CỤ THỂ, nói theo góc nhìn người dùng. "
+                    "Ví dụ: 'MeoArc chưa kết nối với hệ thống bán vé nào'. "
+                    "Đừng nói chung chung kiểu 'tôi không thể'.",
+    )]
+
+    viec_gan_nhat_lam_duoc: Annotated[str | None, Field(
+        default=None,
+        description="Việc gần nhất MeoArc LÀM ĐƯỢC và có ích cho ý định đó. "
+                    "Ví dụ: 'tìm trong hộp thư các thư xác nhận vé đã đặt trước đó'. "
+                    "Để trống nếu thật sự không có gì liên quan — đừng bịa cho có.",
+    )]
+
+
+class NgoaiPhamViOutput(ToolResult):
+    data: dict[str, Any] | None = None
+
+
+# =========================================================
+# =              LỊCH TRÌNH / CAM KẾT (Chặn 02)           =
+# =========================================================
+
+class LietKeCamKetInput(BaseModel):
+    """Tham số cho `liet_ke_cam_ket`."""
+
+    so_ngay_toi: Annotated[int, Field(
+        default=14,
+        ge=1, le=90,
+        description="Chỉ lấy việc có hạn trong bao nhiêu ngày tới. Mặc định 14.",
+    )]
+
+    chi_con_han: Annotated[bool, Field(
+        default=True,
+        description="True = bỏ qua việc đã xong và việc đã quá hạn. "
+                    "False = lấy hết, kể cả việc đã trễ.",
+    )]
+
+
+class CamKetItem(BaseModel):
+    noi_dung: str
+    han: str | None = None
+    bat_dau: str | None = None
+    han_suy_ra: bool = False
+    nguoi_cho: str = ""
+    email_id: str = ""
+    uoc_luong_phut: int = 0
+    muc_uu_tien: int = 1
+    do_tin_cay: float = 0.9
+
+
+class LietKeCamKetOutput(ToolResult):
+    data: list[CamKetItem] = []
+
+
+class ApLucLichTrinhInput(BaseModel):
+    """Tham số cho `ap_luc_lich_trinh`."""
+
+    so_ngay: Annotated[int, Field(
+        default=7, ge=1, le=30,
+        description="Xem tải của bao nhiêu ngày tới. Mặc định 7.",
+    )]
+
+
+class ApLucLichTrinhOutput(ToolResult):
+    data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =            Ý ĐỊNH ĐI LẠI (Giai đoạn 1)                =
+# =========================================================
+
+class DeXuatDiLaiInput(BaseModel):
+    """Tham số cho `de_xuat_di_lai`."""
+
+    so_ngay_toi: Annotated[int, Field(
+        default=30, ge=1, le=90,
+        description="Chỉ xét việc có hạn trong bao nhiêu ngày tới. Mặc định 30.",
+    )]
+
+    tu_thanh_pho: Annotated[str, Field(
+        default="SGN",
+        description="Mã sân bay nơi người dùng khởi hành. Mặc định SGN (TP.HCM).",
+    )]
+
+
+class DeXuatDiLaiOutput(ToolResult):
+    data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =        TRA CỨU CHUYẾN BAY / PHÒNG (Giai đoạn 2)       =
+# =========================================================
+
+class TimChuyenBayInput(BaseModel):
+    """Tham số cho `tim_chuyen_bay`. CHỈ TRA CỨU — không đặt."""
+
+    tu: Annotated[str, Field(
+        description="Mã sân bay đi, 3 chữ in hoa. VD: SGN (TP.HCM), HAN (Hà Nội).",
+        min_length=3, max_length=3,
+    )]
+    den: Annotated[str, Field(
+        description="Mã sân bay đến, 3 chữ in hoa. VD: DAD (Đà Nẵng).",
+        min_length=3, max_length=3,
+    )]
+    ngay: Annotated[str, Field(
+        description="Ngày bay dạng dd/mm/yyyy. VD: 16/09/2026.",
+    )]
+    so_ket_qua: Annotated[int, Field(default=3, ge=1, le=10)]
+
+
+class TimChuyenBayOutput(ToolResult):
+    data: list[dict[str, Any]] = []
+
+
+class TimKhachSanInput(BaseModel):
+    """Tham số cho `tim_khach_san`. CHỈ TRA CỨU — không đặt."""
+
+    thanh_pho: Annotated[str, Field(description="Tên thành phố. VD: Đà Nẵng.")]
+    nhan_phong: Annotated[str, Field(description="Ngày nhận phòng dd/mm/yyyy.")]
+    tra_phong: Annotated[str, Field(description="Ngày trả phòng dd/mm/yyyy.")]
+    so_ket_qua: Annotated[int, Field(default=3, ge=1, le=10)]
+
+
+class TimKhachSanOutput(ToolResult):
+    data: list[dict[str, Any]] = []
+
+
+# =========================================================
+# =      ĐẶT CHỖ MÔ PHỎNG — đi qua CỔNG TIỀN (GĐ 3)       =
+# =========================================================
+
+class DatChoMoPhongInput(BaseModel):
+    """Tham số cho `dat_cho_mo_phong`. Đi qua cổng xác nhận và cổng tiền."""
+
+    loai: Annotated[str, Field(
+        description="'chuyen_bay' hoặc 'khach_san'.",
+    )]
+    mo_ta: Annotated[str, Field(
+        description="Một câu người đọc hiểu, đủ để duyệt mà không cần mở gì khác. "
+                    "VD: 'VN123 SGN→DAD 16/09 06:20, 1 khách'.",
+    )]
+    so_tien_vnd: Annotated[int, Field(
+        ge=1,
+        description="Tổng tiền, đồng. Vượt trần thì cổng tiền từ chối.",
+    )]
+    ma_lua_chon: Annotated[str, Field(
+        description="Mã chuyến bay / mã khách sạn lấy từ kết quả tra cứu. "
+                    "Đây là thứ phân biệt đơn này với đơn khác, nên PHẢI chính xác.",
+    )]
+    ngay: Annotated[str, Field(description="Ngày dd/mm/yyyy.")]
+    hoan_duoc: Annotated[bool, Field(
+        default=False,
+        description="Lựa chọn này có hoàn/huỷ miễn phí không. Không chắc thì để False — "
+                    "nói 'hoàn được' mà thật ra không hoàn là dẫn người dùng tới quyết "
+                    "định tiền bạc dựa trên thông tin bịa.",
+    )]
+
+
+class DatChoMoPhongOutput(ToolResult):
+    data: dict[str, Any] | None = None
