@@ -1,11 +1,19 @@
+// Thư demo cho màn Lịch trình. `demo-lich.ts` chỉ nhập KIỂU từ file này, mà nhập
+// kiểu bị xoá lúc biên dịch — nên vòng phụ thuộc này không tồn tại khi chạy.
+import { DEMO_LICH } from '@/data/demo-lich'
+import { DEMO_QUA_TAI } from '@/data/demo-qua-tai'
+
 /** Category màu của inbox — tên màu lấy từ palette "Provence Meadow".
  *  Bảng màu cụ thể nằm ở email-list.tsx (CATEGORY) để giữ một nguồn duy nhất. */
 export type Category = 'moss' | 'sea' | 'sun' | 'cherry' | 'sky' | 'terra' | 'wine'
 
 export type Attachment = { name: string; size: string }
 
-/** Độ ưu tiên do AI Triage (UC015) gán sẵn — hiển thị badge trên card. */
-export type Priority = 'action' | 'waiting' | 'fyi'
+/** Ba trục nhãn AI theo PA1 §4.2.9. Priority và Status CHỈ có với thư mang tính
+ *  công việc; thư còn lại để `null` — `null` nghĩa là KHÔNG PHẢI việc, khác hẳn
+ *  'Low'/'Done' (đã xét rồi kết luận việc nhẹ / đã xong). */
+export type Priority = 'High' | 'Medium' | 'Low'
+export type TaskStatus = 'Todo' | 'Waiting' | 'Done'
 
 export type Email = {
   id: string
@@ -22,18 +30,23 @@ export type Email = {
   starred: boolean
   category: Category
   label?: string
+  /** Thân thư HTML gốc (render đúng chuẩn Gmail ở màn chi tiết) — thiếu thì dùng body text. */
+  html?: string | null
   attachments?: Attachment[]
   /** AI Triage (UC015): action=cần bạn xử lý · waiting=đang đợi · fyi=để biết */
-  priority?: Priority
+  priority?: Priority | null
+  status?: TaskStatus | null
   /** Tóm tắt 1 dòng do AI quét sẵn (UC008) — TL;DR cho card & smart card. */
   tldr?: string
   /** Thư mục (mặc định inbox) — cho nav trái lọc thật. */
-  folder?: 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash'
+  /** Thư mục. `spam` được thêm cùng nút "Thư rác" ở nav — thư mục người ta cần
+   *  nhất khi một lá thư quan trọng "biến mất", và đó là lúc họ hoảng nhất. */
+  folder?: 'inbox' | 'sent' | 'drafts' | 'archive' | 'trash' | 'spam' 
 }
 
-const ME = 'Anh Quân <quanpta.meoarc@gmail.com>'
+const ME = 'Anh Quân <meoarc.hcmus@gmail.com>'
 
-export const emails: Email[] = [
+const EMAILS_GOC: Email[] = [
   {
     id: '1',
     sender: 'Giáo vụ HCMUS',
@@ -54,7 +67,8 @@ export const emails: Email[] = [
     starred: true,
     category: 'moss',
     label: 'Học tập',
-    priority: 'action',
+    priority: 'Medium',
+    status: 'Todo',
     tldr: 'Hạn nộp SRS hoàn chỉnh: 23:59 thứ Sáu, đặt tên Nhom07_SRS_v1.pdf.',
     attachments: [
       { name: 'Mau_SRS_Intro2SE.docx', size: '248 KB' },
@@ -79,8 +93,9 @@ export const emails: Email[] = [
     unread: true,
     starred: false,
     category: 'sea',
-    label: 'Dev',
-    priority: 'action',
+    label: 'Công việc',
+    priority: 'Medium',
+    status: 'Todo',
     tldr: 'PR #12 bị "Changes requested" — 2 bình luận cần bạn xử lý.',
   },
   {
@@ -101,8 +116,7 @@ export const emails: Email[] = [
     unread: false,
     starred: false,
     category: 'sun',
-    label: 'Hệ thống',
-    priority: 'fyi',
+    label: 'Cập nhật & Hệ thống',
     tldr: 'Đã dùng 64% hạn mức Gemini API tháng này — chưa cần hành động.',
   },
   {
@@ -124,7 +138,8 @@ export const emails: Email[] = [
     starred: true,
     category: 'cherry',
     label: 'Cá nhân',
-    priority: 'waiting',
+    priority: 'Medium',
+    status: 'Waiting',
     tldr: 'Khoa nhận UC005/UC006; tối nay push nhánh feat/search chờ bạn review. Có hẹn cuối tuần họp chia phần MCP.',
   },
   {
@@ -144,9 +159,8 @@ export const emails: Email[] = [
     date: 'Thứ 4, 11:48',
     unread: false,
     starred: false,
-    category: 'sky',
-    label: 'Deploy',
-    priority: 'fyi',
+    category: 'sun',
+    label: 'Cập nhật & Hệ thống',
     tldr: 'Preview nhánh main build xong (38s) — sẵn sàng kiểm tra trước khi promote.',
   },
   {
@@ -166,9 +180,8 @@ export const emails: Email[] = [
     date: 'Thứ 3, 09:15',
     unread: false,
     starred: false,
-    category: 'terra',
-    label: 'Bản tin',
-    priority: 'fyi',
+    category: 'sun',
+    label: 'Cập nhật & Hệ thống',
     tldr: 'Bản tin UX: màu ấm, serif có trọng lượng, thẩm mỹ "old-money" lên ngôi 2026.',
   },
 
@@ -230,6 +243,73 @@ export const emails: Email[] = [
     folder: 'drafts',
   },
 
+  /* ----- Thư rác -----
+     THIẾU HẲN ở bản trước: `folder: 'spam'` không xuất hiện lần nào trong toàn bộ
+     dữ liệu mẫu, nên bấm "Thư rác" ra một danh sách rỗng và trông như tính năng
+     hỏng. Nút có mà bấm vào không có gì thì tệ hơn là không có nút.
+     Ba lá đủ để thấy bộ lọc chạy: một lừa đảo trắng trợn, một giả danh ngân hàng,
+     một quảng cáo. Lá giả danh ngân hàng CÓ CHỦ Ý — đó là loại thư người dùng
+     phải tự nhận ra, và là lý do thư mục này đáng được nhìn tới. */
+  {
+    id: 'sp1',
+    sender: 'Trúng thưởng Quốc tế',
+    senderEmail: 'winner@lottery-intl.top',
+    senderInitial: 'T',
+    to: ME,
+    subject: 'CHÚC MỪNG! Bạn đã trúng 500.000.000đ',
+    preview: 'Bạn là người may mắn được chọn. Gửi thông tin tài khoản để nhận...',
+    body: [
+      'CHÚC MỪNG QUÝ KHÁCH!',
+      'Bạn là người may mắn được chọn trong đợt quay số quốc tế. Giải thưởng 500.000.000đ đang chờ.',
+      'Vui lòng gửi số tài khoản ngân hàng và ảnh CCCD để chúng tôi chuyển tiền ngay hôm nay.',
+    ],
+    time: '03:14',
+    date: 'Hôm nay, 03:14',
+    unread: true,
+    starred: false,
+    category: 'terra',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+  {
+    id: 'sp2',
+    sender: 'Vietcombank Security',
+    senderEmail: 'security@vietcombank-verify.info',
+    senderInitial: 'V',
+    to: ME,
+    subject: 'Tài khoản của bạn sẽ bị khoá trong 24 giờ',
+    preview: 'Xác minh ngay để tránh bị khoá. Nhấn vào liên kết bên dưới...',
+    body: [
+      'Kính gửi Quý khách,',
+      'Hệ thống ghi nhận hoạt động bất thường. Tài khoản sẽ bị khoá trong 24 giờ nếu không xác minh.',
+      'Nhấn vào liên kết bên dưới và đăng nhập để xác minh danh tính.',
+    ],
+    time: '01:52',
+    date: 'Hôm nay, 01:52',
+    unread: true,
+    starred: false,
+    category: 'wine',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+  {
+    id: 'sp3',
+    sender: 'Khoá học online',
+    senderEmail: 'promo@edu-deals.biz',
+    senderInitial: 'K',
+    to: ME,
+    subject: 'Giảm 90% toàn bộ khoá học — chỉ hôm nay',
+    preview: 'Cơ hội cuối cùng! Đăng ký ngay kẻo lỡ...',
+    body: ['Cơ hội cuối cùng! Giảm 90% toàn bộ khoá học lập trình. Đăng ký ngay kẻo lỡ.'],
+    time: 'Hôm qua',
+    date: 'Hôm qua, 22:40',
+    unread: false,
+    starred: false,
+    category: 'sun',
+    label: 'Thư rác',
+    folder: 'spam',
+  },
+
   /* ----- Thùng rác ----- */
   {
     id: 't1',
@@ -245,7 +325,12 @@ export const emails: Email[] = [
     unread: false,
     starred: false,
     category: 'terra',
-    label: 'Bản tin',
+    label: 'Mua sắm & Ưu đãi',
     folder: 'trash',
   },
 ]
+
+/** Hop thu demo = bo goc + thu lich trinh thang 8-9 + bo THU DAY de xem man
+ *  Lich trinh duoi tai that (xem data/demo-qua-tai.ts, tat bang co `BAT`).
+ *  Tach lam ba de xoa tung bo chi can bo dung mot dong. */
+export const emails: Email[] = [...EMAILS_GOC, ...DEMO_LICH, ...DEMO_QUA_TAI]

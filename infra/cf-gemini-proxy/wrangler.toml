@@ -1,0 +1,26 @@
+name = "meoarc-gemini-proxy"
+main = "src/worker.js"
+compatibility_date = "2025-08-01"
+
+# `nodejs_compat` KHÔNG cần ở đây — worker chỉ dùng fetch chuẩn. Thêm cờ thừa chỉ
+# làm bó khởi động chậm hơn.
+
+# Vùng ghim cho Durable Object. Google phục vụ Gemini ở Bắc Mỹ, châu Âu, Nhật,
+# Hàn, Singapore — KHÔNG phục vụ Hong Kong.
+#   wnam = Bắc Mỹ phía Tây  ← MẶC ĐỊNH: vùng chắc chắn được phục vụ và gần HK nhất
+#   enam = Bắc Mỹ phía Đông
+#   weur = Tây Âu
+#   apac = châu Á - TBD     ← ĐỪNG DÙNG: apac có thể rơi trúng Hong Kong, tức là
+#                              quay lại đúng chỗ đang bị chặn
+[vars]
+VUNG = "wnam"
+
+[durable_objects]
+bindings = [{ name = "CHUYEN_TIEP", class_name = "ChuyenTiep" }]
+
+# `new_sqlite_classes` (không phải `new_classes`) là BẮT BUỘC với gói Workers miễn
+# phí — Durable Object chỉ mở cho gói free khi dùng kho SQLite. Ta không lưu gì cả,
+# nhưng vẫn phải khai đúng kiểu này thì `wrangler deploy` mới qua.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChuyenTiep"]

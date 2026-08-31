@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogOut, ShieldOff, AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/auth/auth-context'
+import { api } from '@/lib/api'
+import type { SubscriptionStatus } from '@/lib/api'
+import { UsageSummary } from '@/components/layout/subscription-dialog'
+import { PricingScreen } from '@/components/layout/pricing-screen'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,24 +18,36 @@ import {
 } from '@/components/ui/dialog'
 
 export function AccountMenu() {
-  const { user, logout } = useAuth()
+  const { user, logout, revokeAccess } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'menu' | 'revoke'>('menu')
+  // Gói + token đã dùng: nạp khi mở menu, hiện ngay dưới thẻ tài khoản.
+  const [sub, setSub] = useState<SubscriptionStatus | null>(null)
+  const [plansOpen, setPlansOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    api.subscription().then((s) => alive && setSub(s)).catch(() => {})
+    return () => { alive = false }
+  }, [open])
 
   if (!user) return null
 
+  // Đăng xuất → về TRANG GIỚI THIỆU (không phải màn đăng nhập): người vừa thoát
+  // thường chưa muốn đăng nhập lại ngay, đưa họ về đúng cửa vào của sản phẩm.
   const handleLogout = () => {
     setOpen(false)
     logout()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   const handleRevoke = () => {
-    // Mock: thu hồi quyền = xoá phiên + (backend thật) gọi Google revoke token.
+    // Thu hồi quyền = backend gọi Google bỏ quyền Gmail + xoá phiên (khác hẳn logout).
     setOpen(false)
-    logout()
-    navigate('/login', { replace: true })
+    revokeAccess()
+    navigate('/', { replace: true })
   }
 
   return (
@@ -70,6 +86,15 @@ export function AccountMenu() {
               </div>
             </div>
 
+            {/* Gói dịch vụ + mức tiêu thụ token */}
+            <UsageSummary
+              status={sub}
+              onOpenPlans={() => {
+                setOpen(false)
+                setPlansOpen(true)
+              }}
+            />
+
             <div className="flex flex-col gap-2">
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="size-4" />
@@ -105,6 +130,13 @@ export function AccountMenu() {
           </>
         )}
       </DialogContent>
+
+      <PricingScreen
+        open={plansOpen}
+        onClose={() => setPlansOpen(false)}
+        status={sub}
+        onChanged={setSub}
+      />
     </Dialog>
   )
 }

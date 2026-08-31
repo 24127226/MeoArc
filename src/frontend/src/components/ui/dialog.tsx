@@ -38,6 +38,18 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
+          // CHẶN CHIỀU CAO + CHO CUỘN. Trước đây chỉ có `top-1/2 -translate-y-1/2`
+          // mà không có trần chiều cao: hộp thoại cao hơn màn hình thì tràn ra CẢ
+          // HAI ĐẦU và không cuộn được, nên phần trên lẫn phần dưới mất luôn —
+          // không có cách nào với tới. Đo được ở tab "Cá nhân hoá": max-height
+          // `none`, overflow `visible`, scrollHeight = clientHeight nên `cuonDuoc`
+          // false dù nội dung đã chạm mép.
+          //
+          // Đặt ở ĐÂY chứ không ở riêng màn Cài đặt: mọi hộp thoại đều dính lỗi
+          // này, và hộp thoại nào cũng có thể dài ra khi thêm nội dung sau này.
+          // `dvh` chứ không phải `vh` — trên trình duyệt di động thanh địa chỉ
+          // co giãn làm `vh` sai lệch đúng bằng chiều cao thanh đó.
+          'max-h-[calc(100dvh-2rem)] overflow-y-auto scrollbar-thin',
           'rounded-2xl border border-border/60 bg-popover p-6 text-popover-foreground shadow-float',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',

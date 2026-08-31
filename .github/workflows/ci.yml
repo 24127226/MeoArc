@@ -1,0 +1,83 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ CI — chạy TỰ ĐỘNG mỗi lần push/PR (phần QA: chặn code hỏng vào main)║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ 2 job song song:                                                   ║
+# ║  • backend-tests : Postgres thật (service container) + pytest      ║
+# ║      ~60 test khách quan. Test cần đăng nhập/LLM tự SKIP có lý do   ║
+# ║      (thiết kế skip trung thực) → CI xanh = hợp đồng/NFR còn nguyên.║
+# ║  • frontend-build: tsc + vite build — đúng lệnh nhóm vẫn dùng tay.  ║
+# ║ LƯU Ý: nếu repo chính thức để code trong /src thì sửa `working-     ║
+# ║ directory` + `paths` cho khớp (backend/ → src/backend/ ...).        ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test
+          POSTGRES_DB: meoarc_ci
+        ports:
+          - 5432:5432
+        # đợi Postgres sẵn sàng rồi mới chạy test (tránh flaky "connection refused")
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:ci_test@localhost:5432/meoarc_ci
+      # KHÔNG cấp khoá LLM/OAuth trong CI: các test cần chúng tự skip nêu rõ lý do.
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài uv (kèm cache theo uv.lock)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: src/backend/uv.lock
+
+      - name: Cài dependencies (khoá phiên bản theo uv.lock)
+        run: uv sync --frozen
+
+      - name: Chạy bộ test khách quan
+        run: uv run pytest tests/ -v --ignore=tests/test_live_e2e.py
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài Node 20 (kèm cache npm)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Cài dependencies
+        run: npm ci
+
+      - name: Typecheck + build production
+        run: npm run build

@@ -1,0 +1,10 @@
+# Không cho vào image: bí mật, môi trường ảo, rác build
+.env
+.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+logs/
+meoarc.db
+tests/
+test_agent.py

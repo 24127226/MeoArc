@@ -27,16 +27,31 @@ import {
   Mic,
   Volume2,
   VolumeX,
+  ArrowUpRight,
+  Plane,
+  Hotel,
+  ShieldCheck,
+  FlaskConical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { MeoMascot } from '@/components/meo-mascot'
+import { LogoMark } from '@/components/logo'
+import { useTheme } from '@/components/theme-provider'
 import { VoiceMode } from '@/components/layout/voice-mode'
-import { type AgentReply, type PlanOp } from '@/lib/agent'
+import { ChatAmbience } from '@/components/layout/chat-ambience'
+import { KinhKhucXa, KinhKhucXaDefs } from '@/components/layout/glass-refraction'
+// Dùng LẠI thành phần vẽ của khung "Tra cứu đi lại" — không vẽ bản thứ hai. Vẽ hai lần
+// thì hai chỗ sẽ trôi xa nhau và cùng một chuyến bay hiện hai kiểu.
+import { DongBay, DongPhong } from '@/components/layout/tra-cuu-panel'
+import { type AgentReply, type PlanOp, type EmailRef } from '@/lib/agent'
 import { AutopilotWidget, type AutopilotResult } from '@/components/layout/autopilot-widget'
-import { api } from '@/lib/api'
+import { api, apiBaseUrlDaCauHinh, type StoredMessage } from '@/lib/api'
+import { useSubscription, isOutOfTokens } from '@/lib/subscription'
+import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
+import { PricingScreen } from '@/components/layout/pricing-screen'
 import { normalize } from '@/lib/search'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
@@ -46,8 +61,17 @@ type Message =
   | { id: string; role: 'user'; text: string }
   | { id: string; role: 'agent'; reply: AgentReply; resolved?: boolean }
 
-/** Một phiên hội thoại đã lưu (UC011). */
-type Session = { id: string; title: string; time: string; messages: Message[]; pinned?: boolean }
+/** Một phiên hội thoại đã lưu (UC011).
+ *  `backendId` = id phiên trong DB (có khi đã lưu xuống backend); dùng để gọi API
+ *  list/get/rename/delete + gửi kèm chat. Phiên mới chưa gửi thì chưa có backendId. */
+type Session = {
+  id: string
+  title: string
+  time: string
+  messages: Message[]
+  pinned?: boolean
+  backendId?: string
+}
 
 const RENAME_MAX = 60
 
@@ -95,7 +119,8 @@ function initSessions(): Session[] {
   ]
 }
 
-const SUGGESTIONS = ['Tóm tắt thư chưa đọc', 'Lưu trữ thư bản tin', 'Soạn trả lời giáo vụ']
+/* Gợi ý chip KHÔNG còn tĩnh — sinh theo ngữ cảnh hộp thư thật, xem memo
+   `suggestions` trong ChatPanel (web "tư duy" đúng thời điểm). */
 
 /** Kỹ năng AI (UC014/015/016/009) — gợi ý nổi bật trên canvas. */
 const SKILLS = [
@@ -105,6 +130,27 @@ const SKILLS = [
   { label: 'Brief cuộc họp', prompt: 'brief cuộc họp' },
   { label: 'Phân loại tự động', prompt: 'phân loại tự động toàn bộ' },
 ]
+
+/** Khuôn tin BE (StoredMessage) → Message của FE (thêm id cục bộ để React render). */
+function toLocalMsg(m: StoredMessage): Message {
+  return m.role === 'user'
+    ? { id: uid(), role: 'user', text: m.text }
+    : { id: uid(), role: 'agent', reply: m.reply }
+}
+
+/** ISO time (BE) → nhãn 'time' mà drawer hiểu (timeBucket đọc 'Hôm nay'/'Hôm qua'). */
+function relTime(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const y = new Date(now)
+  y.setDate(now.getDate() - 1)
+  const hhmm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Hôm nay ${hhmm}`
+  if (d.toDateString() === y.toDateString()) return 'Hôm qua'
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
 
 /** Dòng preview ngắn của 1 phiên (lấy tin cuối). */
 function previewOf(s: Session): string {
@@ -145,10 +191,14 @@ function doneText(op: PlanOp): string {
   }
 }
 
-/** Câu ngắn để TTS đọc cho từng loại phản hồi. */
+/** Câu ngắn để TTS đọc cho từng loại phản hồi.
+ *
+ *  `intro` của thẻ 'dilai' có thể vắng (nhà cung cấp không kèm câu mô tả), nên phải
+ *  lui về `title` — thiếu bước này thì máy đọc thành tiếng chữ "null". */
 function replyToSpeech(reply: AgentReply): string {
   if ('text' in reply) return reply.text
-  if ('intro' in reply) return reply.intro
+  if ('intro' in reply && reply.intro) return reply.intro
+  if ('title' in reply && reply.title) return reply.title
   return ''
 }
 
@@ -175,10 +225,51 @@ function AgentRow({ children }: { children: React.ReactNode }) {
   )
 }
 
+/* (#3) Chữ "giải mã": ký tự random rồi định hình dần về câu thật.
+   Tốc độ co theo độ dài (câu dài vẫn xong ~1.4s). Reduced-motion → hiện thẳng. */
+const SCRAMBLE_CH = 'ABCDEF#@%&*0123456789▓▒░'
+function scrambleAll(t: string): string {
+  let out = ''
+  for (const c of t) out += c === ' ' || c === '\n' ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+  return out
+}
+function ScrambleText({ text }: { text: string }) {
+  const reduce =
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const [display, setDisplay] = useState(() => (reduce ? text : scrambleAll(text)))
+  useEffect(() => {
+    if (reduce) {
+      setDisplay(text)
+      return
+    }
+    let i = 0
+    const step = Math.max(0.5, text.length / 22) // câu dài → lộ nhanh hơn để khỏi lê thê
+    const id = window.setInterval(() => {
+      let out = ''
+      for (let k = 0; k < text.length; k++) {
+        const c = text[k]
+        out += c === ' ' || c === '\n' || k < i ? c : SCRAMBLE_CH[(Math.random() * SCRAMBLE_CH.length) | 0]
+      }
+      setDisplay(out)
+      i += step
+      if (i >= text.length) {
+        window.clearInterval(id)
+        setDisplay(text) // chốt câu thật, sạch sẽ
+      }
+    }, 32)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
+  return <>{display}</>
+}
+
 function AgentText({ children }: { children: React.ReactNode }) {
   return (
-    <div className="max-w-[88%] break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light glass">
-      {children}
+    // whitespace-pre-line: GIỮ xuống dòng + gạch đầu dòng của AI → câu trả lời có bố cục,
+    // không bị dồn thành một đoạn dài (trông chỉn chu hơn hẳn).
+    <div className="max-w-[88%] whitespace-pre-line break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light rose-glass">
+      {/* Chỉ "giải mã" khi nội dung là chuỗi (text/intro của AI) */}
+      {typeof children === 'string' ? <ScrambleText text={children} /> : children}
     </div>
   )
 }
@@ -255,7 +346,89 @@ function MiniAvatar({ initial }: { initial: string }) {
   )
 }
 
+/** Danh sách thư THẬT (bấm để mở thẳng thư) — dùng dưới kết quả AI. UI/UX: mỗi thư 1 hàng
+ *  avatar + người gửi + tiêu đề + snippet + chấm chưa đọc; bấm → onOpen(id) mở chi tiết. */
+function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: string) => void }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {emails.map((e) => (
+        <button
+          key={e.id}
+          type="button"
+          onClick={() => onOpen?.(e.id)}
+          disabled={!onOpen}
+          className="group/mail flex w-full items-center gap-2.5 rounded-xl bg-[#452216]/5 dark:bg-white/5 p-2 text-left transition-colors hover:bg-[#452216]/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        >
+          <MiniAvatar initial={e.initial} />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+              {e.unread && <span className="size-1.5 shrink-0 rounded-full cherry-dot" />}
+              <span className="truncate">{e.sender}</span>
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{e.subject}</p>
+            {e.snippet && (
+              <p className="truncate text-[11px] text-muted-foreground/70">{e.snippet}</p>
+            )}
+          </div>
+          {onOpen && (
+            <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/mail:opacity-100" />
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** Meeting Brief — bento: thời gian/deadline · người tham gia · checklist · điểm chính. */
+/** Kết quả tra cứu đi lại, hiện NGAY TRONG CHAT.
+ *
+ *  Dùng lại đúng `DongBay`/`DongPhong` của khung "Tra cứu đi lại" — không vẽ lại một
+ *  bản riêng. Vẽ hai lần thì hai chỗ sẽ TRÔI XA NHAU: sửa cột giá ở khung mà quên
+ *  trong chat là cùng một chuyến bay hiện hai kiểu, và không ai biết bên nào đúng.
+ *
+ *  Nhãn nguồn giữ nguyên kiểu của khung (xanh = thật, hổ phách = mô phỏng) để người
+ *  xem nhận ra ngay là CÙNG MỘT THỨ, dù tới bằng hai đường khác nhau. */
+function DiLaiWidget({ reply }: { reply: Extract<AgentReply, { kind: 'dilai' }> }) {
+  return (
+    <Card className="rose-glass shadow-float">
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {reply.loai === 'bay' ? (
+            <Plane className="size-4 text-primary" />
+          ) : (
+            <Hotel className="size-4 text-primary" />
+          )}
+          {reply.title}
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1',
+              'font-mono text-[10px] font-semibold uppercase tracking-[0.08em]',
+              reply.la_that
+                ? 'bg-[var(--rr-hoan,#0E8F63)]/15 text-[var(--rr-hoan,#0E8F63)]'
+                : 'bg-[var(--ut-gap,#B45309)]/15 text-[var(--ut-gap,#B45309)]',
+            )}
+          >
+            {reply.la_that ? <ShieldCheck className="size-3" /> : <FlaskConical className="size-3" />}
+            {reply.nhan}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <div className="flex flex-col gap-1.5">
+          {reply.items.map((k, i) => (
+            <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
+              {reply.loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
+            </div>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[11px] text-muted-foreground/80">
+          Chỉ tra cứu — không đặt, không thanh toán.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> }) {
   const [done, setDone] = useState<Set<number>>(new Set())
   const toggle = (i: number) =>
@@ -266,7 +439,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
       return next
     })
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <CalendarClock className="size-4 text-primary" />
@@ -276,7 +449,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
       <CardContent className="space-y-3 pt-2">
         {/* Hàng bento: thời gian · người tham gia */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-popover-foreground/5 p-3">
+          <div className="rounded-xl bg-[#452216]/5 dark:bg-white/5 p-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Clock className="size-3.5" />
               Thời gian
@@ -288,7 +461,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
               </p>
             )}
           </div>
-          <div className="rounded-xl bg-popover-foreground/5 p-3">
+          <div className="rounded-xl bg-[#452216]/5 dark:bg-white/5 p-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Users className="size-3.5" />
               Tham gia
@@ -367,7 +540,7 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
       return next
     })
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="size-4 text-primary" />
@@ -439,7 +612,7 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
 function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }> }) {
   const max = Math.max(1, ...reply.breakdown.map((b) => b.count))
   return (
-    <Card className="overflow-hidden bg-transparent shadow-float glass">
+    <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <BarChart3 className="size-4 text-primary" />
@@ -500,33 +673,197 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
 
 /* ---------- Panel ---------- */
 
+/* ĐÃ XOÁ hai thành phần MeltingWave (sơn tan chảy) và WaterDivider (mặt hồ
+   gợn sóng) cùng dữ liệu đi kèm. Xem giải thích ở chỗ chúng từng được gắn.
+   Lịch sử vẫn còn trong git nếu cần dựng lại. */
+
+/** Đoạn phim nền — MỖI THEME MỘT ĐOẠN, và đây không phải chuyện thẩm mỹ.
+ *
+ *  Phép hoà trộn quyết định đoạn phim nào dùng được ở đâu:
+ *
+ *  TỐI  → `screen` (lấy giá trị sáng hơn). Đoạn phim phải có NỀN ĐEN thì vùng
+ *         nền mới triệt tiêu hoàn toàn và chỉ còn lại vật thể phát sáng. Bông
+ *         hoa thuỷ tinh đúng như vậy: nền đen tuyền, hoa rực ngũ sắc. Nhờ nó
+ *         mà bản tối không còn phải ghì brightness xuống 0.38 như đoạn bong
+ *         bóng trước — cái đó là chữa cháy cho một đoạn phim sai nền.
+ *
+ *  SÁNG → `multiply` (lấy giá trị tối hơn). Ở đây cần ngược lại: nền phải SÁNG
+ *         thì mới triệt tiêu, còn vật thể sẫm hơn mới hiện ra. Bong bóng xà
+ *         phòng trên nền studio trắng đúng vai này. Bê bông hoa nền đen sang
+ *         đây thì cả khung hoá đen kịt.
+ *
+ *  Cùng một nguyên tắc phát xạ/tán sắc đã dùng cho toàn bộ giao diện, lần này
+ *  quyết định luôn cả việc CHỌN TỆP.
+ *
+ *  Cả hai đều đã chuyển mã cho web: H.264, không tiếng, +faststart. Bản gốc của
+ *  bông hoa là 30.9 MB (2888x2160, 19.9 Mbit/s) — bản dùng thật 1.28 MB.
+ */
+const PHIM_TOI = '/landing/space-bubble.mp4'   // nền đen  → dùng với screen
+const PHIM_SANG = '/landing/soap-bubble.mp4'   // nền trắng → dùng với multiply
+
+/**
+ * TheDuDinh — agent xin phép TRƯỚC khi làm việc có hậu quả ra ngoài hộp thư.
+ *
+ * Đây là màn quan trọng nhất khi MeoArc gọi MCP đi đặt vé, đặt phòng — và cũng
+ * là chỗ dễ làm sai nhất. Ba quyết định thiết kế, mỗi cái chữa một cách hỏng:
+ *
+ * 1. MỖI BƯỚC MỘT MỨC RỦI RO RIÊNG, không gộp thành một cục "đặt chuyến đi".
+ *    Gộp lại thì người dùng không thấy được bước nào rút lại được, bước nào
+ *    không — và họ sẽ duyệt cả cụm mà không biết mình vừa duyệt cái gì.
+ *
+ * 2. NÚT GIỮA LÀ NÚT QUAN TRỌNG NHẤT. "Chỉ thêm vào lịch" cho phép lấy phần an
+ *    toàn và bỏ phần tốn tiền. Thiếu nó thì người dùng chỉ có duyệt tất hoặc bỏ
+ *    tất — và khi phải chọn giữa hai cực đó, họ sẽ bỏ tất.
+ *
+ * 3. AGENT NÓI RA CHỖ NÓ ĐOÁN. Không giấu phần suy đoán đi. Một trợ lý nói rõ
+ *    chỗ mình không chắc thì đáng tin hơn hẳn một trợ lý lúc nào cũng quả quyết.
+ *
+ * Mức rủi ro CAO NHẤT trong các bước quyết định độ sáng của cả thẻ — vì đó mới
+ * là thứ người dùng đang thật sự đánh cược khi bấm duyệt.
+ */
+function TheDuDinh({
+  reply,
+  resolved,
+  dangChay,
+  onDuyet,
+  onBoQua,
+}: {
+  reply: Extract<AgentReply, { kind: 'dudinh' }>
+  resolved?: boolean
+  /** Đang gọi backend — khoá nút để một cú bấm không thành hai đơn. */
+  dangChay?: boolean
+  onDuyet: () => void
+  onBoQua: () => void
+}) {
+  const capCao = Math.max(...reply.buoc.map((b) => b.mucRuiRo)) as 1 | 2 | 3
+  const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+  const coTienThat = reply.buoc.some((b) => b.mucRuiRo === 3)
+
+  return (
+    <div
+      className={cn(
+        // NỀN ĐỤC, không để trong suốt. Panel trợ lý có đoạn phim chạy phía sau;
+        // thẻ này chứa SỐ TIỀN và các bước không hoàn tác được, nên nó là chỗ
+        // cuối cùng được phép hy sinh độ đọc để lấy hiệu ứng. Vẫn giữ backdrop-blur
+        // để nó còn thuộc về khung kính chung.
+        'goc-cat mt-2 flex flex-col gap-3.5 bg-[var(--elevated)]/92 p-4 backdrop-blur-md',
+        capCao === 3 ? 'rui-ro-3' : capCao === 2 ? 'rui-ro-2' : 'rui-ro-1',
+        resolved && 'opacity-60',
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em]"
+          style={{ color: 'var(--rr)' }}>
+          {coTienThat ? 'Không hoàn tác · tiêu tiền thật' : 'Cần bạn duyệt'}
+        </span>
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--rr)' }}>
+          {reply.buoc.length} bước
+        </span>
+      </div>
+
+      <h3 className="text-[15px] font-semibold leading-snug text-foreground">{reply.title}</h3>
+
+      <div className="flex flex-col">
+        {reply.buoc.map((b, i) => (
+          <div key={i}
+            className="grid grid-cols-[14px_1fr_auto] items-center gap-2.5 border-t border-foreground/[0.07] py-2.5 first:border-t-0">
+            <span className={cn('cham-rr', `c${b.mucRuiRo}`)} aria-hidden />
+            <span className="min-w-0 text-[13px] text-foreground">
+              {b.mo_ta}{' '}
+              <span className="text-muted-foreground">· {b.hau_qua}</span>
+            </span>
+            <span className="font-mono text-[12px] tabular-nums"
+              style={{ color: b.tien ? `var(--rr-${b.mucRuiRo === 3 ? 'khong' : b.mucRuiRo === 2 ? 'can' : 'hoan'})` : undefined }}>
+              {b.tien ? `${b.tien.toLocaleString('vi-VN')} ₫` : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {tong > 0 && (
+        <div className="flex items-baseline justify-between border-t border-foreground/[0.07] pt-2.5">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">
+            Tổng chi
+          </span>
+          <span className="font-mono text-[15px] font-bold tabular-nums" style={{ color: 'var(--rr)' }}>
+            {tong.toLocaleString('vi-VN')} ₫
+          </span>
+        </div>
+      )}
+
+      {reply.cho_doan && (
+        <p className="border-l-2 py-2 pl-3 pr-2 text-[12.5px] leading-relaxed text-muted-foreground"
+          style={{ borderColor: 'var(--rr)', background: 'color-mix(in srgb, var(--rr) 5%, transparent)' }}>
+          {reply.cho_doan}
+        </p>
+      )}
+
+      {/* Ba nút này TỪNG KHÔNG GẮN HÀNH ĐỘNG NÀO — thẻ chỉ để nhìn. Và một trong ba
+          ("Chỉ thêm vào lịch") hứa việc MeoArc không làm được: nó không ghi được vào
+          Google Calendar. Một nút hứa sai còn tệ hơn không có nút, vì người dùng bấm
+          rồi tưởng đã xong. Đã bỏ nút đó và nối hai nút còn lại vào đường thật. */}
+      {!resolved && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onDuyet}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-60"
+            style={{ ['--tint' as string]: 'var(--rr)', background: 'var(--rr)' }}>
+            {dangChay ? 'Đang xử lý…' : coTienThat ? 'Duyệt & đặt' : 'Duyệt'}
+          </button>
+          <button
+            onClick={onBoQua}
+            disabled={dangChay}
+            className="nut-ky-thuat px-4 py-2 text-[12.5px] font-medium text-muted-foreground disabled:opacity-60">
+            Bỏ qua
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ChatPanel({
   emails,
   actions,
   injectedCommand,
   onInjectConsumed,
+  onOpenEmail,
+  focusSignal,
+  onClose,
 }: {
   emails: Email[]
   actions: EmailActions
   injectedCommand?: string | null
   onInjectConsumed?: () => void
+  /** Mở 1 thư (chuyển panel phải sang chi tiết) — dùng khi bấm thư trong kết quả AI. */
+  onOpenEmail?: (id: string) => void
+  /** Tăng lên mỗi khi bấm tab "AI Agent" ở nav → bung composer + focus ô chat. */
+  focusSignal?: number
+  /** Đóng panel AI → trả Hộp thư về full-width (nút X trên header + tab AI Agent). */
+  onClose?: () => void
 }) {
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
   const [input, setInput] = useState('')
+  // Composer THU GỌN: mặc định chỉ là 1 nút; bấm mới bung ô nhập + gợi ý (chừa chỗ cho
+  // khung chat). Bấm ra ngoài (khi ô rỗng) → tự co lại. composerRef để phát hiện click ngoài.
+  const [composerOpen, setComposerOpen] = useState(false)
+  const composerRef = useRef<HTMLDivElement>(null)
   const [thinking, setThinking] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [voiceOpen, setVoiceOpen] = useState(false)
+  // Gói + hạn mức token: hiện cạnh ô nhập, chặn gửi khi cạn, mở trang nâng cấp.
+  const { status: sub, refresh: refreshSub, setStatus: setSub } = useSubscription()
+  const [pricingOpen, setPricingOpen] = useState(false)
+  /** Đoạn phim nền + cờ báo hỏng để rơi về bong bóng dựng bằng CSS. */
+  const videoNenRef = useRef<HTMLVideoElement>(null)
+  const [phimHong, setPhimHong] = useState(false)
+  const { theme } = useTheme()
+  const phimNen = theme === 'dark' ? PHIM_TOI : PHIM_SANG
   const [ttsOn, setTtsOn] = useState(true) // đọc lại câu trả lời khi dùng voice
-  const [speaking, setSpeaking] = useState(false) // agent đang đọc → mèo mấp máy
-  const [mood, setMood] = useState<'idle' | 'happy'>('idle') // mèo đổi biểu cảm khi xong việc
-  const moodTimer = useRef<number | null>(null)
-  const celebrate = () => {
-    setMood('happy')
-    if (moodTimer.current) clearTimeout(moodTimer.current)
-    moodTimer.current = window.setTimeout(() => setMood('idle'), 2600)
-  }
+  const [speaking, setSpeaking] = useState(false) // agent đang đọc → nút loa nhấp nháy
   // UC011 — đổi tên / xoá phiên
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -542,7 +879,6 @@ export function ChatPanel({
     window.requestAnimationFrame(() => setFlash(true))
     if (flashTimer.current) clearTimeout(flashTimer.current)
     flashTimer.current = window.setTimeout(() => setFlash(false), 1100)
-    celebrate() // mèo cười khi xong việc
   }
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -551,9 +887,53 @@ export function ChatPanel({
     [sessions, currentId],
   )
 
+  // (#AI-native) GỢI Ý THEO NGỮ CẢNH — web "tư duy" từ tình trạng hộp thư thật:
+  // thư quan trọng chưa đọc → gợi ý trả lời ĐÍCH DANH người gửi; có thư chưa đọc
+  // → tóm tắt đúng số lượng; có thư khuyến mãi → gợi ý dọn; nhiều thư chưa nhãn
+  // → gợi ý phân loại. Câu chữ bám đúng intent parser (lib/agent.ts) để bấm phát
+  // là agent hiểu và chạy đúng việc. Tối đa 3 chip, ưu tiên việc gấp trước.
+  const suggestions = useMemo(() => {
+    const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
+    const out: string[] = []
+    const urgent = inbox.find((e) => e.unread && e.status === 'Todo')
+    if (urgent) out.push(`Soạn trả lời ${urgent.sender}`)
+    const unread = inbox.filter((e) => e.unread).length
+    if (unread > 0) out.push(`Tóm tắt ${unread} thư chưa đọc`)
+    const promo = inbox.filter((e) => e.category === 'terra').length
+    if (promo > 0) out.push(`Dọn ${promo} thư khuyến mãi`)
+    if (out.length < 3) {
+      const unlabeled = inbox.filter((e) => !e.label).length
+      if (unlabeled >= 2) out.push('Phân loại tự động thư chưa nhãn')
+    }
+    if (out.length < 3) {
+      const waiting = inbox.find((e) => e.status === 'Waiting')
+      if (waiting) out.push(`Tóm tắt thư của ${waiting.sender}`)
+    }
+    if (out.length === 0) out.push('Tóm tắt hộp thư hôm nay')
+    return out.slice(0, 3)
+  }, [emails])
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, thinking])
+
+  // Composer vừa bung → focus ô nhập ngay cho gõ liền.
+  useEffect(() => {
+    if (composerOpen) document.getElementById('meoarc-composer-input')?.focus()
+  }, [composerOpen])
+
+  // Bấm RA NGOÀI composer (khi ô đang RỖNG) → tự co lại thành nút → chừa chỗ cho khung chat.
+  // Còn chữ trong ô thì KHÔNG co (khỏi mất bản nháp đang gõ dở).
+  useEffect(() => {
+    if (!composerOpen) return
+    const onDown = (e: PointerEvent) => {
+      if (composerRef.current?.contains(e.target as Node)) return
+      if (input.trim()) return
+      setComposerOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [composerOpen, input])
 
   // Esc để đóng drawer lịch sử
   useEffect(() => {
@@ -601,9 +981,80 @@ export function ChatPanel({
     setCurrentId(s.id)
   }
 
-  // ---- UC011: Pin / Rename / Delete ----
-  const togglePin = (id: string) =>
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s)))
+  /* UC011: nạp lịch sử phiên ĐÃ LƯU từ backend (chế độ HTTP).
+     Phiên tải về chỉ có metadata (messages rỗng) — mở phiên nào thì mới getConversation.
+
+     ── LỖI ĐÃ SỬA: CÂU HỎI BỐC HƠI SAU VÀI GIÂY ──
+     Bản trước, khi lời gọi này trả về nó chạy `setSessions([fresh, ...loaded])` rồi
+     `setCurrentId(fresh.id)` — tức THAY SẠCH phiên đang mở bằng một phiên TRỐNG.
+
+     Trên máy nhà, lời gọi về trong vài chục mili-giây nên không ai thấy. Trên bản
+     chạy thật nó mất vài giây, và trong khoảng đó người dùng đã kịp bấm "Hỏi trợ lý"
+     từ trang Lịch trình: câu hỏi hiện lên, agent bắt đầu nghĩ, rồi lịch sử về và
+     XOÁ luôn phiên chứa câu hỏi đó. Màn hình quay về lời chào, câu trả lời đang tới
+     thì rơi vào một phiên không còn được hiển thị.
+
+     Triệu chứng người dùng mô tả: "hỏi xong khoảng 10 mấy giây thì AI bị refresh và
+     hiện lại đoạn Chào Quân". Đúng là refresh — do chính đoạn mã này.
+
+     Nay: GIỮ NGUYÊN phiên đang mở, chỉ ghép lịch sử vào SAU nó, và KHÔNG đụng tới
+     `currentId`. Người dùng đang đứng ở đâu thì ở nguyên đó. */
+  const currentIdRef = useRef(currentId)
+  useEffect(() => { currentIdRef.current = currentId }, [currentId])
+
+  useEffect(() => {
+    let alive = true
+    api
+      .listConversations()
+      .then((list) => {
+        if (!alive || list.length === 0) return
+        const loaded: Session[] = list.map((c) => ({
+          id: c.id,
+          backendId: c.id,
+          title: c.title,
+          time: relTime(c.updatedAt),
+          pinned: c.pinned,
+          messages: [],
+        }))
+        setSessions((prev) => {
+          const dangMo = prev.find((s) => s.id === currentIdRef.current) ?? prev[0]
+          // Bỏ bản trùng: phiên đang mở có thể đã được lưu xuống backend rồi.
+          const conLai = loaded.filter((c) => c.id !== dangMo?.backendId)
+          return dangMo ? [dangMo, ...conLai] : [freshSession(), ...loaded]
+        })
+        // KHÔNG setCurrentId — đổi phiên dưới chân người dùng là cách chắc chắn
+        // nhất làm mất câu hỏi họ vừa gửi.
+      })
+      .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ---- UC011: Mở / Pin / Rename / Delete (đều LƯU xuống backend nếu phiên đã có backendId) ----
+  // Mở 1 phiên ở drawer: chuyển sang phiên đó; nếu mới có metadata (messages rỗng) thì tải đầy đủ.
+  const openSession = (s: Session) => {
+    setCurrentId(s.id)
+    setHistoryOpen(false)
+    if (s.backendId && s.messages.length === 0) {
+      api
+        .getConversation(s.backendId)
+        .then((detail) => {
+          setSessions((prev) =>
+            prev.map((x) => (x.id === s.id ? { ...x, messages: detail.messages.map(toLocalMsg) } : x)),
+          )
+        })
+        .catch(() => {})
+    }
+  }
+
+  const togglePin = (id: string) => {
+    const s = sessions.find((x) => x.id === id)
+    const next = !s?.pinned
+    setSessions((prev) => prev.map((x) => (x.id === id ? { ...x, pinned: next } : x)))
+    if (s?.backendId) api.updateConversation(s.backendId, { pinned: next }).catch(() => {})
+  }
 
   const startRename = (s: Session) => {
     setRenamingId(s.id)
@@ -612,16 +1063,20 @@ export function ChatPanel({
   const commitRename = () => {
     const title = renameValue.trim()
     if (!title || title.length > RENAME_MAX) return // A4 — rename không hợp lệ: giữ ô mở
-    setSessions((prev) => prev.map((s) => (s.id === renamingId ? { ...s, title } : s)))
+    const s = sessions.find((x) => x.id === renamingId)
+    setSessions((prev) => prev.map((x) => (x.id === renamingId ? { ...x, title } : x)))
+    if (s?.backendId) api.updateConversation(s.backendId, { title }).catch(() => {})
     setRenamingId(null)
   }
 
   const deleteSession = (id: string) => {
-    const next = sessions.filter((s) => s.id !== id)
+    const s = sessions.find((x) => x.id === id)
+    if (s?.backendId) api.deleteConversation(s.backendId).catch(() => {})
+    const next = sessions.filter((x) => x.id !== id)
     if (next.length === 0) {
-      const s = freshSession()
-      setSessions([s])
-      setCurrentId(s.id)
+      const fresh = freshSession()
+      setSessions([fresh])
+      setCurrentId(fresh.id)
     } else {
       setSessions(next)
       if (id === currentId) setCurrentId(next[0].id)
@@ -649,6 +1104,11 @@ export function ChatPanel({
   const send = (raw: string, viaVoice = false) => {
     const text = raw.trim()
     if (!text || thinking) return
+    // Cạn hạn mức token → chặn ngay ở client, khỏi gọi backend chỉ để nhận lỗi.
+    if (isOutOfTokens(sub)) {
+      setPricingOpen(true)
+      return
+    }
     // Thêm tin user + đặt tiêu đề phiên nếu là tin đầu tiên
     setSessions((prev) =>
       prev.map((s) => {
@@ -664,13 +1124,23 @@ export function ChatPanel({
     )
     setInput('')
     setThinking(true)
+    // Gửi kèm backendId của phiên hiện tại (nếu đã lưu) để agent NHỚ đúng cuộc trò chuyện (UC011).
+    const sid = currentId
+    const backendId = sessions.find((s) => s.id === sid)?.backendId
     // Qua lớp adapter (UC007): mock trả interpretCommand; backend thật gọi POST /agent/chat.
     api
-      .sendAgentMessage(text, { emails }, { viaVoice })
+      .sendAgentMessage(text, { emails }, { viaVoice, sessionId: backendId })
       .then((reply) => {
         setThinking(false)
+        // Lần đầu của phiên mới: BE trả conversationId → gắn vào phiên để các lượt sau bám đúng.
+        if (reply.conversationId) {
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sid ? { ...s, backendId: reply.conversationId } : s)),
+          )
+        }
         push({ id: uid(), role: 'agent', reply })
         if (viaVoice) speak(replyToSpeech(reply))
+        void refreshSub() // lượt vừa rồi đã tiêu token → cập nhật lại đồng hồ
       })
       .catch(() => {
         setThinking(false)
@@ -682,13 +1152,38 @@ export function ChatPanel({
       })
   }
 
-  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào
+  // Lệnh từ nút ngữ cảnh (UC016) — tự gửi khi app-shell đẩy vào.
+  //
+  // CỜ CHỐNG GỬI HAI LẦN. React StrictMode gọi effect hai lượt khi mount, và cả hai
+  // lượt đều chạy TRƯỚC khi cha kịp xoá lệnh — nên một lần bấm "Hỏi trợ lý" cho ra
+  // HAI câu hỏi và HAI thẻ trả lời giống hệt nhau. Đã chụp được đúng vậy.
+  //
+  // Cờ tự đặt lại khi `injectedCommand` về null (tức cha đã tiêu thụ xong), nên bấm
+  // lại đúng việc đó lần nữa vẫn gửi được. Nếu chỉ so sánh nội dung lệnh thì lần bấm
+  // thứ hai vào CÙNG một việc sẽ bị nuốt — một cách sửa tưởng đúng mà lại chặn nhầm
+  // thao tác hợp lệ.
+  const dangGuiLenh = useRef(false)
   useEffect(() => {
-    if (!injectedCommand) return
+    if (!injectedCommand) { dangGuiLenh.current = false; return }
+    if (dangGuiLenh.current) return
+    dangGuiLenh.current = true
     send(injectedCommand)
     onInjectConsumed?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injectedCommand])
+
+  // Bấm tab "AI Agent" ở nav → bung ô nhập (nếu đang thu gọn) + focus con trỏ vào chat
+  // + cuộn xuống cuối. Nhờ vậy nút không còn "vô tác dụng" khi chat đã hiển thị sẵn.
+  useEffect(() => {
+    if (!focusSignal) return
+    setComposerOpen(true)
+    const t = window.setTimeout(() => {
+      const el = document.getElementById('meoarc-composer-input') as HTMLTextAreaElement | null
+      el?.focus()
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [focusSignal])
 
   const markResolved = (id: string) =>
     updateMessages((prev) =>
@@ -696,7 +1191,7 @@ export function ChatPanel({
     )
 
   const execOp = (op: PlanOp) => {
-    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids)
+    if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids, op.type)
     else if (op.type === 'markRead') actions.markRead(op.ids, op.read)
     else if (op.type === 'label') actions.applyLabel(op.ids, op.category, op.label)
     else if (op.type === 'autoLabel')
@@ -725,6 +1220,70 @@ export function ChatPanel({
     window.setTimeout(tick, 550)
   }
 
+  /* ── DUYỆT THẺ DỰ ĐỊNH ────────────────────────────────────────────────────
+     Đây là mắt xích cuối để cả ý tưởng chạy được đầu-cuối: agent đề xuất → người
+     bấm → hệ thống thực thi qua cổng tiền.
+
+     Đi qua `/confirmations/{id}/approve` — đường TẤT ĐỊNH, KHÔNG qua mô hình. Mô
+     hình đã làm xong phần việc của nó (đề xuất) trước khi thẻ hiện ra; để nó tham
+     gia lần nữa lúc thực thi thì thứ chạy có thể khác thứ người dùng vừa duyệt.
+
+     Chế độ mock không có `confirmationId`. Vẫn cho duyệt, nhưng nói THẲNG là mô
+     phỏng — im lặng để người dùng tưởng đã đặt thật là kiểu nói dối tệ nhất ở đây. */
+  const [dangDuyetId, setDangDuyetId] = useState<string | null>(null)
+
+  const onDuyetDuDinh = async (
+    id: string,
+    reply: Extract<AgentReply, { kind: 'dudinh' }>,
+  ) => {
+    if (dangDuyetId) return          // khoá: một cú bấm không được thành hai đơn
+    setDangDuyetId(id)
+    const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+    try {
+      let ma = ''
+      if (reply.confirmationId) {
+        const ra = await api.approveConfirmation(reply.confirmationId)
+        const d = (ra?.result ?? {}) as { data?: { ma_dat_cho?: string }; message?: string }
+        ma = d.data?.ma_dat_cho ?? ''
+      }
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'result',
+          title: ma ? `Đã đặt (mô phỏng) · ${ma}` : 'Đã duyệt (mô phỏng)',
+          intro: 'Xong rồi — nhưng đọc kỹ dòng cuối nhé:',
+          lines: [
+            reply.title,
+            tong > 0 ? `Tổng chi ghi nhận: ${tong.toLocaleString('vi-VN')} ₫` : 'Không phát sinh chi phí.',
+            'ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán vé hay phòng nào. '
+            + 'Không có khoản tiền nào được thanh toán, và bạn sẽ KHÔNG nhận được vé thật.',
+          ],
+        },
+      })
+      triggerFlash()
+    } catch (e) {
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: { kind: 'text', text: `Chưa duyệt được: ${String(e).slice(0, 140)}. Bạn thử lại giúp mình nhé.` },
+      })
+    } finally {
+      setDangDuyetId(null)
+    }
+  }
+
+  const onBoQuaDuDinh = (id: string) => {
+    markResolved(id)
+    push({
+      id: uid(),
+      role: 'agent',
+      reply: { kind: 'text', text: 'Đã bỏ qua dự định này — mình chưa làm gì cả. Bạn muốn đổi phương án nào?' },
+    })
+  }
+
   const rejectPlan = (id: string) => {
     markResolved(id)
     push({
@@ -734,19 +1293,72 @@ export function ChatPanel({
     })
   }
 
-  const sendDraft = (id: string, to: string) => {
-    markResolved(id)
-    push({
-      id: uid(),
-      role: 'agent',
-      reply: { kind: 'done', text: `Đã gửi email tới ${to.split('<')[0].trim()}.` },
-    })
-    triggerFlash()
+  // UC010 — GỬI THẬT bản nháp sau khi user duyệt trên DraftCard (human-in-the-loop):
+  // draft thường → POST /emails/send; draft TRẢ LỜI (replyToId) → POST /emails/{id}/reply
+  // (giữ đúng luồng thư). Mock mode: adapter giả trả ok — UX như cũ. Trả true/false để
+  // DraftCard biết đóng thẻ hay GIỮ LẠI cho user sửa/bấm gửi lại khi lỗi. Nhờ gửi qua
+  // endpoint tất định (không qua LLM) nên "Đã gửi ✓" = thư THẬT SỰ đã đi.
+  const sendDraft = async (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
+  ): Promise<boolean> => {
+    try {
+      if (draft.confirmationId) {
+        // Đường CHUẨN: máy chủ giữ trạng thái yêu cầu duyệt, nên bấm hai lần vẫn chỉ
+        // gửi một lần (PA2 §1.3.5). Trước đây nút này gọi thẳng lệnh gửi — mở lại hội
+        // thoại cũ rồi bấm lại là thư đi lần nữa.
+        await api.approveConfirmation(draft.confirmationId)
+      } else if (draft.replyToId) {
+        await api.replyEmail(draft.replyToId, draft.body)
+      } else {
+        // "Tên <email>" → chỉ gửi phần địa chỉ cho backend
+        const addr = (draft.to.match(/<([^>]+)>/)?.[1] ?? draft.to).trim()
+        await api.sendEmail({ to: addr, subject: draft.subject, body: draft.body })
+      }
+      markResolved(id)
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'done',
+          text: draft.replyToId
+            ? 'Đã gửi trả lời trong đúng luồng thư ✓'
+            : `Đã gửi email tới ${draft.to.split('<')[0].trim()}.`,
+        },
+      })
+      triggerFlash()
+      return true
+    } catch {
+      push({
+        id: uid(),
+        role: 'agent',
+        reply: {
+          kind: 'text',
+          text: 'Gửi KHÔNG thành công (mạng hoặc quyền Gmail). Thư CHƯA được gửi — bạn kiểm tra lại người nhận rồi bấm gửi lần nữa nhé.',
+        },
+      })
+      return false
+    }
+  }
+
+  // UC010 — "Viết lại": nhờ AGENT soạn lại ĐÚNG bản nháp này (giữ người nhận + chủ đề),
+  // KHÔNG tạo email mới. Neo theo chủ đề/người nhận để agent không lạc đề (fix bug rewrite
+  // ra email khác hẳn). Agent trả về 1 thẻ nháp mới đã viết lại.
+  const rewriteDraft = (
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
+    instruction: string,
+  ) => {
+    const instr = instruction.trim()
+    send(
+      `Viết lại bản nháp email vừa rồi (chủ đề “${draft.subject}”, gửi ${draft.to})` +
+        `${instr ? ` theo yêu cầu: “${instr}”` : ''}. ` +
+        `Giữ NGUYÊN người nhận và chủ đề, chỉ đổi cách hành văn — tuyệt đối không đổi chủ đề.`,
+    )
   }
 
   // UC017 — áp dụng kết quả tự lái vào hộp thư thật
   const applyAutopilot = (id: string, r: AutopilotResult) => {
-    if (r.archive.length) actions.removeEmails(r.archive)
+    if (r.archive.length) actions.removeEmails(r.archive, 'archive')
     if (r.markRead.length) actions.markRead(r.markRead, true)
     if (r.flag.length) actions.setImportant(r.flag, true)
     markResolved(id)
@@ -790,91 +1402,209 @@ export function ChatPanel({
       ? lastMsg.id
       : null
 
-  // Mèo "lo" khi có plan cảnh báo không hoàn tác (xoá) đang chờ duyệt
-  const worried =
-    !!lastMsg &&
-    lastMsg.role === 'agent' &&
-    !lastMsg.resolved &&
-    !exec &&
-    lastMsg.reply.kind === 'plan' &&
-    !!lastMsg.reply.warn
-
   return (
-    <aside className="ai-panel-bg relative z-10 flex h-full flex-1 flex-col border-l border-accent/30 shadow-soft duration-300 animate-in fade-in">
+    <aside className="ai-panel-bg den-noi-trai relative z-10 flex h-full flex-1 flex-col overflow-hidden shadow-soft duration-300 animate-in fade-in">
+      {/* ĐOẠN PHIM NỀN — nguồn để khối kính khúc xạ, và nó PHẢI ĂN NHẬP VỚI NỀN, KHÔNG PHẢI DÁN LÊN NỀN.
+          Bản thô là một bong bóng TRẮNG LOÁ trên nền studio sáng. Đặt nguyên nó
+          lên nền #05060D thì nó không thuộc về căn phòng ấy — nó là một tấm ảnh
+          dán lên tường tối, và mắt đọc ra ngay.
+
+          Thử `mix-blend-mode: screen` trước và nó KHÔNG ăn thua, vì một lý do đáng
+          ghi lại: screen lấy giá trị sáng hơn của hai lớp, mà nền ở đây là #05060D
+          — gần như đen tuyệt đối. Screen với đen chính là phép đồng nhất, nên nó
+          không đổi được gì cả. Vẫn giữ screen vì ở những chỗ nền không thuần đen
+          nó có tác dụng, nhưng nó không phải đòn bẩy.
+
+          Đòn bẩy là `filter`. Ghì brightness xuống 0.38 để nền studio trắng của
+          đoạn phim tụt xuống ngang tầm nền tối của mình, rồi đẩy contrast và
+          saturate lên bù lại — làm thế thì chỉ những vân ngũ sắc rực nhất mới
+          sống sót, đúng những thứ đáng giữ. hue-rotate kéo phổ về phía tím/hồng
+          của thương hiệu để đoạn phim không mang một hệ màu riêng.
+
+          Bản gốc dặn "không phủ lớp làm tối nào lên phim" — vẫn giữ đúng: đây
+          không phải lớp phủ, đây là cách chính đoạn phim hoà vào nền. Riêng
+          phần mờ dần về đáy thì cần, vì dưới đó là chip gợi ý và ô nhập, chữ
+          phải đọc được. */}
+      <video
+        ref={videoNenRef}
+        className="phim-nen"
+        aria-hidden
+        autoPlay muted loop playsInline preload="auto"
+        key={phimNen}
+        src={phimNen}
+        onError={() => setPhimHong(true)}
+      />
+      {/* Định nghĩa bộ lọc khúc xạ — gắn một lần, các khối kính trỏ tới bằng id */}
+      <KinhKhucXaDefs />
+      {/* Bong bóng dựng bằng CSS: nền dự phòng khi đoạn phim không tải được
+          (mạng chặn, CDN hỏng). Không có nó thì panel thành một mảng đen trơn. */}
+      {phimHong && <ChatAmbience />}
+      {/* CHỮ "MEOARC" LÀM NỀN ĐÃ GỠ HẲN, cùng toàn bộ khối <style> đi kèm.
+          Nó từng là chữ ký của khung này, rồi bị hạ xuống 12% để thôi tranh chỗ
+          với hội thoại. Nhưng hạ độ mờ chỉ chữa triệu chứng: nền panel giờ đã có
+          một VẬT THẬT — bông hoa thuỷ tinh — nên chồng thêm một dòng chữ khổng lồ
+          sau nó là hai thứ cùng đòi làm hình nền. Bỏ hẳn thì bông hoa mới có chỗ. */}
       {/* Luồng sáng viền khi hoàn tất tác vụ (#3) */}
       {flash && <span aria-hidden className="panel-flash pointer-events-none absolute inset-0 z-30" />}
       {/* Voice mode (mở rộng UC007) — nói → STT → gửi cho agent */}
       <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} onResult={(t) => send(t, true)} />
-      {/* Header */}
-      <header className="stars-faint flex items-center gap-3 border-b border-border/50 px-6 py-5">
-        <span className="bokeh flex size-11 shrink-0 items-center justify-center">
-          <MeoMascot
-            thinking={thinking || speaking}
-            mood={thinking || speaking ? 'thinking' : worried ? 'worry' : mood}
-            className="size-11"
-          />
-        </span>
-        <div className="min-w-0">
-          <h2 className="font-serif text-[22px] font-semibold leading-none text-foreground">
-            Trợ lý MeoArc
-          </h2>
-          <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            <span className="size-1.5 shrink-0 rounded-full bg-success" />
-            Sẵn sàng · ngôn ngữ tự nhiên
-          </p>
+
+      {/* Trang chọn gói — chiếm trọn khung hình */}
+      <PricingScreen
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        status={sub}
+        onChanged={setSub}
+      />
+      
+      {/* [HAUTE COUTURE] Khung tiêu đề Hollywood với thanh phân cách dập rãnh cơ khí 3D tách khối tuyệt đối */}
+      {/* Khung tiêu đề: nền KÍNH SỌC (fluted glass).
+          Kính sọc là tấm kính đúc thành nhiều gân bán trụ dọc; mỗi gân là một
+          thấu kính trụ nên ảnh phía sau bị nén ngang và vỡ thành dải — thấy có
+          gì đó ở sau nhưng không đọc được là gì. Đúng vai của một thanh tiêu đề:
+          phải tách khỏi nội dung bên dưới, nhưng không được là một mảng đặc chặn
+          hết mọi thứ. Bong bóng phía sau vẫn thấp thoáng qua các gân. */}
+      {/* Thanh tiêu đề: ĐÈN NEON CHIẾU VÀO, không phải một bề mặt được trang trí.
+          Ống đèn nằm ở mép trên, chùm sáng đổ xuống, và thứ nhìn thấy là chùm ấy
+          chạm vào không khí trong khối. Khác hẳn kính sọc trước đó — sọc là hoa
+          văn nên mắt luôn thấy nó và nó tranh chỗ với nội dung; ánh sáng thì
+          không có hoa văn nào để nhìn, nó chỉ làm khối này sáng lên.
+
+          CHỮ ĐÃ BỎ, thay bằng dấu hiệu thương hiệu. Dòng "Trợ lý MeoArc" không
+          nói thêm được gì: người dùng vừa tự tay mở khung này, họ biết thừa nó
+          là gì. Một chữ ở chỗ trang trọng nhất mà không mang thông tin thì chỉ
+          là chỗ trống được lấp. Dấu hiệu thì nhận ra tức thì, không phải đọc, và
+          nó chừa lại khoảng thở cho chùm sáng. */}
+      <header data-cat-perch="bottom" className="den-neon relative z-20 shrink-0 overflow-hidden px-6 pb-5 pt-5">
+        
+        {/* THANH PHÂN CÁCH CƠ KHÍ 3D (RECESSED GROOVE): Tạo khe hở ánh sáng và bóng lún tách lớp */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10 flex flex-col">
+          {/* Đường hairline trắng gắt giả lập ánh sáng khúc xạ qua khe cắt kính */}
+          <div className="w-full h-[1px] bg-background/50 border-t border-white/[0.08]" />
+          {/* Rãnh cắt tối dập chìm, hắt bóng xuống lòng khung chat bên dưới */}
+          <div className="w-full h-[1px] bg-[#000000]/40 shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
         </div>
-        <div className="ml-auto flex items-center gap-0.5">
-          <kbd
-            title="Mở bảng lệnh"
-            className="mr-1 hidden items-center gap-0.5 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground lg:flex"
-          >
-            ⌘K
-          </kbd>
-          <button
-            onClick={() => {
-              setTtsOn((v) => {
-                if (v && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-                setSpeaking(false)
-                return !v
-              })
-            }}
-            title={ttsOn ? 'Tắt đọc câu trả lời' : 'Bật đọc câu trả lời'}
-            aria-label={ttsOn ? 'Tắt giọng đọc' : 'Bật giọng đọc'}
-            className={cn(
-              'flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-secondary',
-              ttsOn ? 'text-active' : 'text-muted-foreground hover:text-foreground',
+
+        {/* Lưới mảnh + vệt sáng: ngôn ngữ bảng điều khiển, thay cho dải sơn huy hiệu Pháp.
+            Dải cũ (navy/trắng/đỏ + serif + "Maison de L'intellect") nói về thư quán thế kỷ 19,
+            trong khi thứ đang chạy bên dưới là một agent. Hai câu chuyện chỏi nhau ngay trên
+            cùng một màn hình, và người xem cảm nhận được dù không gọi tên ra được. */}
+        {/* Lưới mảnh ĐÃ BỎ: gân kính đã lo phần "cấu trúc nền", chồng thêm một
+            lưới nữa thì hai hoa văn đánh nhau. */}
+
+        {/* BỐ CỤC NỘI DUNG: CHỮ HOLLYWOOD DI SẢN CĂN GIỮA TUYỆT ĐỐI */}
+        <div className="relative flex items-center justify-between w-full z-10">
+          {/* Logo mèo đã BỎ — linh hồn mèo giờ là WanderingCat chạy rong khắp app;
+              giữ khối đệm trống cho tiêu đề căn giữa cân với nút bên phải */}
+          <div className="size-9 shrink-0 ml-12" />
+
+          {/* VIÊN KÍNH KHÚC XẠ — hẹp so với đoạn phim, và đó là điều kiện bắt buộc.
+              Bản gốc ghi rõ một hiện tượng cố hữu của bộ lọc: khi khối kính rộng
+              gần bằng nguồn, mép của nó rơi vào vùng mặt nạ 45px và lộ ra dải
+              tách kênh màu gắt chạy dọc cạnh. Thanh tiêu đề tràn viền rơi đúng
+              vào bẫy đó — đã thử và đúng là bị. Thu lại thành viên nổi hẹp thì
+              mép ra khỏi vùng ấy, chỉ còn lại phần khúc xạ sạch.
+              Tiện thể nó cũng đúng hơn về mặt hình: một tấm kính có bốn cạnh
+              nhìn thấy được thì mới đọc ra là VẬT đặt lên trên đoạn phim; tràn
+              viền thì chỉ đọc là một mảng nền. */}
+          <KinhKhucXa
+            videoRef={videoNenRef}
+            co="nho"
+            className="kkx pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 select-none items-center justify-center overflow-hidden rounded-full border border-white/[0.16] p-3.5">
+            {/* Dấu hiệu, không phải chữ. Phát sáng bằng drop-shadow theo đúng màu
+                đèn đang rọi — cùng một nguồn sáng thì mọi vật trong khối phải
+                nhận cùng một màu, nếu không khối mất tính nhất quán. */}
+            <LogoMark className="relative size-6 text-foreground drop-shadow-[0_0_10px_var(--den)]" />
+            <span className="sr-only">Trợ lý MeoArc</span>
+          </KinhKhucXa>
+
+          <div className="flex items-center gap-1 shrink-0 mr-12">
+            <button
+              onClick={() => setHistoryOpen((v) => !v)}
+              title="Kích hoạt dải phím thao tác"
+              className={cn(
+                "o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90",
+                historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
+              )}
+            >
+              <Sparkles className="size-4" />
+            </button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                title="Đóng trợ lý — về Hộp thư"
+                aria-label="Đóng trợ lý AI"
+                className="o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90 [--tint:var(--destructive)]"
+              >
+                <X className="size-4" />
+              </button>
             )}
-          >
-            {ttsOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-          </button>
-          <button
-            onClick={newChat}
-            title="Cuộc trò chuyện mới"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <SquarePen className="size-4" />
-          </button>
-          <button
-            onClick={() => setHistoryOpen(true)}
-            title="Lịch sử trò chuyện"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <History className="size-4" />
-          </button>
+          </div>
+        </div>
+
+        {/* KHAY CHỨA NÚT CƠ KHÍ: Trượt lướt mượt mà khi được kích hoạt */}
+        <div 
+          className={cn(
+            "relative z-10 flex items-center justify-center gap-4 w-full border-t border-foreground/[0.04] bg-foreground/[0.01] mt-4 pt-3 transition-all duration-500 ease-soft",
+            historyOpen 
+              ? "max-h-12 opacity-100 translate-y-0" 
+              : "max-h-0 opacity-0 -translate-y-4 pointer-events-none overflow-hidden mt-0 pt-0 border-t-0"
+          )}
+        >
+          <div className="den-vien goc-cat-nho goc-cat flex items-center gap-2 px-4 py-1 bg-background/60 backdrop-blur-md">
+            <kbd className="hidden items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-background px-1.5 py-0.5 text-[9px] font-mono font-medium text-muted-foreground/70 lg:flex">
+              ⌘K
+            </kbd>
+
+            <button
+              onClick={() => {
+                setTtsOn((v) => {
+                  if (v && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+                  setSpeaking(false)
+                  return !v
+                })
+              }}
+              title={ttsOn ? 'Tắt đọc câu trả lời' : 'Bật đọc câu trả lời'}
+              className={cn(
+                'flex size-8 items-center justify-center rounded-lg transition-colors',
+                ttsOn ? 'text-active bg-background shadow-sm' : 'text-muted-foreground hover:bg-background/40 hover:text-foreground',
+                speaking && 'animate-pulse', // agent đang đọc → loa nhấp nháy thay mèo mấp máy
+              )}
+            >
+              {ttsOn ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+            </button>
+
+            <button
+              onClick={newChat}
+              title="Cuộc trò chuyện mới"
+              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background/40 hover:text-foreground"
+            >
+              <SquarePen className="size-3.5" />
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* ĐÃ GỠ dải sơn nhớt (navy/trắng ngà/đỏ mận) tan chảy tràn mép header.
+          Nó là một mảng công phu và đẹp, nhưng nó kể sai chuyện: sơn chảy là ẩn dụ
+          của chất lỏng, của thủ công, của thứ diễn ra chậm. Bên dưới nó là một
+          agent đọc vài trăm lá thư trong vài giây. Hai câu chuyện chỏi nhau ngay
+          trên cùng một màn hình.
+          Thay bằng một VẠCH SÁNG mảnh có tán sắc — cùng vai trò phân cách, nhưng
+          nói bằng ngôn ngữ ánh sáng. */}
+      <div aria-hidden className="relative z-10 h-px shrink-0">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-80" />
+        <div className="absolute inset-x-0 top-0 h-px translate-y-[0.5px] bg-gradient-to-r from-transparent via-[#F042FF] to-transparent opacity-40 blur-[1.5px]" />
+      </div>
 
       {/* Canvas hội thoại */}
       <div
         ref={scrollRef}
-        className="scrollbar-thin fade-y flex-1 space-y-5 overflow-y-auto px-6 py-6"
+        className="scrollbar-thin fade-y relative z-[1] flex-1 space-y-5 overflow-y-auto px-6 py-6"
       >
         {messages.map((m) => {
           return (
-            <div
-              key={m.id}
-              className="transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
-            >
+            <div key={m.id} className="msg-pop">
               {m.role === 'user' ? (
                 <UserBubble>{m.text}</UserBubble>
               ) : (
@@ -886,9 +1616,14 @@ export function ChatPanel({
                   onApprove={approvePlan}
                   onReject={rejectPlan}
                   onSendDraft={sendDraft}
+                  onRewrite={rewriteDraft}
                   onResolve={markResolved}
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
+                  onOpenEmail={onOpenEmail}
+                  duyetDuDinhId={dangDuyetId}
+                  onDuyetDuDinh={onDuyetDuDinh}
+                  onBoQuaDuDinh={onBoQuaDuDinh}
                 />
               )}
             </div>
@@ -901,9 +1636,30 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Khu nhập liệu */}
-      <div className="border-t border-border/50 px-6 py-5">
-        {/* Kỹ năng AI */}
+      {/* Khu nhập liệu — .roof-ledge = dải phân cách "mặt hồ" (WaterDivider) nơi giọt
+          sơn đáp xuống; mèo lang thang đậu được (data-cat-perch). THU GỌN được:
+          mặc định là 1 nút, bấm mới bung; bấm ra ngoài (ô rỗng) tự co → chừa chỗ chat.
+          composer co/giãn thì --roof-y tự đo lại (ResizeObserver) → mặt hồ + giọt vẫn khớp. */}
+      <div
+        ref={composerRef}
+        data-cat-perch="top"
+        className="roof-ledge relative px-6 py-4"
+      >
+        {/* ĐÃ GỠ mặt hồ gợn sóng champagne. Sóng nước là đường cong hữu cơ, mềm —
+            đúng thứ khiến cả panel đọc ra là "mặt phẳng mượt". Thay bằng một
+            đường chân trời phát sáng: cùng nhiệm vụ ngăn khung chat với ô nhập,
+            nhưng là một CẠNH sắc, thứ mà ánh sáng bám được vào. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-[var(--active)] to-transparent" />
+          <div className="h-px w-full -translate-y-px bg-gradient-to-r from-transparent via-[var(--spark)] to-transparent opacity-70 blur-[2px]" />
+          {/* Quầng hắt lên từ đường kẻ — cho biết nó phát sáng chứ không phải một nét vẽ */}
+          <div className="h-10 w-full bg-[radial-gradient(60%_100%_at_50%_0%,color-mix(in_srgb,var(--active)_22%,transparent),transparent_72%)]" />
+        </div>
+
+        {/* Cạn hạn mức → nói rõ lý do trợ lý ngừng trả lời + lối nâng cấp */}
+        <QuotaBanner status={sub} onUpgrade={() => setPricingOpen(true)} />
+
+        {/* Kỹ năng AI — LUÔN hiện (không thu gọn) */}
         <div className="mb-2 flex flex-wrap gap-2">
           {SKILLS.map((s) => (
             <button
@@ -916,8 +1672,9 @@ export function ChatPanel({
             </button>
           ))}
         </div>
+        {/* Gợi ý theo ngữ cảnh — LUÔN hiện */}
         <div className="mb-3 flex flex-wrap gap-2">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
@@ -927,42 +1684,78 @@ export function ChatPanel({
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
-          <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-            <Paperclip className="size-4" />
-          </button>
+
+        {/* CHỈ Ô NHẬP LIỆU thu gọn: mặc định là 1 nút, bấm mới bung; bấm ra ngoài
+            (ô rỗng) tự co lại → chừa chỗ cho khung chat. Tag phía trên GIỮ NGUYÊN. */}
+        {composerOpen ? (
+          <div className="duration-200 animate-in fade-in slide-in-from-bottom-1">
+            <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
+              <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                <Paperclip className="size-4" />
+              </button>
+              <button
+                onClick={() => setVoiceOpen(true)}
+                title="Nói với trợ lý (voice mode)"
+                aria-label="Bật voice mode"
+                className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
+              >
+                <Mic className="size-4" />
+              </button>
+              <Textarea
+                id="meoarc-composer-input"
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    send(input)
+                  } else if (e.key === 'Escape' && !input.trim()) {
+                    setComposerOpen(false)
+                  }
+                }}
+                placeholder={
+                  isOutOfTokens(sub)
+                    ? 'Đã hết token — nâng gói để hỏi tiếp…'
+                    : "Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
+                }
+                disabled={isOutOfTokens(sub)}
+                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
+              />
+              {/* Đồng hồ token — luôn nằm cạnh ô nhập như các trợ lý AI khác */}
+              <TokenMeter status={sub} onUpgrade={() => setPricingOpen(true)} />
+              <Button
+                size="icon"
+                variant="primary"
+                className="rounded-xl"
+                disabled={isOutOfTokens(sub)}
+                onClick={() => send(input)}
+              >
+                <Send className="size-4" />
+              </Button>
+            </div>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Mọi hành động không thể hoàn tác đều cần bạn xác nhận trước.
+            </p>
+          </div>
+        ) : (
+          /* Ô nhập THU GỌN — pill mời gõ, bấm là bung ô nhập đầy đủ */
           <button
-            onClick={() => setVoiceOpen(true)}
-            title="Nói với trợ lý (voice mode)"
-            aria-label="Bật voice mode"
-            className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
+            onClick={() => setComposerOpen(true)}
+            className="gloss gloss-sweep flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left shadow-soft transition-all duration-200 ease-spring glass hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99]"
           >
-            <Mic className="size-4" />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
+              <Sparkles className="size-4" />
+            </span>
+            <span className="flex-1 truncate text-sm text-muted-foreground">Nhắn cho trợ lý MeoArc…</span>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Send className="size-4" />
+            </span>
           </button>
-          <Textarea
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send(input)
-              }
-            }}
-            placeholder="Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
-            className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0"
-          />
-          <Button size="icon" variant="primary" className="rounded-xl" onClick={() => send(input)}>
-            <Send className="size-4" />
-          </Button>
-        </div>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Mọi hành động không thể hoàn tác đều cần bạn xác nhận trước.
-        </p>
+        )}
       </div>
 
       {/* Lịch sử trò chuyện (UC011) — drawer trượt từ phải */}
-      {/* Lớp nền mờ */}
       <div
         aria-hidden
         onClick={() => setHistoryOpen(false)}
@@ -971,7 +1764,6 @@ export function ChatPanel({
           historyOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
-      {/* Ngăn kéo */}
       <div
         role="dialog"
         aria-label="Lịch sử trò chuyện"
@@ -982,7 +1774,6 @@ export function ChatPanel({
           historyOpen ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        {/* Header */}
         <div className="flex items-center gap-3 border-b border-border/40 px-5 py-4">
           <span className="bokeh flex size-9 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
             <History className="size-4" />
@@ -1005,7 +1796,6 @@ export function ChatPanel({
           </button>
         </div>
 
-        {/* Tạo mới + tìm kiếm */}
         <div className="space-y-2.5 px-5 py-3">
           <button
             onClick={() => {
@@ -1028,7 +1818,6 @@ export function ChatPanel({
           </div>
         </div>
 
-        {/* Danh sách theo nhóm thời gian */}
         <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4">
           {historyGroups.length === 0 ? (
             <div className="mt-14 flex flex-col items-center gap-3 px-6 text-center">
@@ -1051,7 +1840,6 @@ export function ChatPanel({
                     const active = s.id === currentId
                     const renaming = renamingId === s.id
 
-                    // Dải xác nhận xoá (hành động không hoàn tác — UC011 bước 6)
                     if (deletingId === s.id) {
                       return (
                         <div
@@ -1091,7 +1879,6 @@ export function ChatPanel({
                         {active && (
                           <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-active" />
                         )}
-                        {/* Ghim hoặc hạt cherry/chấm mờ */}
                         <span className="mt-1 flex size-2 shrink-0 items-center justify-center">
                           {s.pinned ? (
                             <Pin className="size-3 text-active" />
@@ -1125,10 +1912,7 @@ export function ChatPanel({
                             />
                           ) : (
                             <button
-                              onClick={() => {
-                                setCurrentId(s.id)
-                                setHistoryOpen(false)
-                              }}
+                              onClick={() => openSession(s)}
                               className="block w-full text-left"
                             >
                               <span className="flex items-center gap-2">
@@ -1146,7 +1930,6 @@ export function ChatPanel({
                           )}
                         </div>
 
-                        {/* Hành động hiện khi hover (UC011: Pin · Rename · Delete) */}
                         {!renaming && (
                           <div className="absolute right-2 top-1.5 hidden items-center gap-0.5 rounded-lg bg-popover/90 px-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
                             <HistAction
@@ -1176,32 +1959,40 @@ export function ChatPanel({
   )
 }
 
-/** Mock "viết lại" draft theo gợi ý (backend thật dùng LLM). */
+// MOCK viết lại (chỉ dùng khi CHƯA nối backend). Nguyên tắc: GIỮ nội dung/chủ đề gốc,
+// chỉ khoác văn phong theo yêu cầu — KHÔNG trả email mẫu cứng lạc đề. Bản thật do agent viết lại.
 function rewriteVariant(base: string, instr: string): string {
+  const body = base.trim()
   const i = normalize(instr)
-  if (/(ngan|short|gon|suc tich)/.test(i))
-    return 'Dạ em chào,\n\nEm đã nhận được email và sẽ phản hồi sớm ạ. Em cảm ơn.\n\nTrân trọng,\nAnh Quân'
   if (/(trang trong|formal|lich su)/.test(i))
-    return 'Kính gửi Quý Thầy/Cô,\n\nEm xin trân trọng phản hồi về nội dung email và sẽ hoàn tất, cập nhật trong thời gian sớm nhất.\n\nEm xin chân thành cảm ơn.\nTrân trọng,\nPhạm Trần Anh Quân'
+    return `Kính gửi anh/chị,\n\n${body}\n\nEm xin chân thành cảm ơn.\nTrân trọng.`
   if (/(than thien|friendly|gan gui)/.test(i))
-    return 'Chào anh/chị,\n\nEm nhận được mail rồi nhé, em xử lý sớm rồi báo lại liền ạ. Cảm ơn anh/chị nhiều!\n\nAnh Quân'
-  return `${base}${instr ? `\n\n(Đã điều chỉnh theo: “${instr}”.)` : '\n\n(Đã viết lại.)'}`
+    return `Chào anh/chị,\n\n${body}\n\nCảm ơn anh/chị nhiều nhé!`
+  if (/(ngan|short|gon|suc tich)/.test(i)) {
+    const lines = body.split(/\n+/).map((s) => s.trim()).filter(Boolean)
+    return lines.slice(0, 2).join('\n\n')
+  }
+  return instr ? `${body}\n\n(Đã điều chỉnh theo: “${instr}”.)` : `${body}\n\n(Đã viết lại.)`
 }
 
-/** Bản nháp trả lời (UC010) — 4 hành động: Gửi · Chỉnh sửa (inline) · Viết lại · Huỷ. */
 function DraftCard({
   reply,
   resolved,
   spotCls,
   id,
   onSendDraft,
+  onRewrite,
   onResolve,
 }: {
   reply: Extract<AgentReply, { kind: 'draft' }>
   resolved?: boolean
   spotCls: string
   id: string
-  onSendDraft: (id: string, to: string) => void
+  onSendDraft: (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
+  ) => Promise<boolean>
+  onRewrite?: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -1212,15 +2003,24 @@ function DraftCard({
   const [subject, setSubject] = useState(reply.subject)
   const [body, setBody] = useState(reply.body)
   const [done, setDone] = useState<null | 'sent' | 'cancelled'>(null)
+  const [sendingNow, setSendingNow] = useState(false) // đang gọi API gửi thật
 
   const fieldCls =
     'w-full rounded-lg border border-border/50 bg-popover-foreground/5 px-2.5 py-1.5 text-sm text-popover-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
 
   const doRewrite = () => {
+    const instr = rwText.trim()
     setRwOpen(false)
+    // Backend thật: nhờ AGENT viết lại đúng bản nháp này (giữ chủ đề + người nhận).
+    // Mock/demo (chưa nối backend): biến thể cục bộ GIỮ nội dung gốc, không lạc đề.
+    if (apiBaseUrlDaCauHinh && onRewrite) {
+      onRewrite({ to, subject, body, replyToId: reply.replyToId }, instr)
+      setRwText('')
+      return
+    }
     setRewriting(true)
     window.setTimeout(() => {
-      setBody((b) => rewriteVariant(b, rwText))
+      setBody((b) => rewriteVariant(b, instr))
       setRwText('')
       setRewriting(false)
     }, 650)
@@ -1228,16 +2028,22 @@ function DraftCard({
 
   if (done || resolved) {
     return (
-      <Card className="bg-transparent shadow-float glass">
+      <Card className="rose-glass shadow-float overflow-hidden relative">
+        {done === 'sent' && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex size-12 items-center justify-center rounded-full bg-active text-active-foreground font-serif font-bold text-lg border-2 border-accent/40 shadow-md rotate-[-12deg] opacity-85 animate-in fade-in zoom-in duration-500">
+            M
+            <div className="absolute inset-0.5 rounded-full border border-dashed border-active-foreground/30" />
+          </div>
+        )}
         <CardHeader>
           <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Mail className="size-4 text-primary" />
             Bản nháp trả lời
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            {done === 'cancelled' ? 'Đã huỷ' : 'Đã gửi ✓'}
+        <CardContent className="pt-2 pr-20">
+          <span className="text-xs font-serif font-semibold uppercase tracking-wider text-foreground/80">
+            {done === 'cancelled' ? 'Đã huỷ thư' : 'Đã niêm phong mật thư ✓'}
           </span>
         </CardContent>
       </Card>
@@ -1245,7 +2051,7 @@ function DraftCard({
   }
 
   return (
-    <Card className={cn('bg-transparent shadow-float glass transition-all', spotCls)}>
+    <Card className={cn('rose-glass shadow-float transition-all overflow-hidden', spotCls)}>
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Mail className="size-4 text-primary" />
@@ -1262,18 +2068,18 @@ function DraftCard({
               onChange={(e) => setSubject(e.target.value)}
             />
             <textarea
-              className={cn(fieldCls, 'min-h-28 resize-none leading-relaxed')}
+              className={cn(fieldCls, 'min-h-28 resize-none font-serif leading-relaxed bg-elevated text-foreground shadow-inner')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
           </div>
         ) : (
           <>
-            <p className="text-muted-foreground">
-              <span className="text-foreground">Tới:</span> {to}
+            <p className="text-muted-foreground text-xs">
+              <span className="text-foreground font-medium">Tới:</span> {to}
             </p>
-            <p className="text-muted-foreground">
-              <span className="text-foreground">Chủ đề:</span> {subject}
+            <p className="text-muted-foreground text-xs">
+              <span className="text-foreground font-medium">Chủ đề:</span> {subject}
             </p>
             {rewriting ? (
               <div className="mt-2 space-y-2 rounded-xl bg-popover px-3.5 py-3 shadow-subtle">
@@ -1282,14 +2088,25 @@ function DraftCard({
                 <div className="skeleton h-3 w-2/3 rounded" />
               </div>
             ) : (
-              <div className="mt-2 whitespace-pre-line rounded-xl bg-popover px-3.5 py-3 leading-relaxed text-popover-foreground shadow-subtle">
+              /* Bản nháp thư. Trước đây khối này là NỀN KEM #f7ebd9 + MỰC NÂU
+                 #3e1717 + viền ngà — tức là giả một tờ giấy da. Đây là thứ "cổ
+                 điển" lộ liễu nhất trong toàn ứng dụng, lại nằm đúng chỗ người
+                 dùng nhìn lâu nhất: lúc đọc lại thư trước khi bấm gửi.
+
+                 Hai màu đó còn được ghi cứng nên ở theme tối chúng đứng im —
+                 một mảng kem chói giữa nền gần đen.
+
+                 Giờ là một khối kính có viền phát sáng, chữ dùng token nên theo
+                 theme. Vẫn tách khỏi nền để biết "đây là nội dung thư", nhưng
+                 tách bằng ÁNH SÁNG chứ không bằng cách giả vật liệu giấy. */
+              <div className="neon-edge mt-2 whitespace-pre-line rounded-xl bg-elevated/70 px-4 py-3.5 text-[14px] leading-relaxed text-foreground backdrop-blur-sm"
+                style={{ ['--tint' as string]: 'var(--spark)' }}>
                 {body}
               </div>
             )}
           </>
         )}
 
-        {/* Ô gợi ý "viết lại" */}
         {rwOpen && (
           <div className="flex items-center gap-1.5 pt-1">
             <input
@@ -1306,18 +2123,31 @@ function DraftCard({
           </div>
         )}
       </CardContent>
-      <CardFooter className="flex-wrap gap-2">
+      <CardFooter className="flex-wrap gap-2 border-t border-border/10 pt-3 mt-2">
         <Button
           variant="primary"
           size="sm"
-          disabled={rewriting}
-          onClick={() => {
-            setDone('sent')
-            onSendDraft(id, to)
+          disabled={rewriting || sendingNow}
+          onClick={async () => {
+            // GỬI THẬT rồi mới đóng thẻ — thất bại thì giữ thẻ cho user sửa/gửi lại
+            setSendingNow(true)
+            const ok = await onSendDraft(id, { to, subject, body, replyToId: reply.replyToId, confirmationId: reply.confirmationId })
+            setSendingNow(false)
+            if (ok) setDone('sent')
           }}
+          className="relative overflow-hidden group/btn"
         >
-          <Send className="size-4" />
-          Gửi
+          {sendingNow ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Đang gửi…
+            </>
+          ) : (
+            <>
+              <Send className="size-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+              Niêm phong &amp; Gửi
+            </>
+          )}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>
           <Pencil className="size-4" />
@@ -1342,7 +2172,6 @@ function DraftCard({
   )
 }
 
-/** Categorize (UC009) — checklist: chỉnh nhãn từng thư + bỏ chọn, rồi mới áp dụng. */
 function CategorizeWidget({
   reply,
   resolved,
@@ -1381,7 +2210,7 @@ function CategorizeWidget({
   const included = rows.filter((r) => !excluded.has(r.id))
 
   return (
-    <Card className={cn('overflow-hidden bg-transparent shadow-float glass transition-all', spotCls)}>
+    <Card className={cn('overflow-hidden rose-glass shadow-float transition-all', spotCls)}>
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="size-4 text-primary" />
@@ -1415,11 +2244,12 @@ function CategorizeWidget({
                 onClick={() => cycleLabel(r.id)}
                 disabled={resolved || off}
                 title="Bấm để đổi nhãn"
-                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-foreground ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#1b1b2c] dark:text-[#E6E8F5] ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
                 style={
                   {
-                    backgroundColor: `color-mix(in srgb, ${c.bar} 24%, transparent)`,
-                    ['--tw-ring-color']: `color-mix(in srgb, ${c.bar} 50%, transparent)`,
+                    // Pha màu nhãn với nền của theme hiện tại để chip không bị đục
+                    backgroundColor: `color-mix(in srgb, ${c.bar} 70%, var(--background))`,
+                    ['--tw-ring-color']: c.bar, // Viền đặc màu nhãn không loãng
                   } as CSSProperties
                 }
               >
@@ -1470,9 +2300,14 @@ function AgentMessage({
   onApprove,
   onReject,
   onSendDraft,
+  onRewrite,
   onResolve,
   onApplyCategorize,
   onAutopilotApply,
+  onOpenEmail,
+  duyetDuDinhId,
+  onDuyetDuDinh,
+  onBoQuaDuDinh,
 }: {
   message: Extract<Message, { role: 'agent' }>
   exec: { id: string; current: number } | null
@@ -1480,20 +2315,37 @@ function AgentMessage({
   spotlight: boolean
   onApprove: (id: string, op: PlanOp, stepCount: number) => void
   onReject: (id: string) => void
-  onSendDraft: (id: string, to: string) => void
+  onSendDraft: (
+    id: string,
+    draft: { to: string; subject: string; body: string; replyToId?: string; confirmationId?: string },
+  ) => Promise<boolean>
+  onRewrite: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
+  onOpenEmail?: (id: string) => void
+  /* THẺ DỰ ĐỊNH. Ba prop này TỪNG THIẾU: `AgentMessage` gọi thẳng `dangDuyetId`,
+     `onDuyetDuDinh`, `onBoQuaDuDinh` — vốn là biến trong component CHA. Thẻ dự định
+     chưa bao giờ được render thật (chỉ là mockup) nên không ai vấp; vừa render lần
+     đầu là ReferenceError làm TRẮNG CẢ APP.
+     TypeScript CÓ bắt được (5 lỗi), nhưng chúng bị che bởi bộ nhớ đệm
+     `node_modules/.tmp/tsconfig.app.tsbuildinfo` — tsc coi file không đổi nên dùng
+     lại kết quả cũ. Xoá cache là lộ ra ngay. */
+  duyetDuDinhId: string | null
+  onDuyetDuDinh: (id: string, reply: Extract<AgentReply, { kind: 'dudinh' }>) => void
+  onBoQuaDuDinh: (id: string) => void
 }) {
   const { reply, resolved } = message
   const running = exec?.id === message.id
-  // Lớp nhấn khi card đang là confirmation chờ duyệt (#8)
   const spotCls = spotlight ? 'ring-2 ring-spark/50 shadow-float' : ''
 
   if (reply.kind === 'text') {
     return (
       <AgentRow>
         <AgentText>{reply.text}</AgentText>
+        {reply.emails && reply.emails.length > 0 && (
+          <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
+        )}
       </AgentRow>
     )
   }
@@ -1513,22 +2365,37 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <Card className="bg-transparent shadow-float glass">
+        <Card className="rose-glass shadow-float">
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <FileText className="size-4 text-primary" />
               {reply.title}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 pt-2">
-            {reply.lines.map((l, i) => (
-              <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
-                <span className="text-muted-foreground">•</span>
-                <span className="min-w-0 break-words">{l}</span>
+          <CardContent className="pt-2">
+            {reply.emails && reply.emails.length > 0 ? (
+              <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
+            ) : (
+              <div className="space-y-2">
+                {reply.lines.map((l, i) => (
+                  <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
+                    <span className="text-muted-foreground">•</span>
+                    <span className="min-w-0 break-words">{l}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'dilai') {
+    return (
+      <AgentRow>
+        {reply.intro && <AgentText>{reply.intro}</AgentText>}
+        <DiLaiWidget reply={reply} />
       </AgentRow>
     )
   }
@@ -1576,6 +2443,21 @@ function AgentMessage({
     )
   }
 
+  if (reply.kind === 'dudinh') {
+    return (
+      <AgentRow>
+        <AgentText>{reply.intro}</AgentText>
+        <TheDuDinh
+          reply={reply}
+          resolved={resolved}
+          dangChay={duyetDuDinhId === message.id}
+          onDuyet={() => onDuyetDuDinh(message.id, reply)}
+          onBoQua={() => onBoQuaDuDinh(message.id)}
+        />
+      </AgentRow>
+    )
+  }
+
   if (reply.kind === 'autopilot') {
     return (
       <AgentRow>
@@ -1591,7 +2473,6 @@ function AgentMessage({
   }
 
   if (reply.kind === 'plan') {
-    // Trạng thái từng bước: done / running / pending (#7)
     const stepStatus = (i: number): 'done' | 'running' | 'pending' => {
       if (running) {
         if (i < exec!.current) return 'done'
@@ -1603,7 +2484,7 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <Card className={cn('bg-transparent shadow-float glass transition-all', spotCls)}>
+        <Card className={cn('rose-glass shadow-float transition-all', spotCls)}>
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <ListChecks className="size-4 text-primary" />
@@ -1611,7 +2492,6 @@ function AgentMessage({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
-            {/* Thought-map: sơ đồ node tiến trình của agent (#3) */}
             {reply.steps.length > 1 && (
               <div className="flex items-center px-1 pb-1">
                 {reply.steps.map((_s, i) => {
@@ -1722,7 +2602,6 @@ function AgentMessage({
     )
   }
 
-  // draft
   return (
     <AgentRow>
       <AgentText>{reply.intro}</AgentText>
@@ -1732,6 +2611,7 @@ function AgentMessage({
         spotCls={spotCls}
         id={message.id}
         onSendDraft={onSendDraft}
+        onRewrite={onRewrite}
         onResolve={onResolve}
       />
     </AgentRow>

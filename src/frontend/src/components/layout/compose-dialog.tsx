@@ -14,8 +14,11 @@ import {
   Link2,
   Trash2,
   Files,
+  UploadCloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
+import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,7 +29,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-type Attachment = { name: string; size: string }
+// id = mã tệp BE trả khi upload (http mode). Mock mode không có id (gửi giả).
+type Attachment = { id?: string; name: string; size: string }
 
 const fieldCls =
   'w-full bg-transparent text-sm text-popover-foreground outline-none placeholder:text-popover-foreground/40'
@@ -60,7 +64,17 @@ export function ComposeDialog() {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState<Attachment[]>([])
   const [dragging, setDragging] = useState(false)
+  const [justDropped, setJustDropped] = useState(false) // bật vệt sáng chạy viền sau khi thả
+  const [sending, setSending] = useState(false) // đang gọi backend gửi thư (khoá nút, chống gửi 2 lần)
+  const [sendError, setSendError] = useState<string | null>(null) // báo lỗi nếu Gmail từ chối
   const fileRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
+  // #3 — autocomplete người nhận (như Gmail)
+  const [toSuggest, setToSuggest] = useState<{ name: string; email: string }[]>([])
+  const toTimer = useRef<number | null>(null)
+  // #2 — Smart Compose: gợi ý đoạn tiếp theo (Tab để chèn)
+  const [ghost, setGhost] = useState('')
+  const ghostTimer = useRef<number | null>(null)
 
   // #2 — phím tắt "c" mở soạn thư (khi không đang gõ ở ô nào)
   useEffect(() => {
@@ -112,12 +126,40 @@ export function ComposeDialog() {
     setSubject('')
     setBody('')
     setFiles([])
+    setSending(false)
+    setSendError(null)
+    setGhost('')
+    setToSuggest([])
+    if (ghostTimer.current) window.clearTimeout(ghostTimer.current)
+    if (toTimer.current) window.clearTimeout(toTimer.current)
   }
 
-  const addFiles = (list: FileList | null) => {
+  // Thêm tệp: chế độ backend thật → UPLOAD lên server rồi lấy metadata trả về;
+  // chế độ mock → chỉ thêm cục bộ như cũ.
+  const addFiles = async (list: FileList | null) => {
     if (!list) return
-    const next = Array.from(list).map((f) => ({ name: f.name, size: formatBytes(f.size) }))
-    setFiles((prev) => [...prev, ...next])
+    const arr = Array.from(list)
+    if (apiBaseUrlDaCauHinh) {
+      for (const f of arr) {
+        try {
+          const r = await api.uploadFile(f)
+          // GIỮ r.id để lúc gửi còn biết đính tệp nào (BE tra bytes theo id).
+          setFiles((prev) => [...prev, { id: r.id, name: r.name, size: r.size }])
+        } catch {
+          setFiles((prev) => [...prev, { name: f.name, size: formatBytes(f.size) }])
+        }
+      }
+    } else {
+      setFiles((prev) => [...prev, ...arr.map((f) => ({ name: f.name, size: formatBytes(f.size) }))])
+    }
+  }
+
+  // Khi THẢ tệp vào khung: bật vệt sáng chạy viền (~1.2s) rồi thêm tệp.
+  const handleDrop = (list: FileList | null) => {
+    setJustDropped(false)
+    requestAnimationFrame(() => setJustDropped(true))
+    window.setTimeout(() => setJustDropped(false), 1200)
+    void addFiles(list)
   }
 
   const aiCompose = () => {
@@ -141,15 +183,93 @@ export function ComposeDialog() {
 
   const canSend = to.trim() && subject.trim()
 
+  // Một ô Cc/Bcc có thể chứa NHIỀU email ngăn bởi dấu phẩy → tách thành mảng cho backend.
+  const splitAddrs = (s: string): string[] | undefined => {
+    const arr = s.split(',').map((x) => x.trim()).filter(Boolean)
+    return arr.length ? arr : undefined // rỗng → undefined để khỏi gửi field thừa
+  }
+
+  // #3 — gõ ô "Tới": debounce gọi danh bạ theo TOKEN CUỐI (hỗ trợ nhiều người nhận).
+  const onToChange = (v: string) => {
+    setTo(v)
+    if (toTimer.current) window.clearTimeout(toTimer.current)
+    const tok = v.split(',').pop()?.trim() ?? ''
+    if (!tok) {
+      setToSuggest([])
+      return
+    }
+    toTimer.current = window.setTimeout(() => {
+      api.contacts(tok).then(setToSuggest).catch(() => setToSuggest([]))
+    }, 180)
+  }
+  const pickContact = (email: string) => {
+    const parts = to.split(',')
+    parts[parts.length - 1] = ` ${email}`
+    setTo(parts.join(',').replace(/^\s+/, ''))
+    setToSuggest([])
+  }
+
+  // #2 — gõ nội dung: debounce gọi LLM gợi ý đoạn tiếp (dựa trên tiêu đề). Tab để chèn.
+  const onBodyChange = (v: string) => {
+    setBody(v)
+    setGhost('')
+    if (ghostTimer.current) window.clearTimeout(ghostTimer.current)
+    if (!apiBaseUrlDaCauHinh || !subject.trim() || v.trim().length < 4) return
+    ghostTimer.current = window.setTimeout(() => {
+      api.suggestCompose(subject, v).then((s) => setGhost(s.trim())).catch(() => setGhost(''))
+    }, 900)
+  }
+  const acceptGhost = () => {
+    if (!ghost) return
+    setBody((b) => (b && !/[\s\n]$/.test(b) ? b + ' ' : b) + ghost)
+    setGhost('')
+  }
+
+  // #1 — thoát compose mà CÒN nội dung → LƯU NHÁP (không chặn việc đóng). Bấm "Bỏ nháp" thì reset trước.
+  const handleOpenChange = (o: boolean) => {
+    if (!o && step === 'compose' && (to.trim() || subject.trim() || body.trim()) && apiBaseUrlDaCauHinh) {
+      api
+        .saveDraft({
+          to: to.trim(), cc: splitAddrs(cc), bcc: splitAddrs(bcc), subject, body,
+          attachmentIds: files.map((f) => f.id).filter((x): x is string => !!x),
+        })
+        .then(() => toast('Đã lưu vào Nháp', 'success'))
+        .catch(() => {})
+    }
+    setOpen(o)
+    if (!o) setTimeout(reset, 150)
+  }
+
+  // Bấm "Xác nhận gửi": chế độ backend thật → GỬI qua Gmail rồi mới sang bước 'sent';
+  // chế độ mock → chỉ chuyển bước như demo cũ. Lỗi (vd token thiếu quyền) → hiện thông báo.
+  const doSend = async () => {
+    if (!apiBaseUrlDaCauHinh) {
+      setStep('sent')
+      return
+    }
+    setSending(true)
+    setSendError(null)
+    try {
+      await api.sendEmail({
+        to: to.trim(),
+        cc: splitAddrs(cc),
+        bcc: splitAddrs(bcc),
+        subject,
+        body,
+        // chỉ gửi các tệp ĐÃ upload thành công (có id); bỏ tệp fallback không id.
+        attachmentIds: files.map((f) => f.id).filter((x): x is string => !!x),
+      })
+      setStep('sent')
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : 'Gửi thất bại, thử lại sau.')
+    } finally {
+      setSending(false)
+    }
+  }
+
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o) setTimeout(reset, 150)
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button
           title="Soạn thư mới"
@@ -166,25 +286,12 @@ export function ComposeDialog() {
               <DialogTitle>Soạn thư mới</DialogTitle>
             </DialogHeader>
 
-            {/* Vùng form + kéo-thả tệp */}
+            {/* Vùng form (chặn trình duyệt tự mở file nếu lỡ thả trượt ra ngoài khung) */}
             <div
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDragging(true)
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setDragging(false)
-                addFiles(e.dataTransfer.files)
-              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => e.preventDefault()}
               className="relative overflow-hidden rounded-xl border border-border/40"
             >
-              {dragging && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-active bg-popover/80 text-sm font-medium text-popover-foreground backdrop-blur-sm">
-                  <Paperclip className="mr-2 size-4" /> Thả tệp vào đây để đính kèm
-                </div>
-              )}
 
               {/* Người gửi */}
               <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2 text-xs text-popover-foreground/60">
@@ -192,22 +299,51 @@ export function ComposeDialog() {
                 Anh Quân &lt;quanpta.meoarc@gmail.com&gt;
               </div>
 
-              {/* Tới + Cc/Bcc toggle */}
-              <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2">
-                <span className="w-7 shrink-0 text-xs text-popover-foreground/60">Tới</span>
-                <input
-                  className={fieldCls}
-                  placeholder="email người nhận"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCc((v) => !v)}
-                  className="shrink-0 rounded-md px-1.5 text-xs font-medium text-popover-foreground/60 hover:text-popover-foreground"
-                >
-                  Cc/Bcc
-                </button>
+              {/* Tới + Cc/Bcc toggle + autocomplete người nhận (như Gmail) */}
+              <div className="relative">
+                <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2">
+                  <span className="w-7 shrink-0 text-xs text-popover-foreground/60">Tới</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="email người nhận"
+                    value={to}
+                    onChange={(e) => onToChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setToSuggest([])
+                    }}
+                    onBlur={() => window.setTimeout(() => setToSuggest([]), 150)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCc((v) => !v)}
+                    className="shrink-0 rounded-md px-1.5 text-xs font-medium text-popover-foreground/60 hover:text-popover-foreground"
+                  >
+                    Cc/Bcc
+                  </button>
+                </div>
+                {toSuggest.length > 0 && (
+                  <div className="absolute left-9 right-3 top-full z-30 mt-1 overflow-hidden rounded-xl border border-border/50 bg-popover shadow-float">
+                    {toSuggest.map((ct) => (
+                      <button
+                        key={ct.email}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickContact(ct.email)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                      >
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-active/20 text-[10px] font-semibold text-active">
+                          {(ct.name || ct.email).charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-popover-foreground">
+                          {ct.name}
+                          {ct.name !== ct.email && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">{ct.email}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {showCc && (
@@ -272,8 +408,31 @@ export function ComposeDialog() {
                   className={`${fieldCls} min-h-44 resize-none px-3.5 py-3 leading-relaxed`}
                   placeholder="Nội dung email…"
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={(e) => onBodyChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab' && ghost) {
+                      e.preventDefault()
+                      acceptGhost()
+                    }
+                  }}
                 />
+              )}
+
+              {/* #2 — Smart Compose: gợi ý đoạn tiếp theo (bấm hoặc nhấn Tab để chèn) */}
+              {ghost && !aiTyping && (
+                <button
+                  type="button"
+                  onClick={acceptGhost}
+                  className="flex w-full items-start gap-2 border-t border-border/30 px-3.5 py-2 text-left transition-colors hover:bg-secondary/40"
+                >
+                  <Sparkles className="mt-0.5 size-3.5 shrink-0 text-active" />
+                  <span className="min-w-0 flex-1 text-xs">
+                    <span className="italic text-popover-foreground/70">{ghost}</span>
+                    <span className="ml-1.5 whitespace-nowrap text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                      — Tab để chèn
+                    </span>
+                  </span>
+                </button>
               )}
 
               {/* Tệp đính kèm */}
@@ -300,6 +459,41 @@ export function ComposeDialog() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Khung kéo–thả tệp "xịn": glow khi rê vào · viền chạy sáng khi thả */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  fileRef.current?.click()
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragging(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                setDragging(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragging(false)
+                handleDrop(e.dataTransfer.files)
+              }}
+              className={cn('drop-zone', dragging && 'is-dragging', justDropped && 'border-run')}
+            >
+              <UploadCloud className={cn('dz-icon size-7', dragging && 'text-active')} />
+              <span className="text-sm font-medium">
+                {dragging ? 'Thả ra để đính kèm ✨' : 'Kéo & thả tệp vào đây'}
+              </span>
+              <span className="text-xs text-muted-foreground">hoặc bấm để chọn từ máy</span>
             </div>
 
             <input
@@ -368,14 +562,19 @@ export function ComposeDialog() {
                 {files.length} tệp đính kèm
               </p>
             </div>
+            {sendError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {sendError}
+              </p>
+            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep('compose')}>
+              <Button variant="outline" onClick={() => setStep('compose')} disabled={sending}>
                 <ArrowLeft className="size-4" />
                 Quay lại
               </Button>
-              <Button variant="primary" onClick={() => setStep('sent')}>
+              <Button variant="primary" onClick={doSend} disabled={sending}>
                 <Send className="size-4" />
-                Xác nhận gửi
+                {sending ? 'Đang gửi…' : 'Xác nhận gửi'}
               </Button>
             </DialogFooter>
           </>
@@ -389,6 +588,11 @@ export function ComposeDialog() {
                 Đã gửi thư
               </DialogTitle>
             </DialogHeader>
+            {/* Hiệu ứng gửi: máy bay giấy bay đi + gợn sóng xác nhận */}
+            <div className="relative mx-auto my-1 flex size-16 items-center justify-center">
+              <span className="send-ripple absolute inset-0 rounded-full" />
+              <Send className="send-plane size-7 text-active" />
+            </div>
             <p className={cn('text-sm text-popover-foreground/75')}>
               Email tới {to} đã được gửi thành công{files.length ? ` kèm ${files.length} tệp` : ''}.
             </p>

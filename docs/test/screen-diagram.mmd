@@ -1,0 +1,55 @@
+%% PA2 §1.6 — Screen Diagram (MeoArc)
+%% Dựng lại đúng sơ đồ hiện có, THÊM Landing Page và sửa hướng mũi tên Logout.
+%% Dán vào https://mermaid.live  → Actions → SVG/PNG
+%% Hoặc draw.io: Arrange → Insert → Advanced → Mermaid (giữ kiểu vẽ các sơ đồ khác)
+
+flowchart TD
+    LAND["Landing Page<br/>(public)"]
+    LOGIN["Login &amp; Connect Account<br/>(UC001)"]
+    MAIN["Main Workspace<br/>NavRail · Email List · Right Panel"]
+
+    DETAIL["Email Detail<br/>(UC004)"]
+    CHAT["Chat Canvas / AI Panel<br/>(UC007-016)"]
+    COMPOSE["Compose Dialog<br/>(UC010)"]
+    PALETTE["Command Palette (overlay)"]
+    NOTIF["Notification Center"]
+    AUDIT["Activity / Audit Log"]
+    SETTINGS["Settings Panel (UC013)"]
+    ONBOARD["Onboarding (overlay)"]
+    CONFIRM["Confirmation Prompt<br/>(UC006/010)"]
+    HISTORY["Conversation History<br/>(UC011)"]
+    VOICE["Voice Mode (overlay)"]
+
+    %% ── Vào và ra hệ thống ──────────────────────────────────────────────
+    LAND -->|"Dang nhap voi Google / Outlook"| LOGIN
+    LOGIN -->|"OAuth success"| MAIN
+    MAIN -->|"Logout / Revoke UC002"| LAND
+
+    %% ── Từ Main Workspace toả ra ────────────────────────────────────────
+    MAIN -->|"open an email UC004"| DETAIL
+    MAIN -->|"default"| CHAT
+    MAIN -->|"compose"| COMPOSE
+    MAIN -->|"Ctrl/Cmd+K"| PALETTE
+    MAIN -->|"bell icon"| NOTIF
+    MAIN -->|"open settings"| SETTINGS
+    MAIN -.->|"first run"| ONBOARD
+
+    %% ── Nhánh đọc thư ───────────────────────────────────────────────────
+    DETAIL -->|"right panel morphs"| CHAT
+    DETAIL -->|"reply"| COMPOSE
+
+    %% ── Nhánh thông báo ─────────────────────────────────────────────────
+    NOTIF -->|"view action log"| AUDIT
+
+    %% ── Nhánh trợ lý AI ─────────────────────────────────────────────────
+    CHAT -->|"irreversible action"| CONFIRM
+    CHAT -->|"history button"| HISTORY
+    CHAT -->|"mic"| VOICE
+    HISTORY -->|"continue session"| CHAT
+
+    %% ── Kiểu vẽ: bám theo sơ đồ gốc (hộp trắng, viền xanh navy) ─────────
+    classDef box fill:#FFFFFF,stroke:#2A2A5A,stroke-width:1.4px,color:#1A1A2E
+    classDef planned fill:#FFFFFF,stroke:#2A2A5A,stroke-width:1.4px,color:#1A1A2E,stroke-dasharray:5 4
+
+    class LAND,LOGIN,MAIN,DETAIL,CHAT,COMPOSE,PALETTE,NOTIF,SETTINGS,ONBOARD,CONFIRM,HISTORY,VOICE box
+    class AUDIT planned

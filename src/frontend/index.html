@@ -7,11 +7,31 @@
     <meta name="description" content="MeoArc — Email Intelligence Platform quản lý Gmail bằng LLM agent." />
     <title>MeoArc — Email Intelligence</title>
 
-    <!-- Fonts: Fraunces (serif heading) + Inter (sans body) -->
+    <!-- ══ CHỮ ══════════════════════════════════════════════════════════════
+         CHAKRA PETCH — mặt chữ hiển thị. Chân chữ cắt vuông, góc gãy, gần như
+         không có độ tương phản nét: đúng giọng công nghệ, và khớp luôn với ngôn
+         ngữ khung góc cắt của sản phẩm.
+
+         ── VÌ SAO KHÔNG PHẢI PANCHANG (đã dùng và đã hỏng) ──
+         Panchang KHÔNG CÓ BỘ DẤU TIẾNG VIỆT. Tiêu đề trang giới thiệu hiện ra
+         với "ộ", "ờ", "ế" bị vỡ — trình duyệt không tìm thấy glyph nên ghép tạm
+         từ một font khác, mỗi chữ một kiểu. Đây là lỗi đáng lẽ phải kiểm tra
+         TRƯỚC khi lắp, không phải sau khi người dùng nhìn thấy.
+
+         Bài học thành quy tắc: mọi mặt chữ dùng cho tiếng Việt phải kiểm tra dải
+         U+1EA0–1EF9 (khối chữ Việt có dấu) trước khi đưa vào. Đã kiểm 8 ứng viên;
+         Sora và Orbitron cũng trượt vì lý do này.
+
+         Hai cái tên còn lại từng cân nhắc: NEOFOLIO là font thương mại, không có
+         nguồn web hợp lệ. SK-MODERNIST miễn phí nhưng chỉ phát hành dạng tệp tải
+         về, và nó cũng chỉ có Latin cơ bản — cùng vấn đề như Panchang.
+
+         PHẢI nạp bằng <link> ở đây: đặt @import trong index.css thì Tailwind v4
+         gộp file và đẩy nó xuống sau các rule → trình duyệt bỏ qua, font không tải. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
 

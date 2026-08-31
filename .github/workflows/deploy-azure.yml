@@ -1,0 +1,130 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ deploy-azure.yml — day len Azure App Service moi khi push         ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Gop CA HAI vao MOT dich vu: backend phuc vu luon frontend da build.║
+# ║                                                                    ║
+# ║ Vi sao gop thay vi tach FE sang Vercel:                            ║
+# ║  Tach thi FE va BE nam o hai ten mien, keo theo CORS phai khai      ║
+# ║  dung origin va cookie phien phai mang SameSite=None; Secure. Sai   ║
+# ║  bat ky cai nao cung cho ra cung mot trieu chung — dang nhap xong   ║
+# ║  moi lenh goi tra 401 — va nhin tu ngoai giong het loi xac thuc.    ║
+# ║  Cung mot origin thi ca hai lop do bien mat.                        ║
+# ║                                                                    ║
+# ║ Chay khi: day code len nhanh integration, hoac bam tay tu giao dien.║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: Trien khai Azure
+
+on:
+  push:
+    branches: [integration]
+    # ── VI SAO BO QUA TAI LIEU ──
+    # Moi lan deploy, Azure khoi dong lai app va tra 503 trong khoang 2-4 phut.
+    # Do la cai gia CHAP NHAN DUOC khi day ma nguon, nhung KHONG chap nhan duoc khi
+    # chi sua mot tep .md: web sap may phut ma khong them duoc chuc nang nao.
+    # Da xay ra that (commit 86f691e chi sua docs, lam trang 503).
+    # Nguy hiem nhat la dung hom bao ve: mot nguoi sua tai lieu la ca nhom mat trang
+    # demo giua chung, va khong ai doan ra vi "chi sua chu thoi ma".
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:          # cho phep bam chay tay tu tab Actions
+
+env:
+  TEN_APP: meoarc             # doi neu ban dat ten khac luc tao Web App
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  trien-khai:
+    name: Dung va day len Azure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Lay ma nguon
+        uses: actions/checkout@v4
+
+      # ── 1. Dung frontend o che do GOP ────────────────────────────────────
+      # `build:gop` dat VITE_API_BASE_URL=/ nen FE goi API bang duong dan tuong
+      # doi. De TRONG bien do thi api.ts chuyen sang du lieu gia — giao dien chay
+      # dep bang mock ma khong ai biet. Day la cai bay de mac nhat.
+      - name: Cai Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Cai thu vien frontend
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Dung frontend (che do gop)
+        working-directory: src/frontend
+        run: npm run build:gop
+
+      # app/api/spa.py tu do thu muc `static` nam CANH thu muc `app`, tuc la
+      # src/backend/static (xem ham _tim_thu_muc_build: parents[2] / "static").
+      # Chep sai mot cap thi khong bao loi gi ca — backend van chay, chi la khong
+      # phuc vu giao dien, va nhin tu ngoai giong het "deploy hong".
+      - name: Chep frontend vao backend
+        run: |
+          rm -rf src/backend/static
+          cp -r src/frontend/dist src/backend/static
+          test -f src/backend/static/index.html || { echo "KHONG THAY index.html — chep hong"; exit 1; }
+          echo "So tep frontend da chep: $(find src/backend/static -type f | wc -l)"
+
+      # ── 2. Kiem tra truoc khi day ────────────────────────────────────────
+      # Day ban hong len may chu that thi phat hien muon va sua cham. Chan o day.
+      - name: Cai Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cai uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Cai thu vien backend
+        working-directory: src/backend
+        run: uv sync --frozen
+
+      # Sinh LAI requirements.txt tu uv.lock ngay truoc khi day.
+      #
+      # Azure cai thu vien bang requirements.txt, con du an quan ly bang uv.lock.
+      # Neu de tep nay sinh bang tay thi chi can mot lan quen `uv export` sau khi
+      # them thu vien la: may minh chay ngon, workflow van xanh, nhung app tren
+      # Azure chet luc khoi dong vi thieu goi. Loi hien o log khoi dong chu khong
+      # phai o buoc deploy, nen rat lau moi lan ra.
+      #
+      # Sinh tu dong thi hai tep khong bao gio lech nhau duoc.
+      - name: Sinh lai requirements.txt tu uv.lock
+        working-directory: src/backend
+        run: |
+          uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt
+          echo "So goi se cai tren Azure: $(grep -c '==' requirements.txt)"
+
+      # Sinh khoa dung-mot-lan cho lan chay nay. Thieu khoa thi EncryptedStr tu tat
+      # ma hoa va nhom phep thu SEC-TC05 se xanh tren mot he dang luu token tran.
+      # Sinh tai cho thay vi go cung: repo khong chua chuoi nao trong giong khoa that.
+      - name: Sinh khoa ma hoa cho lan chay nay
+        working-directory: src/backend
+        run: |
+          echo "TOKEN_ENCRYPTION_KEY=$(uv run python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+
+      - name: Chay bo kiem thu
+        working-directory: src/backend
+        run: uv run pytest -q
+        env:
+          APP_ENV: ci
+
+      # ── 3. Day len Azure ─────────────────────────────────────────────────
+      # Chi day THU MUC BACKEND: requirements.txt phai nam o goc goi tin thi
+      # Oryx (bo dung cua Azure) moi thay va cai duoc thu vien.
+      - name: Day len Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.TEN_APP }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: src/backend

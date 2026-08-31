@@ -10,8 +10,11 @@ import {
   ShieldCheck,
   Wrench,
   Server,
+  UserCog,
+  Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api, type Preferences, type PreferenceFields } from '@/lib/api'
 import { useTheme } from '@/components/theme-provider'
 import {
   Dialog,
@@ -22,6 +25,15 @@ import {
 } from '@/components/ui/dialog'
 
 const LANG_KEY = 'meoarc-lang'
+
+/* Nhãn tiếng Việt cho từng giọng văn. Khoá do backend định nghĩa (nguồn sự thật
+   duy nhất ở app/models/user_preference.py); ở đây chỉ dịch để hiển thị. */
+const TONE_LABEL: Record<string, string> = {
+  formal: 'Trang trọng',
+  friendly: 'Thân thiện',
+  concise: 'Ngắn gọn',
+  warm: 'Ấm áp',
+}
 
 const MCP_TOOLS = [
   'search_emails',
@@ -38,6 +50,145 @@ const SCOPES = [
   { label: 'Quản lý thư (modify/label/archive)', on: true },
   { label: 'Soạn & gửi (send)', on: true },
 ]
+
+/* ─────────────────── Tab "Cá nhân hoá" — PA2 §1.5.2 ───────────────────
+   Đây là chỗ người dùng DẠY trợ lý cách viết thư thay mình. Ba nguyên tắc:
+   • Lưu khi rời ô (blur), không phải mỗi lần gõ — gõ tới đâu gọi API tới đó là
+     đốt request vô ích và dễ dẫm chân nhau.
+   • Chỉ gửi trường vừa đổi, không gửi cả object — backend dùng PATCH nên gửi
+     thừa sẽ xoá mất trường khác.
+   • Luôn hiện khung XEM TRƯỚC đúng đoạn văn trợ lý sẽ đọc. Không có nó thì
+     người dùng gõ vào một ô rồi đoán xem có tác dụng gì.                      */
+function PersonalTab() {
+  const [pref, setPref] = useState<Preferences | null>(null)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    api.preferences().then(setPref).catch(() => setErr('Không tải được thiết lập.'))
+  }, [])
+
+  const save = async (patch: Partial<PreferenceFields>) => {
+    const key = Object.keys(patch)[0]
+    setSaving(key)
+    setErr('')
+    try {
+      setPref(await api.updatePreferences(patch))
+    } catch {
+      setErr('Chưa lưu được. Thử lại nhé.')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (err && !pref) return <p className="py-6 text-sm text-popover-foreground/60">{err}</p>
+  if (!pref) return <div className="skeleton h-40 rounded-xl" />
+
+  return (
+    <div className="space-y-5 text-popover-foreground">
+      <p className="text-xs leading-relaxed text-popover-foreground/60">
+        Những thiết lập này đi thẳng vào lời dặn của trợ lý. Trợ lý sẽ soạn thư theo đúng
+        giọng và chữ ký bạn đặt ở đây.
+      </p>
+
+      {/* Tên xưng hô */}
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold">Trợ lý gọi bạn là</label>
+        <input
+          defaultValue={pref.displayName ?? ''}
+          onBlur={(e) => {
+            const v = e.target.value.trim()
+            if (v !== (pref.displayName ?? '')) save({ displayName: v || null })
+          }}
+          placeholder="Anh Quân"
+          className="w-full rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 text-sm outline-none transition-colors focus-visible:border-spark/60"
+        />
+      </div>
+
+      {/* Giọng văn */}
+      <div>
+        <p className="mb-2 text-sm font-semibold">Giọng văn khi soạn thư</p>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(pref.availableTones).map(([key, desc]) => {
+            const active = pref.tonePreference === key
+            return (
+              <button
+                key={key}
+                title={desc}
+                onClick={() => save({ tonePreference: key })}
+                className={cn(
+                  'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  active
+                    ? 'border-spark/60 bg-spark/10 font-medium'
+                    : 'border-border/40 bg-popover-foreground/5 hover:bg-popover-foreground/10',
+                )}
+              >
+                {TONE_LABEL[key] ?? key}
+                <span className="mt-0.5 block text-[11px] leading-snug text-popover-foreground/50">
+                  {desc.split(',')[0]}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Chữ ký */}
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold">Chữ ký cuối thư</label>
+        <textarea
+          defaultValue={pref.signatureNote ?? ''}
+          onBlur={(e) => {
+            const v = e.target.value.trim()
+            if (v !== (pref.signatureNote ?? '')) save({ signatureNote: v || null })
+          }}
+          rows={3}
+          maxLength={500}
+          placeholder={'Phạm Trần Anh Quân\nNhóm 7 — HCMUS'}
+          className="w-full resize-none rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 text-sm outline-none transition-colors focus-visible:border-spark/60"
+        />
+      </div>
+
+      {/* Dặn dò tự do */}
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold">Dặn riêng cho trợ lý</label>
+        <textarea
+          defaultValue={pref.customInstruction ?? ''}
+          onBlur={(e) => {
+            const v = e.target.value.trim()
+            if (v !== (pref.customInstruction ?? '')) save({ customInstruction: v || null })
+          }}
+          rows={2}
+          maxLength={1000}
+          placeholder="Đừng dùng từ 'trân trọng'. Luôn hỏi lại trước khi hứa deadline."
+          className="w-full resize-none rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 text-sm outline-none transition-colors focus-visible:border-spark/60"
+        />
+      </div>
+
+      {/* Xem trước — đúng thứ trợ lý đọc, không phải bản diễn giải */}
+      <div>
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-popover-foreground/50">
+          <Eye className="size-3.5" />
+          Trợ lý sẽ đọc
+        </p>
+        {pref.promptPreview ? (
+          <pre className="whitespace-pre-wrap rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 font-sans text-xs leading-relaxed text-popover-foreground/80">
+            {pref.promptPreview}
+          </pre>
+        ) : (
+          <p className="rounded-xl border border-dashed border-border/40 px-3 py-3 text-xs text-popover-foreground/50">
+            Chưa đặt gì — trợ lý dùng giọng mặc định. Điền một ô bất kỳ ở trên để thấy
+            phần này thay đổi.
+          </p>
+        )}
+      </div>
+
+      <p className="h-4 text-xs text-popover-foreground/50">
+        {saving ? 'Đang lưu…' : err || 'Tự lưu khi bạn rời khỏi ô.'}
+      </p>
+    </div>
+  )
+}
 
 function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
@@ -65,7 +216,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
 export function SettingsDialog() {
   const { theme, setTheme } = useTheme()
-  const [tab, setTab] = useState<'general' | 'mcp'>('general')
+  const [tab, setTab] = useState<'general' | 'personal' | 'mcp'>('general')
   const [lang, setLang] = useState<'vi' | 'en'>(
     () => (localStorage.getItem(LANG_KEY) as 'vi' | 'en') || 'vi',
   )
@@ -95,6 +246,7 @@ export function SettingsDialog() {
         <div className="flex gap-1 rounded-xl bg-popover-foreground/5 p-1">
           {[
             { key: 'general', label: 'Chung', icon: Settings },
+            { key: 'personal', label: 'Cá nhân hoá', icon: UserCog },
             { key: 'mcp', label: 'MCP', icon: Plug },
           ].map((t) => {
             const Icon = t.icon
@@ -102,7 +254,7 @@ export function SettingsDialog() {
             return (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key as 'general' | 'mcp')}
+                onClick={() => setTab(t.key as 'general' | 'personal' | 'mcp')}
                 className={cn(
                   'flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                   active
@@ -178,6 +330,8 @@ export function SettingsDialog() {
               </div>
             </div>
           </div>
+        ) : tab === 'personal' ? (
+          <PersonalTab />
         ) : (
           <div className="space-y-4 text-popover-foreground">
             <p className="flex items-start gap-2 text-xs text-popover-foreground/70">
