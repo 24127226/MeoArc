@@ -1238,6 +1238,59 @@ def _categorize_card(messages: list) -> dict | None:
     return None
 
 
+def _tim_tool(messages: list, ten: str) -> dict | None:
+    """Lấy `data` của tool `ten` NẾU nó được gọi trong LƯỢT NÀY. None nếu không."""
+    import json
+    last_human = max((i for i, m in enumerate(messages)
+                      if getattr(m, "type", None) == "human"), default=0)
+    for m in reversed(messages[last_human:]):
+        if getattr(m, "type", None) == "tool" and getattr(m, "name", None) == ten:
+            try:
+                return json.loads(m.content).get("data") or None
+            except Exception:
+                return None
+    return None
+
+
+def _digest_card(messages: list) -> dict | None:
+    """Thẻ 'digest' cho FE từ kết quả tom_tat_ngay.
+
+    Số liệu lấy THẲNG từ tool, không nhờ mô hình đọc lại: đây là bảng thống kê, mà một
+    bảng thống kê do mô hình chép tay thì mỗi lần bấm ra một con số khác — và không ai
+    tin nổi một con số như thế."""
+    d = _tim_tool(messages, "tom_tat_ngay")
+    if not d:
+        return None
+    return {
+        "kind": "digest",
+        "intro": "Đây là báo cáo nhanh hộp thư của bạn:",
+        "title": "Daily Digest — hôm nay",
+        "stats": [
+            {"label": "Tổng thư", "value": d.get("tong", 0)},
+            {"label": "Chưa đọc", "value": d.get("chua_doc", 0)},
+            {"label": "Cần xử lý", "value": d.get("can_xu_ly", 0)},
+        ],
+        "breakdown": d.get("theo_nhan") or [],
+        "highlights": d.get("noi_bat") or [],
+        # Kèm id thư để FE gắn nút MỞ THƯ cho từng dòng — liệt kê tên thư mà không mở
+        # được thì người dùng vẫn phải tự đi tìm lại trong hộp thư.
+        "emails": d.get("thu") or [],
+    }
+
+
+def _triage_card(messages: list) -> dict | None:
+    """Thẻ 'triage' cho FE từ kết quả phan_loai_uu_tien."""
+    d = _tim_tool(messages, "phan_loai_uu_tien")
+    if not d or not d.get("nhom"):
+        return None
+    return {
+        "kind": "triage",
+        "intro": "Mình đã phân loại theo độ ưu tiên kèm gợi ý hành động:",
+        "title": f"Triage {d.get('tong', 0)} thư cần theo dõi",
+        "groups": d["nhom"],
+    }
+
+
 def _di_lai_card(messages: list) -> dict | None:
     """Dựng thẻ 'dilai' cho FE từ kết quả tim_chuyen_bay / tim_khach_san CỦA LƯỢT NÀY.
 
@@ -1540,6 +1593,12 @@ async def agent_chat(
         dl_card = _di_lai_card(result["messages"])
         if dl_card:
             out = dl_card
+
+        # Digest / Triage: cùng khuôn — thẻ dựng TẤT ĐỊNH từ số liệu tool.
+        for _dung in (_digest_card, _triage_card):
+            _c = _dung(result["messages"])
+            if _c:
+                out = _c
 
         # HUMAN-IN-THE-LOOP: lượt này có tool không-hoàn-tác bị CHẶN chờ duyệt →
         # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,

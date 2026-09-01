@@ -691,3 +691,40 @@ class DatChoMoPhongInput(BaseModel):
 
 class DatChoMoPhongOutput(ToolResult):
     data: dict[str, Any] | None = None
+
+
+# =========================================================
+# =   TÓM TẮT NGÀY & PHÂN LOẠI ƯU TIÊN — TẤT ĐỊNH, 0 LLM   =
+# =========================================================
+# Hai tính năng này TỪNG chỉ tồn tại ở giao diện mock: `DigestWidget` và
+# `TriageWidget` có sẵn, nhưng backend thật KHÔNG có tool nào sinh ra chúng. Nên bấm
+# "Digest hôm nay" / "Triage hộp thư" thì agent không có gì để gọi và rơi về
+# categorize_emails — đúng triệu chứng "bấm Triage mà nó lại phân loại thư".
+#
+# Cả hai dựng bằng LUẬT (app/core/labeling.analyze), KHÔNG gọi model: chúng chỉ là
+# đếm và nhóm trên dữ liệu đã có. Gọi model ở đây vừa tốn hạn mức vừa cho kết quả
+# kém ổn định hơn — cùng một hộp thư mà mỗi lần bấm ra một con số khác thì không ai
+# tin nổi bảng thống kê đó.
+
+class TomTatNgayInput(BaseModel):
+    """Tham số cho `tom_tat_ngay` (Daily Digest)."""
+
+    so_ngay: Annotated[int, Field(default=1, ge=1, le=30,
+                                  description="Tính thư trong bao nhiêu ngày gần đây. Mặc định 1 (hôm nay).")]
+    limit: Annotated[int, Field(default=60, ge=5, le=200)]
+
+
+class TomTatNgayOutput(ToolResult):
+    data: dict[str, Any] = {}
+
+
+class PhanLoaiUuTienInput(BaseModel):
+    """Tham số cho `phan_loai_uu_tien` (Triage Inbox)."""
+
+    chi_chua_doc: Annotated[bool, Field(default=True,
+                                        description="Chỉ xét thư CHƯA ĐỌC. Mặc định true.")]
+    limit: Annotated[int, Field(default=40, ge=5, le=100)]
+
+
+class PhanLoaiUuTienOutput(ToolResult):
+    data: dict[str, Any] = {}

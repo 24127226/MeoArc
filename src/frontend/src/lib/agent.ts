@@ -77,6 +77,9 @@ export type AgentReply =
       stats: { label: string; value: number }[]
       breakdown: { label: string; count: number }[]
       highlights: string[]
+      /** Thư kèm ID để MỞ ĐƯỢC từ trong thẻ. Liệt kê tên thư mà không mở được thì
+       *  người dùng vẫn phải tự đi tìm lại trong hộp thư — báo cáo đọc xong rồi bỏ đó. */
+      emails?: { id: string; sender: string; subject: string }[]
     }
   | {
       kind: 'categorize'

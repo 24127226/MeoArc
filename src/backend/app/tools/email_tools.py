@@ -16,6 +16,7 @@ from app.services import gmail_service, gmail_actions, gmail_send, mail  # noqa:
 from app.schemas.email import Email
 from app.tools.registry import tool_registry, ToolCategory, RequestContext
 from app.tools.schemas import (
+    TomTatNgayInput, TomTatNgayOutput, PhanLoaiUuTienInput, PhanLoaiUuTienOutput,
     SearchEmailsInput, SearchEmailsOutput, EmailSummary,
     SemanticSearchInput,
     CategorizeEmailsInput, CategorizeEmailsOutput, CategorizedItem,
@@ -527,3 +528,105 @@ async def dat_cho_mo_phong(inp: DatChoMoPhongInput, ctx: RequestContext) -> DatC
         )
     finally:
         db.close()
+
+
+# ── TÓM TẮT NGÀY & PHÂN LOẠI ƯU TIÊN — dựng bằng LUẬT, KHÔNG gọi model ───────
+# Xem chú thích dài ở app/tools/schemas.py. Tóm lại: đây là ĐẾM và NHÓM trên dữ liệu
+# đã có, nên gọi model vừa tốn hạn mức vừa kém ổn định — cùng một hộp thư mà mỗi lần
+# bấm ra một con số khác thì không ai tin nổi bảng thống kê.
+
+def _phan_tich(e: Email):
+    """Chạy engine nhãn trên một thư. Gom vào đây để digest và triage không bao giờ
+    xếp cùng một lá thư vào hai chỗ khác nhau."""
+    return labeling.analyze(e.senderEmail or "", e.sender or "", e.subject or "",
+                            e.preview or "")
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=TomTatNgayInput)
+async def tom_tat_ngay(inp: TomTatNgayInput, ctx: RequestContext) -> TomTatNgayOutput:
+    """BÁO CÁO NHANH hộp thư: tổng thư, chưa đọc, cần xử lý, phân bổ theo nhãn, và
+    vài thư nổi bật. Dùng khi người dùng hỏi "tóm tắt hộp thư hôm nay", "digest",
+    "tuần này có gì". KHÔNG gọi mô hình — số liệu đếm trực tiếp nên luôn nhất quán."""
+    ds, _ = await asyncio.to_thread(
+        mail.list_messages, ctx.email_provider, ctx.access_token,
+        "inbox", None, inp.limit,
+    )
+    chua_doc = [e for e in ds if e.unread]
+    theo_nhan: dict[str, int] = {}
+    can_xu_ly, noi_bat = 0, []
+    for e in ds:
+        a = _phan_tich(e)
+        theo_nhan[a.category.label] = theo_nhan.get(a.category.label, 0) + 1
+        if a.status is not None and a.status.value == "Todo":
+            can_xu_ly += 1
+            if len(noi_bat) < 3:
+                noi_bat.append(f"{e.sender}: {e.subject}")
+    # Chưa có việc nào cần xử lý thì lấy thư chưa đọc làm nổi bật — một khối "Nổi bật"
+    # rỗng trông như widget hỏng, còn nói "không có gì gấp" là một thông tin có ích.
+    if not noi_bat:
+        noi_bat = [f"{e.sender}: {e.subject}" for e in chua_doc[:3]]
+
+    return TomTatNgayOutput(
+        success=True,
+        message=(f"Hộp thư có {len(ds)} thư, {len(chua_doc)} chưa đọc, "
+                 f"{can_xu_ly} thư cần xử lý."),
+        data={
+            "tong": len(ds), "chua_doc": len(chua_doc), "can_xu_ly": can_xu_ly,
+            "quan_trong": sum(1 for e in ds if e.starred),
+            "theo_nhan": [{"label": k, "count": v}
+                          for k, v in sorted(theo_nhan.items(), key=lambda x: -x[1])],
+            "noi_bat": noi_bat,
+            "thu": [{"id": e.id, "sender": e.sender, "subject": e.subject}
+                    for e in (chua_doc or ds)[:8]],
+        },
+    )
+
+
+# Gợi ý hành động theo trạng thái — CÂU CHỮ CỐ ĐỊNH, không nhờ model viết.
+# Model viết thì mỗi lần một khác, mà đây là nhãn thao tác: người dùng cần nhận ra nó
+# bằng mắt qua nhiều lần dùng, không cần nó văn vẻ.
+_GOI_Y_HANH_DONG = {
+    "Todo": "Cần bạn xử lý",
+    "Waiting": "Đang chờ người khác",
+    "Done": "Đã xong — có thể lưu trữ",
+}
+
+
+@tool_registry.register(category=ToolCategory.READ, input_schema=PhanLoaiUuTienInput)
+async def phan_loai_uu_tien(inp: PhanLoaiUuTienInput, ctx: RequestContext) -> PhanLoaiUuTienOutput:
+    """PHÂN LOẠI THEO ĐỘ ƯU TIÊN + gợi ý hành động cho từng thư (Triage).
+    Khác `categorize_emails`: cái kia gán NHÃN CHỦ ĐỀ (Học tập/Tài chính…), còn cái
+    này xếp theo VIỆC CÓ GẤP KHÔNG và ai đang chờ ai. Dùng khi người dùng hỏi "thư nào
+    cần xử lý trước", "triage hộp thư". KHÔNG gọi mô hình."""
+    ds, _ = await asyncio.to_thread(
+        mail.list_messages, ctx.email_provider, ctx.access_token,
+        "inbox", None, inp.limit,
+    )
+    if inp.chi_chua_doc:
+        ds = [e for e in ds if e.unread]
+
+    cao, thuong = [], []
+    for e in ds:
+        a = _phan_tich(e)
+        if a.status is None:
+            continue        # không phải việc → không đưa vào bảng phân loại việc
+        muc = {
+            "id": e.id, "sender": e.sender,
+            "initial": (e.sender or "?")[:1].upper(),
+            "subject": e.subject,
+            "suggest": _GOI_Y_HANH_DONG.get(a.status.value, ""),
+        }
+        (cao if (a.priority and a.priority.value == "High") else thuong).append(muc)
+
+    nhom = []
+    if cao:
+        nhom.append({"level": "high", "label": "Ưu tiên cao", "items": cao[:8]})
+    if thuong:
+        nhom.append({"level": "normal", "label": "Bình thường", "items": thuong[:8]})
+
+    return PhanLoaiUuTienOutput(
+        success=True,
+        message=(f"Có {len(cao)} thư ưu tiên cao và {len(thuong)} thư bình thường "
+                 f"cần theo dõi." if nhom else "Không có thư nào cần xử lý ngay."),
+        data={"nhom": nhom, "tong": len(cao) + len(thuong)},
+    )

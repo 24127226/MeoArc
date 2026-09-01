@@ -30,7 +30,8 @@ from app.agent.nodes.tool_node import tool_node
 #
 # Chỉ thêm tên tool vào đây khi app.py THẬT SỰ dựng thẻ riêng cho nó — thêm nhầm thì
 # người dùng nhận về câu trả lời cụt của agent thay vì phần trình bày tử tế.
-_TOOL_TU_DUNG_THE = {"categorize_emails", "tim_chuyen_bay", "tim_khach_san"}
+_TOOL_TU_DUNG_THE = {"categorize_emails", "tim_chuyen_bay", "tim_khach_san",
+                     "tom_tat_ngay", "phan_loai_uu_tien"}
 
 
 def _should_continue(state: State) -> str:

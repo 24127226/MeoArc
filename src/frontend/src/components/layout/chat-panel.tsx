@@ -152,6 +152,44 @@ const SKILLS = [
   { label: 'Phân loại tự động', prompt: 'phân loại tự động toàn bộ' },
 ]
 
+/** GỢI Ý CÂU TIẾP THEO — suy từ THỂ LOẠI câu trả lời vừa rồi.
+ *
+ *  ── VÌ SAO KHÔNG NHỜ MÔ HÌNH NGHĨ HỘ ──
+ *  Cách thường thấy là gọi model lần nữa để đoán "người dùng sẽ hỏi gì tiếp". Ở đây
+ *  làm vậy là hỏng: gói Gemini free chỉ 20 lượt/NGÀY mỗi model, nên mỗi câu trả lời
+ *  lại đốt thêm một lượt CHỈ ĐỂ VẼ VÀI CÁI NÚT — mà phần lớn nút đó không ai bấm.
+ *  Người dùng sẽ hết lượt hỏi thật vì những gợi ý họ không dùng.
+ *
+ *  Suy từ thể loại trả lời thì tốn 0 lượt, ra ngay lập tức, và không bao giờ gợi ý
+ *  một việc trợ lý không làm được — điều mà model đoán rất hay mắc.
+ *
+ *  Đổi lại: gợi ý KHÔNG bám nội dung cụ thể. Chấp nhận, vì bước tiếp theo hợp lý sau
+ *  một bảng chuyến bay gần như luôn là "tìm chỗ ở", bất kể chặng nào. */
+function goiYTiepTheo(reply: AgentReply): string[] {
+  switch (reply.kind) {
+    case 'dilai':
+      return reply.loai === 'bay'
+        ? ['Tìm chỗ ở gần đó', 'Chuyến nào bay buổi sáng?', 'Đặt lịch nhắc trước ngày bay']
+        : ['Tìm chuyến bay tới đó', 'Chỗ nào gần trung tâm nhất?']
+    case 'digest':
+      return ['Thư nào cần xử lý trước?', 'Phân loại giúp mình', 'Lưu trữ hết bản tin']
+    case 'triage':
+      return ['Soạn trả lời thư gấp nhất', 'Tuần này mình có quá tải không?']
+    case 'categorize':
+      return ['Tóm tắt hộp thư hôm nay', 'Thư nào đang chờ mình phản hồi?']
+    case 'brief':
+      return ['Soạn thư xác nhận tham dự', 'Tìm chuyến bay tới cuộc họp này']
+    case 'draft':
+      return ['Viết ngắn gọn hơn', 'Đổi sang giọng trang trọng']
+    case 'done':
+      return ['Tóm tắt hộp thư hôm nay', 'Thư nào cần xử lý trước?']
+    default:
+      // 'text' và các loại còn lại: câu trả lời tự do, không đoán được bước sau —
+      // để trống còn hơn gợi ý bừa rồi người dùng bấm vào một ngõ cụt.
+      return []
+  }
+}
+
 /** Khuôn tin BE (StoredMessage) → Message của FE (thêm id cục bộ để React render). */
 function toLocalMsg(m: StoredMessage): Message {
   return m.role === 'user'
@@ -639,7 +677,10 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
 }
 
 /** Daily Digest — bento số liệu + phân bổ theo nhãn (mini-bar) + nổi bật. */
-function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }> }) {
+function DigestWidget({ reply, onOpenEmail }: {
+  reply: Extract<AgentReply, { kind: 'digest' }>
+  onOpenEmail?: (id: string) => void
+}) {
   const max = Math.max(1, ...reply.breakdown.map((b) => b.count))
   return (
     <Card className="overflow-hidden rose-glass shadow-float">
@@ -693,6 +734,29 @@ function DigestWidget({ reply }: { reply: Extract<AgentReply, { kind: 'digest' }
                 <span className="mt-1 size-1.5 shrink-0 cherry-dot rounded-full" />
                 <span className="min-w-0 truncate">{h}</span>
               </div>
+            ))}
+          </div>
+        )}
+        {/* MỞ THẲNG TỪNG THƯ. Báo cáo chỉ liệt kê tên thư thì đọc xong người dùng vẫn
+            phải tự đi tìm lại trong hộp thư — tức là bản báo cáo dừng ở chỗ "biết có
+            gì" mà không đi tiếp tới "làm gì với nó". */}
+        {reply.emails && reply.emails.length > 0 && onOpenEmail && (
+          <div className="space-y-1 border-t border-border/40 pt-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Mở nhanh
+            </p>
+            {reply.emails.map((e) => (
+              <button
+                key={e.id}
+                onClick={() => onOpenEmail(e.id)}
+                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm transition-colors hover:bg-foreground/5"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-muted-foreground">{e.sender}: </span>
+                  <span className="text-foreground/90">{e.subject}</span>
+                </span>
+                <ArrowUpRight className="size-3.5 shrink-0 text-[var(--spark)]" />
+              </button>
             ))}
           </div>
         )}
@@ -889,6 +953,23 @@ export function ChatPanel({
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
   const [input, setInput] = useState('')
+  /** Ô nhập TỰ GIÃN theo nội dung.
+   *
+   *  `rows={1}` + `resize-none` giữ ô luôn cao đúng một dòng, nên gõ quá một dòng là
+   *  chữ cuộn trong một khe cao ~24px: không đọc lại được thứ mình vừa viết, và cũng
+   *  không biết mình đã viết tới đâu. Với một ô mà người dùng được khuyến khích mô tả
+   *  bằng lời thì đó là rào cản thẳng vào tính năng chính.
+   *
+   *  Đo lại chiều cao mỗi lần nội dung đổi: đặt `height='auto'` trước để `scrollHeight`
+   *  co lại được khi xoá bớt chữ — thiếu bước đó thì ô chỉ phình ra mà không bao giờ
+   *  nhỏ lại. Trần do CSS (`max-h-56`) lo, sau đó nội dung tự cuộn. */
+  const oNhap = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const el = oNhap.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [input])
   // Composer THU GỌN: mặc định chỉ là 1 nút; bấm mới bung ô nhập + gợi ý (chừa chỗ cho
   // khung chat). Bấm ra ngoài (khi ô rỗng) → tự co lại. composerRef để phát hiện click ngoài.
   const [composerOpen, setComposerOpen] = useState(false)
@@ -929,6 +1010,14 @@ export function ChatPanel({
     () => sessions.find((s) => s.id === currentId)?.messages ?? [],
     [sessions, currentId],
   )
+
+  /** Gợi ý bước tiếp theo, lấy từ TIN CUỐI của trợ lý. Ẩn khi đang nghĩ — chìa ra
+   *  một câu hỏi mới trong lúc câu trước chưa xong là mời người dùng bấm rồi mất lượt. */
+  const buocTiepTheo = useMemo(() => {
+    if (thinking) return []
+    const cuoi = [...messages].reverse().find((m) => m.role === 'agent')
+    return cuoi && 'reply' in cuoi && cuoi.reply ? goiYTiepTheo(cuoi.reply) : []
+  }, [messages, thinking])
 
   // (#AI-native) GỢI Ý THEO NGỮ CẢNH — web "tư duy" từ tình trạng hộp thư thật:
   // thư quan trọng chưa đọc → gợi ý trả lời ĐÍCH DANH người gửi; có thư chưa đọc
@@ -1767,6 +1856,23 @@ export function ChatPanel({
             </button>
           ))}
         </div>
+        {/* BƯỚC TIẾP THEO — suy từ thể loại câu trả lời vừa rồi, 0 lượt gọi model.
+            Đặt TRƯỚC nhóm gợi ý theo hộp thư vì nó bám sát thứ người dùng vừa xem,
+            nên khả năng bấm cao hơn hẳn. */}
+        {buocTiepTheo.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {buocTiepTheo.map((g) => (
+              <button
+                key={g}
+                onClick={() => send(g)}
+                className="flex items-center gap-1.5 rounded-full border border-[var(--spark)]/35 bg-[var(--spark)]/10 px-3 py-1.5 text-xs font-medium text-foreground shadow-subtle transition-all duration-200 ease-spring hover:-translate-y-0.5 active:scale-95"
+              >
+                <ArrowUpRight className="size-3.5 text-[var(--spark)]" />
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Gợi ý theo ngữ cảnh — LUÔN hiện */}
         <div className="mb-3 flex flex-wrap gap-2">
           {suggestions.map((s) => (
@@ -1819,6 +1925,7 @@ export function ChatPanel({
               <Textarea
                 id="meoarc-composer-input"
                 rows={1}
+                ref={oNhap}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -1835,7 +1942,7 @@ export function ChatPanel({
                     : "Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
                 }
                 disabled={isOutOfTokens(sub)}
-                className="max-h-32 min-h-0 flex-1 resize-none border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
+                className="max-h-56 min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
               />
               {/* Đồng hồ token — luôn nằm cạnh ô nhập như các trợ lý AI khác */}
               <TokenMeter status={sub} onUpgrade={() => setPricingOpen(true)} />
@@ -2537,7 +2644,7 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <DigestWidget reply={reply} />
+        <DigestWidget reply={reply} onOpenEmail={onOpenEmail} />
       </AgentRow>
     )
   }
