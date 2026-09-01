@@ -350,12 +350,17 @@ class KhachSan:
     # không vẽ một cái ghim ngoài khơi vịnh Guinea (đúng chỗ toạ độ 0,0 rơi vào).
     vi_do: float = 0.0
     kinh_do: float = 0.0
+    # True = TÊN, HẠNG SAO và VỊ TRÍ là của một cơ sở CÓ THẬT; giá vẫn mô phỏng.
+    # Tách riêng khỏi `nguon` vì hai điều đó khác nhau, và gộp lại thì hoặc phải gọi
+    # cả bảng là "thật" (nói quá về giá — con số người dùng ra quyết định dựa vào),
+    # hoặc phải gọi một khách sạn có thật là "bịa".
+    ten_that: bool = False
 
     def to_dict(self) -> dict:
         so_dem = max(1, (self.tra_phong - self.nhan_phong).days)
         co_toa_do = bool(self.vi_do or self.kinh_do)
         return {
-            "vi_do": self.vi_do, "kinh_do": self.kinh_do,
+            "vi_do": self.vi_do, "kinh_do": self.kinh_do, "ten_that": self.ten_that,
             "ban_do_nhung": (lien_ket_ban_do_nhung(self.vi_do, self.kinh_do)
                              if co_toa_do else None),
             "ma": self.ma, "ten": self.ten, "thanh_pho": self.thanh_pho,
@@ -374,6 +379,138 @@ class KhachSan:
 
 _HANG_BAY = [("VN", "Vietnam Airlines"), ("VJ", "Vietjet Air"), ("QH", "Bamboo Airways")]
 _TEN_KHACH_SAN = ["Riverside", "Central Plaza", "Bay View", "Old Quarter Inn", "Sunrise"]
+
+# ── KHÁCH SẠN & RESORT CÓ THẬT ───────────────────────────────────────────────
+# (tên, số sao, vĩ độ, kinh độ). Ưu tiên 4–5 sao vì đây là thứ hiện ra đầu tiên khi
+# trình bày, và một danh sách nhà nghỉ 2 sao thì không nói lên điều gì về sản phẩm.
+#
+# ── RANH GIỚI: CÁI GÌ THẬT, CÁI GÌ KHÔNG ──
+# THẬT: tên cơ sở, hạng sao, vị trí. Đây là thông tin công khai, kiểm chứng được —
+#       người xem tra tên trên bản đồ là ra đúng chỗ.
+# MÔ PHỎNG: GIÁ và tình trạng phòng. Không nguồn miễn phí nào cho giá phòng thật
+#       (Booking/Agoda đều đòi hợp đồng đối tác), nên giá vẫn do hàm băm sinh ra.
+# Vì vậy nhãn nguồn KHÔNG đổi thành "thật" — chỉ thêm cờ `ten_that` để giao diện nói
+# chính xác: "tên & vị trí thật · giá mô phỏng". Nói gọn thành "dữ liệu thật" ở đây là
+# nói quá, và giá mới là con số người dùng ra quyết định dựa vào.
+#
+# Toạ độ ~vài trăm mét là đủ cho bản đồ khu vực; hạng sao theo công bố phổ biến.
+KHACH_SAN_THAT: dict[str, list[tuple[str, float, float, float]]] = {
+    "tp hcm": [
+        ("The Reverie Saigon", 5, 10.7723, 106.7047),
+        ("Park Hyatt Saigon", 5, 10.7768, 106.7028),
+        ("Caravelle Saigon", 5, 10.7768, 106.7031),
+        ("Rex Hotel Saigon", 5, 10.7745, 106.7010),
+        ("Hotel Continental Saigon", 4, 10.7765, 106.7020),
+    ],
+    "ha noi": [
+        ("Sofitel Legend Metropole Hanoi", 5, 21.0245, 105.8570),
+        ("Lotte Hotel Hanoi", 5, 21.0313, 105.8134),
+        ("Meliá Hanoi", 5, 21.0258, 105.8437),
+        ("Hotel de l'Opera Hanoi", 5, 21.0243, 105.8563),
+        ("Hanoi La Siesta Premium", 4, 21.0345, 105.8500),
+    ],
+    "da nang": [
+        ("InterContinental Danang Sun Peninsula Resort", 5, 16.1200, 108.3000),
+        ("Furama Resort Danang", 5, 16.0430, 108.2470),
+        ("Premier Village Danang Resort", 5, 16.0170, 108.2600),
+        ("Novotel Danang Premier Han River", 5, 16.0720, 108.2240),
+        ("Danang Golden Bay", 5, 16.0900, 108.2260),
+    ],
+    "nha trang": [
+        ("InterContinental Nha Trang", 5, 12.2400, 109.1970),
+        ("Sheraton Nha Trang Hotel & Spa", 5, 12.2430, 109.1960),
+        ("Vinpearl Resort Nha Trang", 5, 12.2130, 109.2470),
+        ("Amiana Resort Nha Trang", 5, 12.2900, 109.2200),
+        ("Havana Nha Trang Hotel", 5, 12.2380, 109.1970),
+    ],
+    "da lat": [
+        ("Dalat Palace Heritage Hotel", 5, 11.9400, 108.4400),
+        ("Ana Mandara Villas Dalat Resort", 5, 11.9330, 108.4200),
+        ("Dalat Edensee Lake Resort & Spa", 5, 11.8980, 108.4180),
+        ("Swiss-Belresort Tuyen Lam", 5, 11.9000, 108.4300),
+        ("Terracotta Hotel & Resort Dalat", 4, 11.9130, 108.4460),
+    ],
+    "phu quoc": [
+        ("JW Marriott Phu Quoc Emerald Bay", 5, 10.0400, 104.0180),
+        ("InterContinental Phu Quoc Long Beach", 5, 10.1500, 103.9600),
+        ("Premier Village Phu Quoc Resort", 5, 10.0300, 104.0200),
+        ("Vinpearl Resort & Spa Phu Quoc", 5, 10.3300, 103.8560),
+        ("Salinda Resort Phu Quoc", 5, 10.1930, 103.9560),
+    ],
+    "hoi an": [
+        ("Four Seasons Resort The Nam Hai", 5, 15.9330, 108.2900),
+        ("Anantara Hoi An Resort", 5, 15.8800, 108.3350),
+        ("La Siesta Hoi An Resort & Spa", 5, 15.8820, 108.3200),
+        ("Allegro Hoi An", 4, 15.8830, 108.3260),
+        ("Hoi An Silk Marina Resort", 4, 15.8790, 108.3250),
+    ],
+    "hue": [
+        ("Azerai La Residence Hue", 5, 16.4620, 107.5860),
+        ("Meliá Vinpearl Hue", 5, 16.4680, 107.5930),
+        ("Indochine Palace", 5, 16.4600, 107.5960),
+        ("Silk Path Grand Hue", 5, 16.4640, 107.5900),
+        ("Pilgrimage Village Boutique Resort", 5, 16.4300, 107.5650),
+    ],
+    "ha long": [
+        ("Vinpearl Resort & Spa Ha Long", 5, 20.9500, 107.0700),
+        ("Wyndham Legend Halong", 5, 20.9530, 107.0790),
+        ("FLC Grand Hotel Halong", 5, 20.9600, 107.0500),
+        ("Muong Thanh Luxury Quang Ninh", 5, 20.9540, 107.0770),
+        ("Novotel Ha Long Bay", 4, 20.9520, 107.0740),
+    ],
+    "vung tau": [
+        ("Pullman Vung Tau", 5, 10.3460, 107.0850),
+        ("The Imperial Hotel Vung Tau", 5, 10.3330, 107.0800),
+        ("Marina Bay Vung Tau Resort", 5, 10.3200, 107.0900),
+        ("Lan Rung Resort & Spa", 4, 10.3250, 107.0870),
+        ("Malibu Hotel Vung Tau", 4, 10.3400, 107.0830),
+    ],
+    "sapa": [
+        ("Hotel de la Coupole – MGallery", 5, 22.3340, 103.8420),
+        ("Silk Path Grand Sapa Resort", 5, 22.3370, 103.8450),
+        ("Pao's Sapa Leisure Hotel", 5, 22.3300, 103.8480),
+        ("Victoria Sapa Resort & Spa", 4, 22.3390, 103.8410),
+        ("Sapa Jade Hill Resort", 4, 22.3250, 103.8500),
+    ],
+    "quy nhon": [
+        ("Anantara Quy Nhon Villas", 5, 13.7000, 109.2600),
+        ("FLC Luxury Hotel Quy Nhon", 5, 13.8600, 109.2500),
+        ("Muong Thanh Luxury Quy Nhon", 5, 13.7760, 109.2230),
+        ("Avani Quy Nhon Resort", 4, 13.7300, 109.2300),
+        ("Seagull Hotel Quy Nhon", 4, 13.7700, 109.2260),
+    ],
+    "mui ne": [
+        ("Anantara Mui Ne Resort", 5, 10.9450, 108.2300),
+        ("The Anam Mui Ne", 5, 10.9500, 108.2200),
+        ("Sea Links Beach Hotel", 5, 10.9200, 108.2500),
+        ("Victoria Phan Thiet Beach Resort", 4, 10.9370, 108.2350),
+        ("Pandanus Resort Mui Ne", 4, 10.9600, 108.2100),
+    ],
+    "can tho": [
+        ("Azerai Can Tho", 5, 10.0600, 105.7500),
+        ("Vinpearl Hotel Can Tho", 5, 10.0330, 105.7860),
+        ("Muong Thanh Luxury Can Tho", 5, 10.0400, 105.7800),
+        ("Nam Bo Boutique Hotel", 4, 10.0340, 105.7880),
+        ("Iris Hotel Can Tho", 4, 10.0350, 105.7830),
+    ],
+    "hai phong": [
+        ("Vinpearl Hotel Imperia Hai Phong", 5, 20.8500, 106.6880),
+        ("Pullman Hai Phong Grand", 5, 20.8560, 106.6820),
+        ("Mercure Hai Phong", 4, 20.8480, 106.6900),
+        ("Somerset Central TD Hai Phong", 4, 20.8530, 106.6860),
+        ("Nam Cuong Hai Phong Hotel", 4, 20.8470, 106.6830),
+    ],
+}
+
+
+def tra_khach_san_that(thanh_pho: str) -> list[tuple[str, float, float, float]]:
+    """Danh sách cơ sở CÓ THẬT ở thành phố này, sắp SAO CAO TRƯỚC. Rỗng nếu chưa có."""
+    goi = _bo_dau(thanh_pho)
+    ds = KHACH_SAN_THAT.get(goi)
+    if ds is None:
+        ung = [(k, v) for k, v in KHACH_SAN_THAT.items() if k in goi]
+        ds = max(ung, key=lambda x: len(x[0]))[1] if ung else []
+    return sorted(ds, key=lambda x: -x[1])
 
 
 class NhaCungCapMoPhong:
@@ -435,26 +572,44 @@ class NhaCungCapMoPhong:
         lại được và không ai nhầm "vị trí đổi" với "mã hỏng"."""
         toa_do = tra_toa_do(thanh_pho)
         lat, lon, ten_chuan = toa_do if toa_do else (0.0, 0.0, thanh_pho)
+        co_so_that = tra_khach_san_that(thanh_pho)
 
         ra: list[KhachSan] = []
         for i in range(so_ket_qua):
             hat = f"{thanh_pho}{nhan.isoformat()}{tra.isoformat()}{i}"
-            # Lệch tối đa ~1.2km quanh trung tâm (0.011 độ ≈ 1.2km).
-            dx = (self._so(hat + "x", 0, 220) - 110) / 10000
-            dy = (self._so(hat + "y", 0, 220) - 110) / 10000
+            if i < len(co_so_that):
+                # CƠ SỞ CÓ THẬT: tên, sao, vị trí đều thật. Chỉ GIÁ là mô phỏng.
+                ten_ks, sao, v_do, k_do = co_so_that[i]
+                that = True
+                # Giá neo theo hạng sao — 5 sao mà ra 500k thì nhìn là biết số bịa, và
+                # một con số vô lý làm người xem nghi ngờ cả những phần đang nói thật.
+                day, cao = (2_200_000, 9_000_000) if sao >= 5 else (1_100_000, 3_500_000)
+            else:
+                # Chưa có dữ liệu thật cho thành phố này → tên mô phỏng quanh trung tâm.
+                ten_ks = f"{_TEN_KHACH_SAN[i % len(_TEN_KHACH_SAN)]} {ten_chuan}"
+                sao = round(3 + self._so(hat + "s", 0, 20) / 10, 1)
+                that = False
+                # Lệch tối đa ~1.2km quanh trung tâm (0.011 độ ≈ 1.2km).
+                v_do = lat + (self._so(hat + "y", 0, 220) - 110) / 10000
+                k_do = lon + (self._so(hat + "x", 0, 220) - 110) / 10000
+                day, cao = 450_000, 2_400_000
+
             ra.append(KhachSan(
                 ma=f"KS{self._so(hat + 'k', 1000, 9999)}",
-                ten=f"{_TEN_KHACH_SAN[i % len(_TEN_KHACH_SAN)]} {ten_chuan}",
+                ten=ten_ks,
                 thanh_pho=ten_chuan, nhan_phong=nhan, tra_phong=tra,
-                gia_moi_dem_vnd=self._so(hat + "g", 450_000, 2_400_000) // 10_000 * 10_000,
-                so_sao=round(3 + self._so(hat + "s", 0, 20) / 10, 1),
+                gia_moi_dem_vnd=self._so(hat + "g", day, cao) // 10_000 * 10_000,
+                so_sao=float(sao),
                 cach_trung_tam_km=round(self._so(hat + "c", 1, 60) / 10, 1),
                 huy_mien_phi=(i != 2),
                 nguon=self.ten,
-                vi_do=round(lat + dy, 6) if toa_do else 0.0,
-                kinh_do=round(lon + dx, 6) if toa_do else 0.0,
+                vi_do=round(v_do, 6) if (that or toa_do) else 0.0,
+                kinh_do=round(k_do, 6) if (that or toa_do) else 0.0,
+                ten_that=that,
             ))
-        ra.sort(key=lambda k: k.gia_moi_dem_vnd)
+        # Sắp SAO CAO TRƯỚC (rồi giá) — đây là thứ hiện ra đầu tiên khi trình bày, và
+        # một danh sách mở đầu bằng nhà nghỉ 3 sao thì không nói lên điều gì.
+        ra.sort(key=lambda k: (-k.so_sao, k.gia_moi_dem_vnd))
         return ra
 
 

@@ -230,7 +230,9 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             </>
           ) : (
             <>
-              <O nhan="Thành phố" giaTri={thanhPho} datGiaTri={setThanhPho} rong="w-[130px]" />
+              <GoiYThanhPho />
+              <O nhan="Thành phố" giaTri={thanhPho} datGiaTri={setThanhPho} rong="w-[168px]"
+                 goiY="meoarc-thanh-pho" chuThich="Đà Nẵng" />
               <O nhan="Nhận phòng" giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
               <O nhan="Trả phòng" giaTri={tra} datGiaTri={setTra} rong="w-[112px]" />
             </>
@@ -460,6 +462,30 @@ function GoiYSanBay() {
   )
 }
 
+/** Thành phố gợi ý cho ô tìm chỗ ở. Nhóm CÓ KHÁCH SẠN THẬT lên trước — người dùng
+ *  chọn từ trên xuống, nên thứ tự này quyết định thứ họ nhìn thấy đầu tiên.
+ *  Bắt gõ đủ tên thành phố mới tra được là bắt họ làm việc của máy, cùng lỗi đã sửa
+ *  ở ô sân bay. */
+const TP_CO_KS_THAT = [
+  'Đà Nẵng', 'TP HCM', 'Hà Nội', 'Nha Trang', 'Phú Quốc', 'Đà Lạt', 'Hội An',
+  'Huế', 'Hạ Long', 'Vũng Tàu', 'Sa Pa', 'Quy Nhơn', 'Mũi Né', 'Cần Thơ', 'Hải Phòng',
+]
+const TP_KHAC = [
+  'Buôn Ma Thuột', 'Pleiku', 'Vinh', 'Thanh Hoá', 'Ninh Bình', 'Phan Thiết',
+  'Biên Hoà', 'Mỹ Tho', 'Rạch Giá', 'Cà Mau', 'Côn Đảo', 'Cát Bà',
+]
+
+function GoiYThanhPho() {
+  return (
+    <datalist id="meoarc-thanh-pho">
+      {TP_CO_KS_THAT.map((t) => (
+        <option key={t} value={t}>{`${t} · có khách sạn thật`}</option>
+      ))}
+      {TP_KHAC.map((t) => <option key={t} value={t} />)}
+    </datalist>
+  )
+}
+
 export function DongBay({ k }: { k: Record<string, unknown> }) {
   const gia = Number(k.gia_vnd ?? 0)
   const phut = Number(k.phut_bay ?? 0)
@@ -557,7 +583,20 @@ export function DongPhong({ k }: { k: Record<string, unknown> }) {
           {Number(k.so_sao) > 0 ? `${k.so_sao}★` : '—'}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12.5px] font-medium">{String(k.ten)}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="min-w-0 truncate text-[12.5px] font-medium">{String(k.ten)}</span>
+            {/* Cơ sở CÓ THẬT: tên, hạng sao, vị trí đều kiểm chứng được. Giá thì vẫn mô
+                phỏng, nên nhãn phải nói ĐÚNG phần nào thật — gộp thành "dữ liệu thật"
+                là nói quá về chính con số người dùng ra quyết định dựa vào. */}
+            {k.ten_that === true && (
+              <span
+                title="Tên, hạng sao và vị trí là thật — giá phòng là số mô phỏng"
+                className="shrink-0 cursor-help rounded-full bg-[var(--rr-hoan,#0E8F63)]/15 px-1.5 py-px font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--rr-hoan,#0E8F63)]"
+              >
+                thật
+              </span>
+            )}
+          </span>
           <span className="block truncate text-[11px] text-muted-foreground">
             {String(k.so_dem)} đêm · cách trung tâm {String(k.cach_trung_tam_km)} km
             {' · '}{k.huy_mien_phi ? 'huỷ miễn phí' : 'không huỷ được'}
@@ -604,7 +643,9 @@ export function DongPhong({ k }: { k: Record<string, unknown> }) {
             className="h-[190px] w-full border-0"
           />
           <p className="bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
-            Vị trí là toạ độ THẬT của khu vực; tên khách sạn là dữ liệu mô phỏng.
+            {k.ten_that === true
+              ? 'Cơ sở có thật — tên, hạng sao và vị trí kiểm chứng được. Giá phòng là số mô phỏng.'
+              : 'Vị trí là toạ độ thật của khu vực; tên khách sạn là dữ liệu mô phỏng.'}
           </p>
         </div>
       )}

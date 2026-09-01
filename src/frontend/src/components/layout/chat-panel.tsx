@@ -1080,7 +1080,25 @@ export function ChatPanel({
           ?.messages.some((m) => m.role === 'user')
         const idLuu = doc(KHOA_CHAT)
         if (dangTrong && idLuu && loaded.some((s) => s.id === idLuu)) {
-          setCurrentId(idLuu)
+          // PHẢI TẢI NỘI DUNG TRƯỚC KHI CHUYỂN SANG.
+          // Danh sách hội thoại chỉ mang metadata (`messages: []`), nội dung tải lười
+          // khi mở từ drawer. Chuyển `currentId` sang một phiên rỗng thì khung chat
+          // trắng trơn — không tin nhắn cũ, mà cũng mất luôn lời chào (lời chào nằm
+          // trong phiên 's0' vừa bị bỏ lại). Người dùng thấy đúng một khoảng trắng.
+          api
+            .getConversation(idLuu)
+            .then((detail) => {
+              if (!alive) return
+              setSessions((prev) =>
+                prev.map((x) =>
+                  x.id === idLuu ? { ...x, messages: detail.messages.map(toLocalMsg) } : x,
+                ),
+              )
+              setCurrentId(idLuu)
+            })
+            // Tải hỏng (phiên đã bị xoá ở máy khác chẳng hạn) thì Ở NGUYÊN phiên chào
+            // hiện tại. Thà bắt đầu lại còn hơn nhìn một khung trắng không lối thoát.
+            .catch(() => {})
         }
       })
       .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI

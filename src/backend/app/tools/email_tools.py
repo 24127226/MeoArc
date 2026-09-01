@@ -448,8 +448,18 @@ async def tim_khach_san(inp: TimKhachSanInput, ctx: RequestContext) -> TimKhachS
         ds = await asyncio.to_thread(
             ncc.tim_khach_san, inp.thanh_pho, nhan, tra, inp.so_ket_qua
         )
-    except NotImplementedError as e:
-        return TimKhachSanOutput(success=False, message=str(e), data=[])
+    except NotImplementedError:
+        # Nguồn đang dùng chỉ có dữ liệu bay (AeroDataBox) → LUI VỀ MÔ PHỎNG, giống hệt
+        # đường HTTP /tra-cuu/khach-san.
+        #
+        # Trước đây chỗ này trả success=False, nên hỏi trợ lý "tìm chỗ ở" là nhận
+        # "AeroDataBox chỉ cung cấp dữ liệu chuyến bay" — người dùng đọc ra là MeoArc
+        # không tìm được khách sạn, trong khi khung Tra cứu ngay cạnh vẫn ra kết quả.
+        # Hai đường cùng một tính năng mà trả lời khác nhau là kiểu hỏng khó tin nhất.
+        ncc = _dat_cho.NhaCungCapMoPhong()
+        ds = await asyncio.to_thread(
+            ncc.tim_khach_san, inp.thanh_pho, nhan, tra, inp.so_ket_qua
+        )
 
     mo_phong = bool(ds) and ds[0].nguon == "mo_phong"
     return TimKhachSanOutput(

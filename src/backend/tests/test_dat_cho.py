@@ -193,3 +193,38 @@ def test_moi_khach_san_mot_ghim_khac_nhau():
     """Năm ghim chồng lên nhau thì bản đồ chỉ hiện một cái."""
     ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Nha Trang", NGAY, date(2026, 9, 18), 5)
     assert len({(k.vi_do, k.kinh_do) for k in ds}) == 5
+
+
+# ── KHÁCH SẠN CÓ THẬT ───────────────────────────────────────────────────────
+
+def test_thanh_pho_lon_dung_co_so_CO_THAT():
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Đà Nẵng", NGAY, date(2026, 9, 18), 5)
+    assert all(k.ten_that for k in ds)
+    assert any("Furama" in k.ten or "InterContinental" in k.ten for k in ds)
+
+
+def test_SAO_CAO_len_truoc():
+    """Danh sách mở đầu bằng nhà nghỉ 3 sao thì không nói lên điều gì khi trình bày."""
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Nha Trang", NGAY, date(2026, 9, 18), 5)
+    assert [k.so_sao for k in ds] == sorted((k.so_sao for k in ds), reverse=True)
+
+
+def test_gia_NEO_theo_hang_sao():
+    """5 sao mà ra 500k thì nhìn là biết số bịa — và một con số vô lý làm người xem
+    nghi ngờ cả những phần đang nói thật."""
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Phú Quốc", NGAY, date(2026, 9, 18), 5)
+    for k in ds:
+        assert k.gia_moi_dem_vnd >= 2_200_000, f"{k.ten} ({k.so_sao}★) chỉ {k.gia_moi_dem_vnd}đ"
+
+
+def test_ten_that_TACH_ROI_khoi_nguon():
+    """Cơ sở có thật nhưng GIÁ vẫn mô phỏng — nhãn nguồn không được nói quá."""
+    k = dat_cho.NhaCungCapMoPhong().tim_khach_san("Hà Nội", NGAY, date(2026, 9, 18), 1)[0]
+    assert k.ten_that is True
+    assert k.nguon == "mo_phong", "giá vẫn là số mô phỏng nên nguồn phải giữ nguyên"
+
+
+def test_thanh_pho_chua_co_du_lieu_thi_lui_ve_ten_mo_phong():
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Cà Mau", NGAY, date(2026, 9, 18), 3)
+    assert all(not k.ten_that for k in ds)
+    assert all(k.vi_do != 0 for k in ds), "vẫn phải có toạ độ thành phố để vẽ bản đồ"
