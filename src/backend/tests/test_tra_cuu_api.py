@@ -16,6 +16,21 @@ from app.services import dat_cho
 c = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _dang_nhap_gia():
+    """Hai endpoint tra cứu TỐN HẠN MỨC nhà cung cấp nên đã yêu cầu đăng nhập.
+
+    Test giả phiên để vẫn kiểm được HÀNH VI của endpoint. Phần "có chặn hay không"
+    được kiểm riêng ở `test_bao_mat_endpoint.py` — trộn hai thứ vào một chỗ thì khi
+    lớp chặn hỏng, cả tệp này đỏ và không ai nhìn ra nguyên nhân thật."""
+    import types
+    from app.core import deps
+    app.dependency_overrides[deps.get_current_session] = \
+        lambda: types.SimpleNamespace(user_id=42, token="qa")
+    yield
+    app.dependency_overrides.clear()
+
+
 def _mo_phong(monkeypatch):
     """Xoá HẾT khoá của MỌI nguồn thật, không riêng Amadeus.
 

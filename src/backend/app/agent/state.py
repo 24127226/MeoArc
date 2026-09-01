@@ -7,7 +7,9 @@ from app.tools.registry import RequestContext  # (tích hợp) thêm tiền tố
 
 class PendingConfirmation(TypedDict, total=False):
     """
-    Populated bởi output_guardrail khi agent gọi request_confirmation.
+    Đặt bởi tool_node khi nó CHẶN một tool không hoàn tác (xem nodes/tool_node.py).
+    (Chú thích cũ nhắc `output_guardrail` — module đó chưa từng được viết, chỉ còn
+    lại một tệp rỗng gây hiểu nhầm là có lớp kiểm đầu ra. Đã xoá tệp đó.)
     Graph đọc field này để pause loop và chờ user response.
     Reset về None sau khi user confirm/deny.
     """

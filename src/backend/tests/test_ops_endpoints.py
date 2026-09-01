@@ -60,9 +60,21 @@ def test_metrics_tra_ve_nhanh_khong_treo():
 
 
 def test_data_size_dem_duoc_so_dong_cac_bang():
-    """Số dòng bảng nằm riêng ở đây vì có chạm database."""
-    with TestClient(app) as c:
-        r = c.get("/admin/data-size")
+    """Số dòng bảng nằm riêng ở đây vì có chạm database.
+
+    PHẢI đăng nhập mới gọi được — endpoint tên "admin", chạm CSDL, và số dòng của các
+    bảng là thông tin vận hành (có bao nhiêu người dùng, bao nhiêu thư). Test giả phiên
+    để vẫn kiểm được phần đếm; phần "có chặn hay không" nằm ở test_bao_mat_endpoint.py.
+    """
+    import types
+    from app.core import deps
+    app.dependency_overrides[deps.get_current_session] = \
+        lambda: types.SimpleNamespace(user_id=42, token="qa")
+    try:
+        with TestClient(app) as c:
+            r = c.get("/admin/data-size")
+    finally:
+        app.dependency_overrides.clear()
     assert r.status_code == 200
     rows = r.json()["table_rows"]
     assert {"sessions", "audit_logs", "notifications"} <= set(rows)

@@ -226,7 +226,8 @@ def metrics():
 
 
 @app.get("/admin/data-size")
-def data_size(db: Session = Depends(get_db)):
+def data_size(db: Session = Depends(get_db),
+              session: AuthSession = Depends(get_current_session)):
     """Số dòng các bảng chỉ-thêm — nhìn được dữ liệu có đang phình không.
 
     Tách khỏi /metrics vì có chạm database: /metrics phải nhẹ để giám sát gọi
@@ -899,7 +900,11 @@ def save_draft(req: SendReq, token: str = Depends(get_gmail_token),
 
 
 @app.post("/emails/compose/suggest")
-def compose_suggest(payload: dict):
+def compose_suggest(payload: dict,
+                    session: AuthSession = Depends(get_current_session)):
+    # PHẢI đăng nhập: endpoint này GỌI LLM. Để mở thì bất kỳ ai cũng đốt được hạn mức
+    # Gemini của nhóm — mà gói free chỉ 20 lượt/ngày mỗi model, tức là một người lạ
+    # gọi vài chục lần là buổi trình bày mất trợ lý.
     """Smart Compose — gợi ý ĐOẠN TIẾP THEO khi soạn thư, dựa trên tiêu đề + phần đang gõ.
     LLM chưa cấu hình / lỗi → trả rỗng (FE tự ẩn gợi ý)."""
     subject = (payload or {}).get("subject", "")
@@ -1773,14 +1778,26 @@ def autopilot_apply(req: AutopilotApplyReq, token: str = Depends(get_gmail_token
 # Đây là endpoint TẠM cho việc học (chưa phải đăng nhập thật). Mục đích:
 # tạo & xem User trong DB, hiểu vòng route → repo → database.
 # `db: Session = Depends(get_db)` → FastAPI tự mở 1 phiên DB, đưa vào, đóng sau.
+def _chi_moi_truong_dev() -> None:
+    """Chặn các endpoint tiện-lợi-khi-dev ở môi trường thật.
+
+    `/dev/users` TẠO và LIỆT KÊ người dùng mà không cần đăng nhập. Trên máy dev thì
+    tiện; trên bản deploy thì bất kỳ ai cũng tạo được tài khoản trong CSDL thật, và
+    GET còn trả về địa chỉ email của MỌI người đã đăng ký — lộ dữ liệu cá nhân.
+    Trả 404 (không phải 403) để không xác nhận là endpoint có tồn tại."""
+    if settings.app_env.strip().lower() in ("production", "prod", "staging"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
+
+
 @app.post("/dev/users", response_model=UserOut)
-def dev_create_user(payload: UserCreate, db: Session = Depends(get_db)):
+def dev_create_user(payload: UserCreate, db: Session = Depends(get_db),
+                    _=Depends(_chi_moi_truong_dev)):
     # get_or_create: có email rồi thì lấy lại, chưa có thì tạo (mẫu khi đăng nhập).
     return user_repo.get_or_create_user(db, payload.email, payload.name, payload.initial)
 
 
 @app.get("/dev/users", response_model=list[UserOut])
-def dev_list_users(db: Session = Depends(get_db)):
+def dev_list_users(db: Session = Depends(get_db), _=Depends(_chi_moi_truong_dev)):
     return user_repo.list_users(db)
 
 

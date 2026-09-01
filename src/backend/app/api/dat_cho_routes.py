@@ -28,11 +28,26 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.deps import get_current_session
+from app.models.session import AuthSession
 from app.services import dat_cho
 
 router = APIRouter(prefix="/tra-cuu", tags=["tra-cuu"])
+
+
+def _phai_dang_nhap(session: AuthSession = Depends(get_current_session)) -> AuthSession:
+    """Hai endpoint TỐN HẠN MỨC NHÀ CUNG CẤP phải yêu cầu đăng nhập.
+
+    Gói AeroDataBox miễn phí tính theo lượt gọi, và MỖI lần tìm chuyến bay tốn 2 lượt.
+    Để mở thì bất kỳ ai biết URL cũng đốt được hạn mức tháng của nhóm — không lấy được
+    gì của người dùng, nhưng làm tính năng CHẾT đúng lúc cần nhất.
+
+    `/trang-thai` và `/san-bay` VẪN MỞ có chủ ý: chúng chỉ trả siêu dữ liệu (đang dùng
+    nguồn nào, danh sách sân bay), không gọi ra ngoài, không chạm dữ liệu ai. Giữ mở để
+    còn kiểm tra được cấu hình bản deploy từ bên ngoài mà không phải đăng nhập."""
+    return session
 
 
 def _doc_ngay(s: str) -> datetime:
@@ -180,6 +195,7 @@ def tim_chuyen_bay(
     # xem _CUA_SO), nên cắt còn 5 chuyến là VỨT ĐI dữ liệu đã trả tiền để lấy — mà
     # người dùng lại cần đủ chuyến thì bộ lọc mới có ý nghĩa.
     so_ket_qua: int = Query(30, ge=1, le=100),
+    _=Depends(_phai_dang_nhap),
 ):
     """TRA CỨU chuyến bay. Không giữ chỗ, không đặt, không thanh toán."""
     ncc = dat_cho.lay_nha_cung_cap()
@@ -211,6 +227,7 @@ def tim_khach_san(
     nhan_phong: str = Query(..., description="dd/mm/yyyy"),
     tra_phong: str = Query(..., description="dd/mm/yyyy"),
     so_ket_qua: int = Query(5, ge=1, le=10),
+    _=Depends(_phai_dang_nhap),
 ):
     """TRA CỨU khách sạn. Không giữ chỗ, không đặt, không thanh toán."""
     ncc = dat_cho.lay_nha_cung_cap()
