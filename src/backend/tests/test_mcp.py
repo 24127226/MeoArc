@@ -130,3 +130,34 @@ def test_mcp_co_3_ky_nang_prompt():
     names = set(prompts.keys() if isinstance(prompts, dict) else [p.name for p in prompts])
     assert {"daily_digest", "triage_inbox", "meeting_brief"} <= names, \
         f"Thiếu kỹ năng prompt cho Claude Desktop: {names}"
+
+
+# ── KÊNH MCP PHẢI PHƠI CẢ PHẦN LÀM NÊN MeoArc ───────────────────────────────
+
+def test_kenh_MCP_co_du_tool_lich_trinh_va_di_lai():
+    """Tiêu chí agent-native: agent NGOÀI phải làm được thứ app làm.
+
+    Chín tool hộp thư thì agent nào nối vào Gmail cũng có. Bốn tool dưới mới là thứ
+    MeoArc có mà Gmail không có — đọc cam kết, đo áp lực, gợi ý đi lại, tra chuyến bay.
+    Mở kênh mà giữ lại phần hay nhất cho riêng mình thì kênh đó chưa hoàn chỉnh."""
+    from app.mcp import server
+    for ten in ("liet_ke_cam_ket", "ap_luc_lich_trinh", "de_xuat_di_lai",
+                "tim_chuyen_bay", "tim_khach_san"):
+        assert hasattr(server, ten), f"kênh MCP thiếu {ten}"
+
+
+def test_tool_KHONG_HOAN_TAC_khong_duoc_phoi_qua_MCP():
+    """`dat_cho_mo_phong` phải đi qua cổng xác nhận + cổng tiền, mà cổng đó gắn với
+    phiên người dùng trên web. Phơi qua stdio là mở đường vòng qua chính lớp bảo vệ."""
+    from app.mcp import server
+    assert not hasattr(server, "dat_cho_mo_phong")
+
+
+def test_MCP_mo_du_BA_nguyen_the_cua_giao_thuc():
+    """Tools + prompts + resources. Chỉ có tool thì mới là "API có mô tả"; đủ ba mới
+    là một máy chủ MCP hoàn chỉnh mà Claude Desktop dùng được ngay."""
+    import inspect
+    from app.mcp import server
+    src = inspect.getsource(server)
+    assert "@mcp.prompt()" in src and "@mcp.resource(" in src
+    assert src.count("@mcp.prompt()") >= 3, "cần đủ bộ kỹ năng 1-click"

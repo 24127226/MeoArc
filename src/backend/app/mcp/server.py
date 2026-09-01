@@ -275,9 +275,74 @@ async def bulk_action(email_ids: list[str], action: str, label_name: str | None 
     return res
 
 
+# ══════════════ LỊCH TRÌNH & ĐI LẠI — phần LÀM NÊN MeoArc ══════════════
+# Chín tool trên là thao tác hộp thư: agent nào nối vào Gmail cũng làm được. Bốn tool
+# dưới mới là thứ MeoArc có mà Gmail không có — đọc CAM KẾT ra khỏi thư, biết ai đang
+# chờ, biết ngày nào quá tải.
+#
+# Trước đây chúng chỉ chạy được TRONG app. Nghĩa là agent ngoài nối vào MeoArc vẫn chỉ
+# đọc được thư — đúng thứ nó tự làm được — còn phần đáng giá nhất thì không với tới.
+# Mở kênh mà giữ lại phần hay nhất cho riêng mình thì kênh đó chưa hoàn chỉnh.
+
+async def liet_ke_cam_ket(limit: int = 30) -> dict:
+    """Trích CAM KẾT từ hộp thư — không phải "sự kiện", mà là việc BẠN đã hứa hoặc
+    người khác đang chờ ở bạn. Mỗi cam kết kèm: nội dung, hạn, người đang chờ, ước
+    lượng thời lượng, độ tin cậy, và id lá thư sinh ra nó.
+    Chỉ nhận khi thư có CẢ động từ cam kết LẪN mốc thời gian — nên thư quảng cáo có
+    ngày tháng ("Sale 9/9") bị bỏ qua. Độ tin cậy dưới 0.6 nghĩa là suy ra, nên HỎI
+    LẠI người dùng thay vì khẳng định."""
+    return await _call("liet_ke_cam_ket", {"limit": limit})
+
+
+async def ap_luc_lich_trinh(so_ngay: int = 7) -> dict:
+    """Ước lượng KHỐI LƯỢNG công việc mỗi ngày trong N ngày tới, tính từ các cam kết.
+    Thời lượng được CHIA ĐỀU cho số ngày việc đó trải qua — một việc 6 tiếng hạn thứ
+    Sáu là việc của cả thứ Tư và thứ Năm, không phải một chấm ở thứ Sáu.
+    Dùng để trả lời "tuần này tôi có quá tải không", "nên bắt đầu việc X ngày nào"."""
+    return await _call("ap_luc_lich_trinh", {"so_ngay": so_ngay})
+
+
+async def de_xuat_di_lai(limit: int = 30) -> dict:
+    """Tìm các cam kết CẦN ĐI LẠI (họp/sự kiện ở thành phố khác) và gợi ý chặng + ngày.
+    Chỉ ĐỀ XUẤT — không tra vé, không đặt. Có chặng rồi thì gọi tim_chuyen_bay."""
+    return await _call("de_xuat_di_lai", {"limit": limit})
+
+
+async def tim_chuyen_bay(tu: str, den: str, ngay: str, so_ket_qua: int = 5) -> dict:
+    """TRA CỨU chuyến bay. `tu`/`den` nhận TÊN THÀNH PHỐ ("Hà Nội", "Đà Nẵng") hoặc mã
+    IATA; `ngay` dạng dd/mm/yyyy.
+    Mỗi kết quả mang `nguon` + `la_that`: nguồn thật cho hãng/số hiệu/giờ/máy bay/nhà
+    ga THẬT nhưng KHÔNG có giá (`co_gia`=false, `gia_vnd`=0) — đừng trình bày số 0 đó
+    như một mức giá. `nguon`="mo_phong" nghĩa là SỐ BỊA, phải nói rõ cho người dùng.
+    CHỈ TRA CỨU — không giữ chỗ, không đặt, không thanh toán."""
+    return await _call("tim_chuyen_bay",
+                       {"tu": tu, "den": den, "ngay": ngay, "so_ket_qua": so_ket_qua})
+
+
+async def tim_khach_san(thanh_pho: str, nhan_phong: str, tra_phong: str,
+                        so_ket_qua: int = 5) -> dict:
+    """TRA CỨU chỗ ở. Ngày dạng dd/mm/yyyy. Kết quả sắp SAO CAO TRƯỚC.
+    `ten_that`=true nghĩa là tên/hạng sao/vị trí là của cơ sở CÓ THẬT, nhưng GIÁ vẫn
+    là số mô phỏng — nói đúng phần nào thật, đừng gộp thành "dữ liệu thật".
+    CHỈ TRA CỨU — không giữ chỗ, không đặt, không thanh toán."""
+    return await _call("tim_khach_san",
+                       {"thanh_pho": thanh_pho, "nhan_phong": nhan_phong,
+                        "tra_phong": tra_phong, "so_ket_qua": so_ket_qua})
+
+
 # Đăng ký tool với MCP — giữ hàm gốc ở module-level để test gọi thẳng được.
+#
+# `tu_choi_ngoai_pham_vi` CỐ Ý KHÔNG mở ra đây: nó dạy agent TRONG app biết ranh giới
+# năng lực của chính app. Agent ngoài đã có ranh giới riêng của nó, và một tool "hãy
+# từ chối" trong danh sách chỉ làm nó bối rối.
+#
+# `dat_cho_mo_phong` cũng KHÔNG mở: đó là tool KHÔNG HOÀN TÁC, phải đi qua cổng xác
+# nhận + cổng tiền. Cổng đó gắn với phiên người dùng trên web; phơi qua stdio là mở
+# đường vòng qua chính lớp bảo vệ đó. Đặt chỗ vẫn phải bấm duyệt trên web.
 for _fn in (search_emails, semantic_search, categorize_emails, get_email, list_labels,
-            send_email, reply_email, apply_labels, bulk_action):
+            send_email, reply_email, apply_labels, bulk_action,
+            liet_ke_cam_ket, ap_luc_lich_trinh, de_xuat_di_lai,
+            tim_chuyen_bay, tim_khach_san):
     mcp.tool()(_fn)
 
 
