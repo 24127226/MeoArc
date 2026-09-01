@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2, ExternalLink, MapPin } from 'lucide-react'
+import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2, ExternalLink } from 'lucide-react'
 import { duongDanApi, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -571,8 +571,6 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
 
 export function DongPhong({ k }: { k: Record<string, unknown> }) {
   const tong = Number(k.tong_vnd ?? 0)
-  const banDo = typeof k.ban_do_nhung === 'string' ? k.ban_do_nhung : null
-  const [moBanDo, setMoBanDo] = useState(false)
 
   return (
     <div className="w-full">
@@ -606,49 +604,24 @@ export function DongPhong({ k }: { k: Record<string, unknown> }) {
           <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
             {tong.toLocaleString('vi-VN')} ₫
           </span>
-          <span className="mt-0.5 flex items-center justify-end gap-2">
-            {/* MỞ BẢN ĐỒ NGAY TẠI CHỖ. Đường dẫn ra Google Maps vẫn giữ cho ai cần chỉ
-                đường, nhưng bấm nó là RỜI KHỎI trang — người dùng đang so mấy khách sạn
-                với nhau thì mở tab mới cho từng cái là mất mạch so sánh. */}
-            {banDo && (
-              <button
-                onClick={() => setMoBanDo((v) => !v)}
-                className="flex items-center gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
-              >
-                {moBanDo ? 'Ẩn bản đồ' : 'Bản đồ'} <MapPin className="size-2.5" />
-              </button>
-            )}
-            {typeof k.lien_ket === 'string' && (
-              <a
-                href={k.lien_ket}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="flex items-center gap-1 text-[10.5px] text-muted-foreground hover:text-foreground hover:underline"
-              >
-                Chỉ đường <ExternalLink className="size-2.5" />
-              </a>
-            )}
-          </span>
+          {/* MỘT đường dẫn duy nhất. Trước đây có thêm nút bung bản đồ ngay trong thẻ,
+              nhưng nó chiếm gần 200px chiều cao cho mỗi khách sạn — so năm chỗ với nhau
+              thì phải cuộn nhiều hơn hẳn, mà thứ cần so (sao, giá, khoảng cách) lại bị
+              đẩy ra khỏi màn hình. Bấm "Chi tiết" mở Google kèm ĐÚNG ngày nhận/trả
+              phòng: có bản đồ, có ảnh, có giá thật — nhiều hơn hẳn một khung nhúng. */}
+          {typeof k.lien_ket === 'string' && (
+            <a
+              href={k.lien_ket}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
+            >
+              Chi tiết <ExternalLink className="size-2.5" />
+            </a>
+          )}
         </span>
       </div>
 
-      {/* `loading="lazy"`: một danh sách 5 khách sạn mà mở sẵn 5 bản đồ thì tải nặng
-          và chậm hẳn. Chỉ tải khi thật sự bung ra. */}
-      {moBanDo && banDo && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-border/40">
-          <iframe
-            src={banDo}
-            title={`Bản đồ ${String(k.ten)}`}
-            loading="lazy"
-            className="h-[190px] w-full border-0"
-          />
-          <p className="bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
-            {k.ten_that === true
-              ? 'Cơ sở có thật — tên, hạng sao và vị trí kiểm chứng được. Giá phòng là số mô phỏng.'
-              : 'Vị trí là toạ độ thật của khu vực; tên khách sạn là dữ liệu mô phỏng.'}
-          </p>
-        </div>
-      )}
     </div>
   )
 }

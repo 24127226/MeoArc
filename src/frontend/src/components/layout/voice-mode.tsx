@@ -84,10 +84,43 @@ export function VoiceMode({
         }
         setTranscript(`${finalRef.current} ${interim}`.trim())
       }
+      // ── BẮT ĐỦ MÃ LỖI ──
+      // Bản trước chỉ xử lý hai mã, còn lại NUỐT IM LẶNG. Triệu chứng người dùng gặp:
+      // con mèo vẫn nhún nhảy theo giọng (đó là Web Audio, một đường hoàn toàn khác)
+      // nhưng KHÔNG có chữ nào hiện ra và cũng KHÔNG có báo lỗi — nhìn y như tính năng
+      // hỏng mà không ai biết hỏng ở đâu.
+      // `no-speech` và `aborted` cố ý KHÔNG báo lỗi: chúng là chuyện thường (im lặng
+      // vài giây, hoặc đóng khung) và hiện lỗi đỏ cho chúng chỉ làm người dùng hoảng.
       rec.onerror = (e: any) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed')
-          setError('Micro bị từ chối — hãy cấp quyền micro cho trang.')
+        const ma = e?.error
+        if (ma === 'no-speech' || ma === 'aborted') return
+        setError(
+          ma === 'not-allowed' || ma === 'service-not-allowed'
+            ? 'Micro bị từ chối — hãy cấp quyền micro cho trang.'
+            : ma === 'audio-capture'
+              ? 'Không tìm thấy micro. Kiểm tra thiết bị thu âm rồi thử lại.'
+              : ma === 'network'
+                ? 'Nhận diện giọng nói cần mạng — kiểm tra kết nối rồi thử lại.'
+                : ma === 'language-not-supported'
+                  ? 'Trình duyệt chưa hỗ trợ nhận diện tiếng Việt. Hãy dùng Chrome mới nhất.'
+                  : `Nhận diện giọng nói dừng lại (${ma ?? 'không rõ lý do'}). Bạn thử lại nhé.`,
+        )
       }
+
+      // ── TỰ KHỞI ĐỘNG LẠI ──
+      // `continuous = true` KHÔNG đảm bảo chạy liên tục: Chrome vẫn tự kết thúc phiên
+      // sau một quãng im lặng, và khi đó nhận diện CHẾT HẲN mà không báo gì. Người
+      // dùng nói tiếp thì mèo vẫn nhúc nhích (Web Audio còn sống) nhưng không còn chữ
+      // nào tới nữa — đúng cái bẫy làm tính năng này trông như chạy dở.
+      rec.onend = () => {
+        if (cancelled || !recRef.current) return
+        try {
+          rec.start()
+        } catch {
+          /* đang chạy rồi, hoặc đã bị đóng — không sao */
+        }
+      }
+
       try {
         rec.start()
       } catch {
@@ -114,6 +147,18 @@ export function VoiceMode({
       }
     }
   }, [open])
+
+  /** IM LẶNG KHÔNG PHẢI LÀ THÔNG TIN.
+   *
+   *  Khi nhận diện chết mà không báo lỗi, màn hình đứng nguyên ở "Hãy nói yêu cầu của
+   *  bạn" — người dùng không biết là mình nói chưa đủ to, hay tính năng hỏng. Sau 8
+   *  giây không nghe được gì thì nói thẳng ra, kèm việc họ có thể làm. */
+  const [imLang, setImLang] = useState(false)
+  useEffect(() => {
+    if (!open || transcript) { setImLang(false); return }
+    const t = window.setTimeout(() => setImLang(true), 8000)
+    return () => clearTimeout(t)
+  }, [open, transcript])
 
   if (!open) return null
 
@@ -198,6 +243,12 @@ export function VoiceMode({
                 <span className="text-muted-foreground">vd: “tóm tắt thư chưa đọc”</span>
               )}
             </p>
+            {!transcript && imLang && (
+              <p className="mt-3 max-w-xs text-[12px] leading-relaxed text-muted-foreground">
+                Chưa nghe được gì. Thử nói to hơn, kiểm tra micro trong cài đặt trình
+                duyệt, hoặc bấm “Quay lại gõ phím”.
+              </p>
+            )}
           </div>
 
           {/* Hành động */}
