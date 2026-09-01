@@ -315,6 +315,117 @@ _THU_KICH_BAN: list[tuple[str, str, str]] = [
     #    Bộ trích phải bỏ qua. Đây là nửa còn lại của luật "cần CẢ hai".
     ("Nguyễn Hoàng Anh", "Nhớ gửi mình file nhé",
      "Khi nào rảnh bạn gửi mình file thiết kế nha, không gấp đâu."),
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PHỦ ĐỦ 7 NHÓM NHÃN + các dạng thư mà bộ cũ không có
+    #
+    # Nut "Phan loai tu dong" chi doi 7 nhom. Bo cu gan nhu toan Hoc tap/Cong viec,
+    # nen bam vao thi widget hien 2 nhom va nhin nhu no chi biet co 2 — khong phan
+    # biet duoc "engine chi co 2 nhom" voi "hop thu chi co 2 loai thu".
+    # Tuong tu, Digest/Triage/Meeting Brief can DU DANG do uu tien va DU luong thu
+    # moi cho ra thu dang xem.
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # ── TÀI CHÍNH ──
+    ("Vietcombank", "Biến động số dư tài khoản",
+     "Tài khoản 0071xxxx1234 vừa ghi nợ 2.450.000 VND lúc 14:32 ngày hôm nay.\n\n"
+     "Nội dung: THANH TOAN HOC PHI HK1. Số dư khả dụng: 3.120.000 VND."),
+    ("Viettel", "Hoá đơn cước tháng 8/2026",
+     "Cước dịch vụ tháng 8 của thuê bao 09xxxxxx89 là 187.000đ.\n\n"
+     "Hạn thanh toán: ngày 10/9. Quá hạn dịch vụ sẽ tạm ngưng một chiều."),
+    ("EVN HCMC", "Thông báo tiền điện kỳ 8/2026",
+     "Chỉ số cũ 4521, chỉ số mới 4698, tiêu thụ 177 kWh.\n\n"
+     "Số tiền: 486.300đ. Vui lòng thanh toán trước ngày 12/9."),
+
+    # ── MẠNG XÃ HỘI ──
+    ("Facebook", "Bạn có 12 thông báo mới",
+     "Nguyễn Hoàng Anh và 5 người khác đã bình luận về bài viết của bạn."),
+    ("LinkedIn", "5 việc làm mới phù hợp với bạn",
+     "Fresher Backend Developer tại FPT Software và 4 vị trí khác đang tuyển."),
+    ("YouTube", "Kênh bạn theo dõi vừa đăng video mới",
+     "Kênh 'Học lập trình' vừa đăng: 'Xây dựng AI Agent với LangGraph'."),
+
+    # ── CÔNG VIỆC / TUYỂN DỤNG ──
+    ("FPT Software", "Thư mời phỏng vấn vị trí Fresher Backend",
+     "Chào bạn,\n\n"
+     "Chúng tôi mời bạn tham dự phỏng vấn vòng 1 vào 14h00 ngày 11/9 tại toà nhà "
+     "FPT, Quận 9.\n\n"
+     "Bạn xác nhận tham dự trước ngày 9/9 để chúng tôi sắp lịch. Vui lòng mang theo "
+     "CV bản in và giấy tờ tuỳ thân."),
+    ("VNG Corporation", "Kết quả vòng test online",
+     "Bạn đã vượt qua vòng test online cho vị trí Backend Intern.\n\n"
+     "Vui lòng hoàn tất bài tập về nhà và nộp trước 23:59 ngày 14/9."),
+
+    # ── TIẾNG ANH — thử luật "tìm cả từ khoá tiếng Anh tương đương" ──
+    ("GitHub", "[Security] New sign-in to your account",
+     "We noticed a new sign-in to your GitHub account from a device in Ho Chi Minh City.\n\n"
+     "If this was you, no action is needed. If not, secure your account immediately."),
+    ("Google Cloud", "Your free trial ends in 7 days",
+     "Your Google Cloud free trial will expire on September 13, 2026.\n\n"
+     "Upgrade to a paid account to keep your resources running."),
+    ("Coursera", "Assignment deadline reminder",
+     "Your assignment for 'Machine Learning Specialization' is due on September 15, 2026.\n\n"
+     "Submit before the deadline to receive full credit."),
+    ("Overleaf", "Your collaborator left a comment",
+     "Tran Minh Khoa commented on your document 'MeoArc-SRS.tex'.\n\n"
+     "Please review and reply when you get a chance."),
+
+    # ── LUỒNG THƯ 3 TIN — cho Meeting Brief có thứ để tóm ──
+    ("GVHD Nguyễn Văn Sơn", "Họp review tiến độ nhóm 7 — thứ Năm 10/9",
+     "Chào các em,\n\n"
+     "Thầy hẹn nhóm 7 họp review tiến độ lúc 15h00 thứ Năm 10/9 tại phòng I.42.\n\n"
+     "Các em chuẩn bị: bản demo chạy được, danh sách use case đã hoàn thành, và "
+     "phần nào còn dang dở. Thầy sẽ hỏi từng người về phần mình phụ trách."),
+    ("Nguyễn Hoàng Anh", "Re: Họp review tiến độ nhóm 7 — thứ Năm 10/9",
+     "Dạ em xác nhận có mặt.\n\n"
+     "Em phụ trách phần tài liệu SRS, hiện đã xong chương 1-3, còn chương 4 em nộp "
+     "trước buổi họp."),
+    ("Trần Minh Khoa", "Re: Họp review tiến độ nhóm 7 — thứ Năm 10/9",
+     "Thầy ơi em xin phép vào trễ 15 phút vì trùng lịch thi.\n\n"
+     "Phần MCP server em đã chạy được, em sẽ demo ngay khi tới."),
+
+    # ── ƯU TIÊN THẤP — Triage cần có nhóm "chỉ để biết" mới phân biệt được ──
+    ("Thư viện HCMUS", "Sách bạn mượn sắp đến hạn trả",
+     "Cuốn 'Software Engineering (Sommerville, 9th ed.)' đến hạn trả ngày 20/9."),
+    ("Moodle HCMUS", "Giảng viên vừa đăng tài liệu mới",
+     "Môn Nhập môn Công nghệ Phần mềm vừa có tài liệu mới: 'Slide chương 8 - Testing'."),
+    ("HCMUS Newsletter", "Bản tin tháng 9 — hoạt động sinh viên",
+     "Điểm tin tháng này: hội thao khoa, cuộc thi lập trình, và lịch nghỉ lễ 2/9."),
+    ("Spotify", "Playlist mới dành cho bạn",
+     "Discover Weekly của bạn vừa được cập nhật với 30 bài hát mới."),
+
+    # ── DẠNG KHÓ: nhiều mốc thời gian trong MỘT thư ──
+    ("Phòng Đào tạo HCMUS", "Lịch thi giữa kỳ học kỳ 1",
+     "Thông báo lịch thi giữa kỳ:\n\n"
+     "- Nhập môn CNPM: 8h00 ngày 22/9, phòng F.201\n"
+     "- Cơ sở dữ liệu: 13h30 ngày 24/9, phòng F.203\n"
+     "- Mạng máy tính: 8h00 ngày 26/9, phòng E.101\n\n"
+     "Sinh viên có mặt trước 15 phút, mang theo thẻ sinh viên."),
+
+    # ── DẠNG KHÓ: hạn phụ thuộc điều kiện, KHÔNG phải mốc cố định ──
+    ("GVHD Nguyễn Văn Sơn", "Về phần đề cương của nhóm em",
+     "Em chỉnh lại phần phạm vi rồi nộp sau khi thầy duyệt đề cương nhé.\n\n"
+     "Thầy sẽ xem trong tuần này."),
+
+    # ── DẠNG KHÓ: thư dài, nhiều việc cho nhiều người ──
+    ("Ban tổ chức Hackathon", "Hướng dẫn chuẩn bị vòng chung kết",
+     "Gửi các đội,\n\n"
+     "Để vòng chung kết ngày 12/9 diễn ra suôn sẻ, các đội hoàn tất những việc sau:\n\n"
+     "1. Gửi slide trình bày (tối đa 10 trang) trước 23:59 ngày 10/9.\n"
+     "2. Nộp mã nguồn lên repo chung trước 12h00 ngày 11/9.\n"
+     "3. Cử một đại diện tham dự buổi kỹ thuật lúc 16h00 ngày 11/9.\n"
+     "4. Chuẩn bị bản demo chạy offline phòng khi mạng hội trường yếu.\n\n"
+     "Đội nào không nộp đúng hạn mục 1 và 2 sẽ bị trừ điểm trình bày."),
+
+    # ── SPAM-LIKE nhưng KHÔNG phải spam: dễ bị phân loại nhầm ──
+    ("Học bổng VEF", "Thông báo học bổng toàn phần 2027",
+     "Chương trình học bổng toàn phần bậc thạc sĩ tại Hoa Kỳ đang nhận hồ sơ.\n\n"
+     "Hạn nộp: 30/9. Yêu cầu GPA từ 3.2 và IELTS 6.5 trở lên."),
+
+    # ── THƯ CÓ NGƯỜI KHÁC ĐANG CHỜ MÌNH, hạn gấp trong ngày ──
+    ("Phạm Thu Trang", "Gấp: mình cần link repo trước 5h chiều nay",
+     "Bạn ơi mình đang làm slide, cần link repo và ảnh chụp màn hình phần lịch trình.\n\n"
+     "Bạn gửi giúp mình trước 17h hôm nay nhé, tối mình phải gửi cho thầy rồi."),
 ]
 
 

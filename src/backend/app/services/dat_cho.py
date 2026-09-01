@@ -280,8 +280,22 @@ def lien_ket_ban_do_nhung(vi_do: float, kinh_do: float) -> str:
             f"?bbox={bbox}&layer=mapnik&marker={vi_do},{kinh_do}")
 
 
-def lien_ket_ban_do(ten: str, thanh_pho: str) -> str:
-    """Mở khách sạn trên Google Maps. Dùng dạng `search` — không cần khoá API."""
+def lien_ket_ban_do(ten: str, thanh_pho: str,
+                    nhan: date | None = None, tra: date | None = None) -> str:
+    """Mở khách sạn trên Google, MANG THEO ngày nhận/trả phòng người dùng vừa nhập.
+
+    ── VÌ SAO ĐEM NGÀY THEO ──
+    Bản trước mở Google Maps trống ngày, nên người dùng sang tới nơi vẫn phải gõ lại
+    đúng hai cái ngày họ vừa gõ ở đây. Mỗi lần bắt gõ lại một thứ vừa gõ là một lần
+    công cụ tự nhận mình chỉ là cái nút mở tab mới.
+    Có ngày thì Google Hotels mở ra ĐÚNG khoảng lưu trú đó, kèm giá THẬT của khoảng
+    đó — tức là chỗ này vá luôn phần MeoArc không có: giá phòng thật.
+
+    Thiếu ngày (gọi từ chỗ khác) thì lùi về Maps như cũ, không vỡ."""
+    if nhan and tra:
+        return ("https://www.google.com/travel/search?q="
+                + quote_plus(f"{ten} {thanh_pho}")
+                + f"&checkin={nhan.isoformat()}&checkout={tra.isoformat()}")
     return "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{ten} {thanh_pho}")
 
 
@@ -371,7 +385,11 @@ class KhachSan:
             "tong_vnd": self.gia_moi_dem_vnd * so_dem,
             "so_sao": self.so_sao, "cach_trung_tam_km": self.cach_trung_tam_km,
             "huy_mien_phi": self.huy_mien_phi, "nguon": self.nguon,
-            "lien_ket": lien_ket_ban_do(self.ten, self.thanh_pho),
+            # Mang theo ĐÚNG hai ngày người dùng vừa nhập — xem chú thích ở
+            # `lien_ket_ban_do`. Google Hotels mở ra đúng khoảng đó kèm GIÁ THẬT,
+            # tức là vá luôn phần MeoArc không có.
+            "lien_ket": lien_ket_ban_do(self.ten, self.thanh_pho,
+                                        self.nhan_phong, self.tra_phong),
         }
 
 

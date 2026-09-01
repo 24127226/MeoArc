@@ -53,6 +53,7 @@ import { useSubscription, isOutOfTokens } from '@/lib/subscription'
 import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
 import { PricingScreen } from '@/components/layout/pricing-screen'
 import { normalize } from '@/lib/search'
+import { VanBanDep } from '@/lib/van-ban'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
 import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
@@ -284,12 +285,21 @@ function ScrambleText({ text }: { text: string }) {
 }
 
 function AgentText({ children }: { children: React.ReactNode }) {
+  // Mô hình VỐN ĐÃ viết Markdown (**đậm**, - gạch đầu dòng, ### tiêu đề) — đó là thói
+  // quen mặc định của mọi LLM. Bản trước chỉ `whitespace-pre-line` nên giữ được dấu
+  // xuống dòng mà VỨT BỎ phần cấu trúc: dấu sao và dấu thăng hiện nguyên ra màn hình.
+  // Đọc lại cấu trúc đó KHÔNG tốn thêm token nào — cùng một câu trả lời, cùng một chi
+  // phí, chỉ khác ở chỗ nó được vẽ đúng hình dạng mô hình đã định. Xem lib/van-ban.tsx.
+  const chu = typeof children === 'string' ? children : null
+  // Câu ngắn một dòng thì hiệu ứng "giải mã" ăn tiền hơn; câu dài có cấu trúc thì bố
+  // cục ăn tiền hơn. Ngưỡng thô nhưng phân biệt đúng hai loại đó.
+  const coCauTruc = !!chu && (chu.includes('\n') || /\*\*|^#{1,4}\s|\[[^\]]+\]\(/m.test(chu))
+
   return (
-    // whitespace-pre-line: GIỮ xuống dòng + gạch đầu dòng của AI → câu trả lời có bố cục,
-    // không bị dồn thành một đoạn dài (trông chỉn chu hơn hẳn).
-    <div className="max-w-[88%] whitespace-pre-line break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light rose-glass">
-      {/* Chỉ "giải mã" khi nội dung là chuỗi (text/intro của AI) */}
-      {typeof children === 'string' ? <ScrambleText text={children} /> : children}
+    <div className="max-w-[88%] break-words rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-soft edge-light rose-glass">
+      {chu === null ? children
+        : coCauTruc ? <VanBanDep text={chu} />
+        : <ScrambleText text={chu} />}
     </div>
   )
 }
