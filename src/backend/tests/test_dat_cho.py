@@ -155,3 +155,41 @@ async def test_tinh_dung_so_dem_va_tong_tien():
     k = ra.data[0]
     assert k["so_dem"] == 2
     assert k["tong_vnd"] == k["gia_moi_dem_vnd"] * 2
+
+
+# ── TOẠ ĐỘ THẬT cho khách sạn mô phỏng ──────────────────────────────────────
+
+def test_khach_san_mo_phong_dat_DUNG_thanh_pho():
+    """Tên khách sạn là bịa (nhãn nói rõ), nhưng VỊ TRÍ phải thật.
+    Toạ độ bịa thì bản đồ thành thứ vô nghĩa — tệ hơn không có bản đồ, vì nó trông
+    như thông tin thật."""
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Đà Nẵng", NGAY, date(2026, 9, 18), 5)
+    for k in ds:
+        assert 15.9 < k.vi_do < 16.2, f"{k.ten} không ở Đà Nẵng: {k.vi_do}"
+        assert 108.0 < k.kinh_do < 108.4
+
+
+def test_khong_dau_va_co_dau_ra_cung_mot_cho():
+    a = dat_cho.NhaCungCapMoPhong().tim_khach_san("ha noi", NGAY, date(2026, 9, 18), 3)
+    b = dat_cho.NhaCungCapMoPhong().tim_khach_san("Hà Nội", NGAY, date(2026, 9, 18), 3)
+    assert round(a[0].vi_do) == round(b[0].vi_do) == 21
+
+
+def test_thanh_pho_LA_thi_KHONG_ve_ban_do():
+    """0,0 rơi vào giữa vịnh Guinea. Vẽ ghim ở đó còn tệ hơn không vẽ gì."""
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Xyzzy", NGAY, date(2026, 9, 18), 2)
+    assert ds[0].to_dict()["ban_do_nhung"] is None
+
+
+def test_ban_do_nhung_KHONG_can_khoa_api():
+    """Bản đồ nhúng của Google đòi khoá API và có hạn mức. Thêm một khoá nữa là thêm
+    một thứ có thể quên cấu hình rồi hỏng đúng lúc trình bày."""
+    u = dat_cho.lien_ket_ban_do_nhung(16.0544, 108.2022)
+    assert "openstreetmap.org" in u and "marker=16.0544,108.2022" in u
+    assert "key=" not in u and "api" not in u.lower().split("openstreetmap")[0]
+
+
+def test_moi_khach_san_mot_ghim_khac_nhau():
+    """Năm ghim chồng lên nhau thì bản đồ chỉ hiện một cái."""
+    ds = dat_cho.NhaCungCapMoPhong().tim_khach_san("Nha Trang", NGAY, date(2026, 9, 18), 5)
+    assert len({(k.vi_do, k.kinh_do) for k in ds}) == 5

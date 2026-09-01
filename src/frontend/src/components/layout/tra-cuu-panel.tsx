@@ -545,35 +545,69 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
 
 export function DongPhong({ k }: { k: Record<string, unknown> }) {
   const tong = Number(k.tong_vnd ?? 0)
+  const banDo = typeof k.ban_do_nhung === 'string' ? k.ban_do_nhung : null
+  const [moBanDo, setMoBanDo] = useState(false)
+
   return (
-    <>
-      {/* 0 = Amadeus KHÔNG trả số sao ở endpoint này. Hiện "—" chứ không hiện "0★":
-          "0 sao" là một khẳng định về chất lượng, còn "—" là thú nhận không biết. */}
-      <span className="w-9 shrink-0 text-center font-mono text-[12px] font-semibold text-[var(--spark)]">
-        {Number(k.so_sao) > 0 ? `${k.so_sao}★` : '—'}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-medium">{String(k.ten)}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">
-          {String(k.so_dem)} đêm · cách trung tâm {String(k.cach_trung_tam_km)} km
-          {' · '}{k.huy_mien_phi ? 'huỷ miễn phí' : 'không huỷ được'}
+    <div className="w-full">
+      <div className="flex items-center gap-3">
+        {/* 0 = Amadeus KHÔNG trả số sao ở endpoint này. Hiện "—" chứ không hiện "0★":
+            "0 sao" là một khẳng định về chất lượng, còn "—" là thú nhận không biết. */}
+        <span className="w-9 shrink-0 text-center font-mono text-[12px] font-semibold text-[var(--spark)]">
+          {Number(k.so_sao) > 0 ? `${k.so_sao}★` : '—'}
         </span>
-      </span>
-      <span className="shrink-0 text-right">
-        <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
-          {tong.toLocaleString('vi-VN')} ₫
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-medium">{String(k.ten)}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {String(k.so_dem)} đêm · cách trung tâm {String(k.cach_trung_tam_km)} km
+            {' · '}{k.huy_mien_phi ? 'huỷ miễn phí' : 'không huỷ được'}
+          </span>
         </span>
-        {typeof k.lien_ket === 'string' && (
-          <a
-            href={k.lien_ket}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
-          >
-            Xem trên bản đồ <MapPin className="size-2.5" />
-          </a>
-        )}
-      </span>
-    </>
+        <span className="shrink-0 text-right">
+          <span className="block font-mono text-[12.5px] font-semibold tabular-nums">
+            {tong.toLocaleString('vi-VN')} ₫
+          </span>
+          <span className="mt-0.5 flex items-center justify-end gap-2">
+            {/* MỞ BẢN ĐỒ NGAY TẠI CHỖ. Đường dẫn ra Google Maps vẫn giữ cho ai cần chỉ
+                đường, nhưng bấm nó là RỜI KHỎI trang — người dùng đang so mấy khách sạn
+                với nhau thì mở tab mới cho từng cái là mất mạch so sánh. */}
+            {banDo && (
+              <button
+                onClick={() => setMoBanDo((v) => !v)}
+                className="flex items-center gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
+              >
+                {moBanDo ? 'Ẩn bản đồ' : 'Bản đồ'} <MapPin className="size-2.5" />
+              </button>
+            )}
+            {typeof k.lien_ket === 'string' && (
+              <a
+                href={k.lien_ket}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="flex items-center gap-1 text-[10.5px] text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Chỉ đường <ExternalLink className="size-2.5" />
+              </a>
+            )}
+          </span>
+        </span>
+      </div>
+
+      {/* `loading="lazy"`: một danh sách 5 khách sạn mà mở sẵn 5 bản đồ thì tải nặng
+          và chậm hẳn. Chỉ tải khi thật sự bung ra. */}
+      {moBanDo && banDo && (
+        <div className="mt-2 overflow-hidden rounded-lg border border-border/40">
+          <iframe
+            src={banDo}
+            title={`Bản đồ ${String(k.ten)}`}
+            loading="lazy"
+            className="h-[190px] w-full border-0"
+          />
+          <p className="bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
+            Vị trí là toạ độ THẬT của khu vực; tên khách sạn là dữ liệu mô phỏng.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

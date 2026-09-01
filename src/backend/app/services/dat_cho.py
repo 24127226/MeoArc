@@ -199,6 +199,87 @@ def lien_ket_chi_tiet_chuyen_bay(so_hieu: str, ngay: date) -> str:
     )
 
 
+# ── TOẠ ĐỘ TRUNG TÂM CÁC TỈNH/THÀNH ──────────────────────────────────────────
+# Dùng để (a) sinh khách sạn mô phỏng ở ĐÚNG thành phố người dùng hỏi, và (b) nhúng
+# bản đồ chỉ thẳng vào vị trí thay vì chỉ đưa một đường dẫn Google Maps.
+#
+# Toạ độ là THẬT (trung tâm hành chính). Tên khách sạn thì mô phỏng — và giao diện
+# dán nhãn rõ. Ranh giới ở đây quan trọng: một khách sạn bịa đặt ở đúng toạ độ thành
+# phố thì bản đồ vẫn nói thật về VỊ TRÍ, chỉ cái tên là không có thật.
+TOA_DO_TP: dict[str, tuple[float, float, str]] = {
+    "tp hcm": (10.7769, 106.7009, "TP Hồ Chí Minh"),
+    "ha noi": (21.0278, 105.8342, "Hà Nội"),
+    "da nang": (16.0544, 108.2022, "Đà Nẵng"),
+    "hai phong": (20.8449, 106.6881, "Hải Phòng"),
+    "can tho": (10.0452, 105.7469, "Cần Thơ"),
+    "hue": (16.4637, 107.5909, "Huế"),
+    "nha trang": (12.2388, 109.1967, "Nha Trang"),
+    "da lat": (11.9404, 108.4583, "Đà Lạt"),
+    "phu quoc": (10.2270, 103.9670, "Phú Quốc"),
+    "vung tau": (10.3460, 107.0843, "Vũng Tàu"),
+    "ha long": (20.9101, 107.1839, "Hạ Long"),
+    "quy nhon": (13.7829, 109.2196, "Quy Nhơn"),
+    "hoi an": (15.8801, 108.3380, "Hội An"),
+    "sapa": (22.3364, 103.8438, "Sa Pa"),
+    "phan thiet": (10.9280, 108.1020, "Phan Thiết"),
+    "buon ma thuot": (12.6667, 108.0500, "Buôn Ma Thuột"),
+    "pleiku": (13.9833, 108.0000, "Pleiku"),
+    "vinh": (18.6790, 105.6813, "Vinh"),
+    "thanh hoa": (19.8067, 105.7852, "Thanh Hoá"),
+    "nam dinh": (20.4388, 106.1621, "Nam Định"),
+    "thai nguyen": (21.5942, 105.8482, "Thái Nguyên"),
+    "bac ninh": (21.1861, 106.0763, "Bắc Ninh"),
+    "hai duong": (20.9373, 106.3145, "Hải Dương"),
+    "ninh binh": (20.2506, 105.9745, "Ninh Bình"),
+    "quang binh": (17.4689, 106.6223, "Đồng Hới"),
+    "quang tri": (16.7500, 107.2000, "Quảng Trị"),
+    "quang ngai": (15.1214, 108.8044, "Quảng Ngãi"),
+    "tuy hoa": (13.0955, 109.3200, "Tuy Hoà"),
+    "phan rang": (11.5642, 108.9887, "Phan Rang"),
+    "bien hoa": (10.9447, 106.8243, "Biên Hoà"),
+    "thu dau mot": (10.9804, 106.6519, "Thủ Dầu Một"),
+    "my tho": (10.3600, 106.3600, "Mỹ Tho"),
+    "long xuyen": (10.3860, 105.4350, "Long Xuyên"),
+    "rach gia": (10.0125, 105.0808, "Rạch Giá"),
+    "ca mau": (9.1769, 105.1524, "Cà Mau"),
+    "soc trang": (9.6025, 105.9739, "Sóc Trăng"),
+    "ben tre": (10.2415, 106.3759, "Bến Tre"),
+    "tay ninh": (11.3100, 106.0983, "Tây Ninh"),
+    "lang son": (21.8537, 106.7615, "Lạng Sơn"),
+    "dien bien": (21.3860, 103.0230, "Điện Biên Phủ"),
+    "ha giang": (22.8233, 104.9784, "Hà Giang"),
+    "con dao": (8.6833, 106.6000, "Côn Đảo"),
+    "cat ba": (20.7280, 107.0480, "Cát Bà"),
+    "mui ne": (10.9330, 108.2870, "Mũi Né"),
+}
+
+
+def tra_toa_do(thanh_pho: str) -> tuple[float, float, str] | None:
+    """Tên thành phố (có dấu hay không) → (vĩ độ, kinh độ, tên chuẩn)."""
+    goi = _bo_dau(thanh_pho)
+    if goi in TOA_DO_TP:
+        return TOA_DO_TP[goi]
+    # Khớp một phần: "khách sạn ở Đà Nẵng" → da nang. Chọn tên DÀI NHẤT khớp được để
+    # "hue" không giành mất của một tên dài hơn có chứa nó.
+    ung = [(k, v) for k, v in TOA_DO_TP.items() if k in goi]
+    return max(ung, key=lambda x: len(x[0]))[1] if ung else None
+
+
+def lien_ket_ban_do_nhung(vi_do: float, kinh_do: float) -> str:
+    """Bản đồ NHÚNG THẲNG vào trang, có ghim vị trí — không cần khoá API.
+
+    ── VÌ SAO OPENSTREETMAP CHỨ KHÔNG PHẢI GOOGLE MAPS ──
+    Bản đồ nhúng của Google đòi khoá API và có hạn mức tính tiền. Thêm một khoá nữa
+    vào .env là thêm một thứ có thể quên cấu hình rồi hỏng đúng lúc trình bày — mà
+    nhóm đã vấp đúng chuyện đó với Gemini và Amadeus. OSM nhúng được không cần khoá,
+    không hạn mức, nên nó luôn chạy.
+    Nút "mở Google Maps" vẫn giữ cho ai muốn chỉ đường."""
+    d = 0.008   # khung ~1.5km quanh điểm: đủ thấy phố xá, chưa mất bối cảnh khu vực
+    bbox = f"{kinh_do - d},{vi_do - d},{kinh_do + d},{vi_do + d}"
+    return ("https://www.openstreetmap.org/export/embed.html"
+            f"?bbox={bbox}&layer=mapnik&marker={vi_do},{kinh_do}")
+
+
 def lien_ket_ban_do(ten: str, thanh_pho: str) -> str:
     """Mở khách sạn trên Google Maps. Dùng dạng `search` — không cần khoá API."""
     return "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{ten} {thanh_pho}")
@@ -265,10 +346,18 @@ class KhachSan:
     cach_trung_tam_km: float
     huy_mien_phi: bool
     nguon: str
+    # Toạ độ THẬT của khu vực. 0,0 = không biết → giao diện không vẽ bản đồ, chứ
+    # không vẽ một cái ghim ngoài khơi vịnh Guinea (đúng chỗ toạ độ 0,0 rơi vào).
+    vi_do: float = 0.0
+    kinh_do: float = 0.0
 
     def to_dict(self) -> dict:
         so_dem = max(1, (self.tra_phong - self.nhan_phong).days)
+        co_toa_do = bool(self.vi_do or self.kinh_do)
         return {
+            "vi_do": self.vi_do, "kinh_do": self.kinh_do,
+            "ban_do_nhung": (lien_ket_ban_do_nhung(self.vi_do, self.kinh_do)
+                             if co_toa_do else None),
             "ma": self.ma, "ten": self.ten, "thanh_pho": self.thanh_pho,
             "nhan_phong": self.nhan_phong.strftime("%d/%m/%Y"),
             "tra_phong": self.tra_phong.strftime("%d/%m/%Y"),
@@ -334,18 +423,36 @@ class NhaCungCapMoPhong:
 
     def tim_khach_san(self, thanh_pho: str, nhan: date, tra: date,
                       so_ket_qua: int = 3) -> list[KhachSan]:
+        """Sinh khách sạn mô phỏng NHƯNG ĐẶT ĐÚNG THÀNH PHỐ người dùng hỏi.
+
+        ── VÌ SAO GẮN TOẠ ĐỘ THẬT VÀO DỮ LIỆU BỊA ──
+        Tên khách sạn là bịa, và nhãn nói rõ vậy. Nhưng VỊ TRÍ thì lấy toạ độ thật của
+        thành phố, nên bản đồ nhúng chỉ đúng khu vực. Nếu để toạ độ bịa luôn thì bản
+        đồ thành thứ vô nghĩa — tệ hơn không có bản đồ, vì nó trông như thông tin thật.
+
+        Rải quanh trung tâm bằng chính hàm băm đã dùng cho giá: các ghim không chồng
+        lên nhau, mà vẫn TẤT ĐỊNH — cùng câu hỏi luôn ra cùng bản đồ, nên demo lặp
+        lại được và không ai nhầm "vị trí đổi" với "mã hỏng"."""
+        toa_do = tra_toa_do(thanh_pho)
+        lat, lon, ten_chuan = toa_do if toa_do else (0.0, 0.0, thanh_pho)
+
         ra: list[KhachSan] = []
         for i in range(so_ket_qua):
             hat = f"{thanh_pho}{nhan.isoformat()}{tra.isoformat()}{i}"
+            # Lệch tối đa ~1.2km quanh trung tâm (0.011 độ ≈ 1.2km).
+            dx = (self._so(hat + "x", 0, 220) - 110) / 10000
+            dy = (self._so(hat + "y", 0, 220) - 110) / 10000
             ra.append(KhachSan(
                 ma=f"KS{self._so(hat + 'k', 1000, 9999)}",
-                ten=f"{_TEN_KHACH_SAN[i % len(_TEN_KHACH_SAN)]} {thanh_pho}",
-                thanh_pho=thanh_pho, nhan_phong=nhan, tra_phong=tra,
+                ten=f"{_TEN_KHACH_SAN[i % len(_TEN_KHACH_SAN)]} {ten_chuan}",
+                thanh_pho=ten_chuan, nhan_phong=nhan, tra_phong=tra,
                 gia_moi_dem_vnd=self._so(hat + "g", 450_000, 2_400_000) // 10_000 * 10_000,
                 so_sao=round(3 + self._so(hat + "s", 0, 20) / 10, 1),
                 cach_trung_tam_km=round(self._so(hat + "c", 1, 60) / 10, 1),
                 huy_mien_phi=(i != 2),
                 nguon=self.ten,
+                vi_do=round(lat + dy, 6) if toa_do else 0.0,
+                kinh_do=round(lon + dx, 6) if toa_do else 0.0,
             ))
         ra.sort(key=lambda k: k.gia_moi_dem_vnd)
         return ra

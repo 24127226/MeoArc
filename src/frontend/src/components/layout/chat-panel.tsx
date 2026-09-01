@@ -78,6 +78,26 @@ const RENAME_MAX = 60
 let counter = 0
 const uid = () => `m${++counter}`
 
+/** Cuộc trò chuyện đang mở, nhớ qua localStorage.
+ *
+ *  ── VÌ SAO PHẢI NHỚ Ở NGOÀI COMPONENT ──
+ *  Hộp thư và trang Lịch trình mỗi bên dựng MỘT ChatPanel riêng. Đổi trang là
+ *  component cũ bị gỡ, component mới mount và bắt đầu từ một phiên trắng — nên đi
+ *  Lịch trình rồi quay lại Hộp thư là mất mạch trò chuyện, dù vẫn đang ở trong cùng
+ *  một ứng dụng và cùng một người dùng.
+ *  Gộp hai ChatPanel làm một ở tầng trên thì sạch hơn, nhưng phải dựng lại bố cục cả
+ *  hai trang; nhớ id ở đây đạt cùng kết quả mà không đụng tới bố cục nào. */
+const KHOA_CHAT = 'meoarc:chatHienTai'
+
+const doc = (k: string): string | null => {
+  // Chế độ riêng tư / chặn cookie làm localStorage NÉM LỖI chứ không trả null — không
+  // bọc thì cả khung chat trắng màn hình vì một tiện ích nhớ-chỗ-đang-đọc.
+  try { return localStorage.getItem(k) } catch { return null }
+}
+const ghi = (k: string, v: string) => {
+  try { localStorage.setItem(k, v) } catch { /* không nhớ được thì thôi, đừng vỡ */ }
+}
+
 const WELCOME =
   'Chào Quân 👋 Mình là trợ lý MeoArc. Cứ nhắn bằng lời thường — mình giúp tóm tắt, dọn, phân loại hay soạn thư. Việc quan trọng mình luôn hỏi bạn duyệt trước.'
 
@@ -828,6 +848,8 @@ export function ChatPanel({
   actions,
   injectedCommand,
   onInjectConsumed,
+  boiCanh,
+  onBoBoiCanh,
   onOpenEmail,
   focusSignal,
   onClose,
@@ -836,6 +858,17 @@ export function ChatPanel({
   actions: EmailActions
   injectedCommand?: string | null
   onInjectConsumed?: () => void
+  /** BỐI CẢNH — "đang nói về việc này", KHÔNG tự gửi câu hỏi nào.
+   *
+   *  Khác `injectedCommand` ở đúng một điểm, và điểm đó tốn tiền: `injectedCommand`
+   *  GỬI NGAY một câu hỏi dựng sẵn, nên bấm nút là mất một lượt gọi model dù người
+   *  dùng chưa kịp nói mình muốn gì. Phần lớn lúc họ bấm vào một việc là để hỏi
+   *  chuyện khác ("tìm vé máy bay đi dự sự kiện này") — câu hỏi dựng sẵn về "nên bắt
+   *  đầu ngày nào, chia mấy buổi" bị vứt đi cùng với lượt gọi đã trả tiền.
+   *
+   *  Bối cảnh thì chỉ ĐÍNH KÈM vào câu người dùng thật sự gõ. Không gõ thì không gọi. */
+  boiCanh?: { tieuDe: string; mo_ta: string } | null
+  onBoBoiCanh?: () => void
   /** Mở 1 thư (chuyển panel phải sang chi tiết) — dùng khi bấm thư trong kết quả AI. */
   onOpenEmail?: (id: string) => void
   /** Tăng lên mỗi khi bấm tab "AI Agent" ở nav → bung composer + focus ô chat. */
@@ -1001,6 +1034,18 @@ export function ChatPanel({
      `currentId`. Người dùng đang đứng ở đâu thì ở nguyên đó. */
   const currentIdRef = useRef(currentId)
   useEffect(() => { currentIdRef.current = currentId }, [currentId])
+  // Cần đọc `sessions` bên trong effect chạy MỘT LẦN mà không đưa nó vào deps (đưa
+  // vào thì effect chạy lại mỗi lượt chat và nạp lại lịch sử liên tục).
+  const sessionsRef = useRef(sessions)
+  useEffect(() => { sessionsRef.current = sessions }, [sessions])
+
+  /** GHI NHỚ cuộc trò chuyện đang mở, để mọi màn nối lại đúng nó.
+   *  Ghi mỗi khi phiên hiện tại có backendId — tức là ngay khi backend cấp id ở lượt
+   *  đầu, và mỗi lần người dùng tự đổi phiên. */
+  useEffect(() => {
+    const bid = sessions.find((s) => s.id === currentId)?.backendId
+    if (bid) ghi(KHOA_CHAT, bid)
+  }, [sessions, currentId])
 
   useEffect(() => {
     let alive = true
@@ -1022,8 +1067,21 @@ export function ChatPanel({
           const conLai = loaded.filter((c) => c.id !== dangMo?.backendId)
           return dangMo ? [dangMo, ...conLai] : [freshSession(), ...loaded]
         })
-        // KHÔNG setCurrentId — đổi phiên dưới chân người dùng là cách chắc chắn
-        // nhất làm mất câu hỏi họ vừa gửi.
+        // KHÔNG setCurrentId khi phiên đang mở ĐÃ CÓ tin nhắn — đổi phiên dưới chân
+        // người dùng là cách chắc chắn nhất làm mất câu hỏi họ vừa gửi.
+        //
+        // ── NỐI LẠI ĐÚNG CUỘC TRÒ CHUYỆN ĐANG DỞ ──
+        // Nhưng nếu phiên đang mở còn TRẮNG (vừa mount, mới chỉ có lời chào) thì nối
+        // lại cuộc đang dở. Trước đây mỗi lần đổi trang là một ChatPanel mới mount và
+        // bắt đầu từ 's0' trắng, nên đi Lịch trình rồi quay về Hộp thư là mất mạch:
+        // hai màn cùng một ứng dụng mà hoá ra hai cuộc trò chuyện khác nhau.
+        const dangTrong = !sessionsRef.current
+          .find((s) => s.id === currentIdRef.current)
+          ?.messages.some((m) => m.role === 'user')
+        const idLuu = doc(KHOA_CHAT)
+        if (dangTrong && idLuu && loaded.some((s) => s.id === idLuu)) {
+          setCurrentId(idLuu)
+        }
       })
       .catch(() => {}) // lỗi mạng/chưa đăng nhập → cứ giữ initSessions, không vỡ UI
     return () => {
@@ -1104,6 +1162,12 @@ export function ChatPanel({
   const send = (raw: string, viaVoice = false) => {
     const text = raw.trim()
     if (!text || thinking) return
+    // BỐI CẢNH đính vào câu người dùng gõ, chỉ ở lượt đầu sau khi bấm vào một việc.
+    // Hiện trong bong bóng là ĐÚNG câu họ gõ (biến `text`), còn bản gửi lên agent mới
+    // kèm ngữ cảnh — người dùng không phải đọc lại một khối dữ liệu họ vừa bấm vào.
+    const guiDi = boiCanh
+      ? `[Đang nói về: ${boiCanh.tieuDe} — ${boiCanh.mo_ta}]\n\n${text}`
+      : text
     // Cạn hạn mức token → chặn ngay ở client, khỏi gọi backend chỉ để nhận lỗi.
     if (isOutOfTokens(sub)) {
       setPricingOpen(true)
@@ -1124,12 +1188,15 @@ export function ChatPanel({
     )
     setInput('')
     setThinking(true)
+    // Bối cảnh chỉ dùng cho MỘT lượt: gửi xong là gỡ chip. Giữ mãi thì mọi câu sau đó
+    // đều bị gắn thêm một việc mà người dùng đã chuyển chủ đề từ lâu.
+    onBoBoiCanh?.()
     // Gửi kèm backendId của phiên hiện tại (nếu đã lưu) để agent NHỚ đúng cuộc trò chuyện (UC011).
     const sid = currentId
     const backendId = sessions.find((s) => s.id === sid)?.backendId
     // Qua lớp adapter (UC007): mock trả interpretCommand; backend thật gọi POST /agent/chat.
     api
-      .sendAgentMessage(text, { emails }, { viaVoice, sessionId: backendId })
+      .sendAgentMessage(guiDi, { emails }, { viaVoice, sessionId: backendId })
       .then((reply) => {
         setThinking(false)
         // Lần đầu của phiên mới: BE trả conversationId → gắn vào phiên để các lượt sau bám đúng.
@@ -1689,6 +1756,26 @@ export function ChatPanel({
             (ô rỗng) tự co lại → chừa chỗ cho khung chat. Tag phía trên GIỮ NGUYÊN. */}
         {composerOpen ? (
           <div className="duration-200 animate-in fade-in slide-in-from-bottom-1">
+            {/* CHIP BỐI CẢNH — "đang nói về việc này". Cố ý KHÔNG tự gửi câu hỏi nào:
+                bấm vào một việc rồi hỏi chuyện khác (vé máy bay đi dự sự kiện đó) là
+                trường hợp thường gặp, mà câu hỏi dựng sẵn thì bị vứt đi cùng với lượt
+                gọi model đã trả tiền. Ở đây chỉ ghim ngữ cảnh rồi CHỜ người dùng gõ. */}
+            {boiCanh && (
+              <div className="mb-1.5 flex items-center gap-2 rounded-xl border border-[var(--spark)]/30 bg-[var(--spark)]/10 px-3 py-1.5">
+                <CalendarClock className="size-3.5 shrink-0 text-[var(--spark)]" />
+                <span className="min-w-0 flex-1 truncate text-[12px]">
+                  <span className="text-muted-foreground">Đang hỏi về: </span>
+                  <span className="font-medium">{boiCanh.tieuDe}</span>
+                </span>
+                <button
+                  onClick={onBoBoiCanh}
+                  aria-label="Bỏ bối cảnh"
+                  className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
               <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                 <Paperclip className="size-4" />

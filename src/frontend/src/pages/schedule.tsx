@@ -49,6 +49,8 @@ export function SchedulePage() {
   const homNay = useMemo(() => new Date(), [])
   const [thang, setThang] = useState(() => new Date(homNay.getFullYear(), homNay.getMonth(), 1))
   const [lenh, setLenh] = useState<string | null>(null)
+  // Bối cảnh "đang nói về việc này" — KHÔNG tự gửi câu hỏi nào. Xem `hoiAI`.
+  const [boiCanh, setBoiCanh] = useState<{ tieuDe: string; mo_ta: string } | null>(null)
   const [chatMo, setChatMo] = useState(false)
   /** Thẻ vừa bấm → hiện khung hỏi "xem thư hay hỏi AI". */
   /** Thẻ đang rê chuột → thanh hành động xổ ra ngay dưới nó.
@@ -142,21 +144,26 @@ export function SchedulePage() {
       setDangHoi(null)
       setChatMo(true)
     })
-    // Câu lệnh phải MANG ĐỦ NGỮ CẢNH. Bản trước chỉ gửi tên việc, nên trợ lý không
-    // biết hạn khi nào, ai chờ, tốn bao lâu — nó chỉ chào rồi hỏi lại, và người dùng
-    // phải gõ lại từ đầu đúng những thứ vừa bấm vào. Bấm "hỏi trợ lý" mà vẫn phải
-    // giải thích lại từ đầu thì cái nút đó không tiết kiệm được gì.
+    // GHIM BỐI CẢNH, KHÔNG TỰ GỬI CÂU HỎI.
+    //
+    // Bản trước dựng sẵn một câu hỏi ("nên bắt đầu ngày nào, chia mấy buổi…") rồi gửi
+    // NGAY khi bấm. Ngữ cảnh thì đủ, nhưng nó đoán luôn người dùng muốn hỏi gì — mà
+    // phần lớn lúc bấm vào một việc, họ định hỏi chuyện khác: "tìm vé máy bay đi dự
+    // sự kiện này". Khi đó câu hỏi dựng sẵn bị vứt đi CÙNG VỚI một lượt gọi model đã
+    // trả tiền, và hạn mức gói free chỉ có 20 lượt/ngày.
+    //
+    // Nay chỉ ghim "đang nói về việc này" rồi chờ. Không gõ thì không tốn lượt nào,
+    // và gõ gì cũng được — trợ lý vẫn biết đang bàn về việc nào.
     const han = ck.han
       ? `${ck.han.getDate()}/${ck.han.getMonth() + 1} lúc ${gioPhut(ck.han)}`
       : 'chưa rõ hạn'
     const gio = Math.round(ck.uocLuongPhut / 6) / 10
-    setLenh(
-      `Việc: "${ck.noiDung}". Hạn: ${han}${ck.hanSuyRa ? ' (hạn này mình suy ra, chưa chắc)' : ''}. `
-      + `${ck.nguoiCho} đang chờ. Ước tính tốn khoảng ${gio} giờ.
-`
-      + 'Giúp mình: (1) nên bắt đầu ngày nào, (2) chia thành mấy buổi, '
-      + '(3) có gì cần hỏi lại người gửi trước khi bắt tay vào làm không.'
-    )
+    setBoiCanh({
+      tieuDe: ck.noiDung,
+      mo_ta:
+        `hạn ${han}${ck.hanSuyRa ? ' (suy ra, chưa chắc)' : ''}`
+        + `, ${ck.nguoiCho} đang chờ, ước tính ${gio} giờ`,
+    })
   }
 
   // Thư mở toàn màn: che hẳn lịch. Quay lại là về đúng chỗ cũ vì lịch không
@@ -303,6 +310,8 @@ export function SchedulePage() {
             actions={KHONG_LAM_GI}
             injectedCommand={lenh}
             onInjectConsumed={() => setLenh(null)}
+            boiCanh={boiCanh}
+            onBoBoiCanh={() => setBoiCanh(null)}
             onClose={() => setChatMo(false)}
           />
         </div>
