@@ -842,11 +842,16 @@ async def approve_confirmation(req_id: str,
     _sub = subscription_repo.get_or_create(db, session.user_id)
     import app.tools.email_tools  # noqa: F401 — nạp để các tool tự đăng ký vào registry
 
+    # Gỡ `_tep` ra khỏi args TRƯỚC khi gọi tool: nó là khoá nội bộ, không có trong
+    # schema của tool nào. Để lẫn vào thì Pydantic sẽ từ chối cả lời gọi.
+    _args = dict(req.args or {})
+    _tep = [str(x) for x in (_args.pop("_tep", None) or [])]
     ctx = RequestContext(user_id=str(session.user_id), access_token=token,
                          email_provider=provider, conversation_id=req.conversation_id,
-                         tier=_sub.tier, scan_days=subscription_repo.scan_days_of(_sub))
+                         tier=_sub.tier, scan_days=subscription_repo.scan_days_of(_sub),
+                         tep_dinh_kem=_tep)
     try:
-        out = await tool_registry.call(req.action, dict(req.args or {}), ctx)
+        out = await tool_registry.call(req.action, _args, ctx)
         res = out.model_dump() if hasattr(out, "model_dump") else dict(out or {})
     except Exception as exc:                      # noqa: BLE001 — mọi lỗi tool đều phải ghi lại
         res = {"success": False, "error": str(exc)[:300]}
@@ -1480,6 +1485,9 @@ async def agent_chat(
     from app.core.config import settings
     message = (payload or {}).get("message", "")
     incoming_id = (payload or {}).get("sessionId")  # id phiên FE gửi (None = phiên mới)
+    # Tệp người dùng vừa đính kèm trong khung chat (id do POST /uploads cấp).
+    # Đi theo NGỮ CẢNH chứ không qua tham số tool — xem RequestContext.tep_dinh_kem.
+    tep_dinh_kem = [str(x) for x in ((payload or {}).get("attachmentIds") or [])][:5]
 
     # NFR-Reliability: chặn spam TRƯỚC MỌI THỨ (không tốn LLM/DB) — bảo vệ quota chung.
     if _rate_limited(session.user_id):
@@ -1542,6 +1550,7 @@ async def agent_chat(
             conversation_id=conv.id,
             tier=sub.tier,             # NFR-08: quyết định cửa sổ quét hộp thư của các tool
             scan_days=subscription_repo.scan_days_of(sub),   # giá trị đã chốt của người này
+            tep_dinh_kem=tep_dinh_kem,
         )
         # State khởi đầu: lịch sử cũ + tin mới → agent thấy CẢ hội thoại (luồng hỏi-xác-nhận → gửi…).
         init_state = {
@@ -1604,6 +1613,14 @@ async def agent_chat(
         # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,
         # không phải câu chữ của LLM).
         confirm_card = _confirm_card(result["messages"])
+        if confirm_card and tep_dinh_kem:
+            # HIỆN TÊN TỆP TRÊN THẺ DUYỆT. Cổng xác nhận chỉ có nghĩa khi người dùng
+            # thấy ĐÚNG thứ sắp đi ra ngoài — duyệt một lá thư mà không biết nó kèm
+            # tệp gì thì cái nút duyệt đó không bảo vệ được gì cả.
+            from app.services import upload_store as _us
+            _ten = [f["name"] for fid in tep_dinh_kem if (f := _us.get(fid))]
+            if _ten:
+                confirm_card["attachments"] = _ten
         if confirm_card:
             # Ghi lại yêu cầu chờ duyệt và gắn id vào thẻ. Không có bản ghi này thì
             # nút "Duyệt" lại gọi thẳng lệnh gửi như trước — bấm hai lần là gửi hai lần.
@@ -1613,7 +1630,12 @@ async def agent_chat(
                     action=confirm_card.get("_tool") or "send_email",
                     description=confirm_card.get("confirmLabel")
                     or f"Gửi thư: {confirm_card.get('subject') or ''}".strip(),
-                    args=confirm_card.get("_args") or {},
+                    # `_tep` là khoá NỘI BỘ, không phải tham số tool: nó được gỡ ra ở
+                    # bước duyệt rồi đưa vào ngữ cảnh. Lưu kèm ở đây vì người dùng có
+                    # thể bấm Duyệt sau vài phút, lúc đó lượt chat đã kết thúc từ lâu
+                    # và không còn chỗ nào biết họ đã đính tệp nào.
+                    args={**(confirm_card.get("_args") or {}),
+                          **({"_tep": tep_dinh_kem} if tep_dinh_kem else {})},
                     conversation_id=conv.id,
                 )
                 confirm_card["confirmationId"] = _cr.id

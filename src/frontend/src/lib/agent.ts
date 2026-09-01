@@ -48,6 +48,10 @@ export type AgentReply =
       /** Id yêu cầu chờ duyệt ở máy chủ (PA2 §1.3.5). Có giá trị thì nút Gửi đi qua
        *  /confirmations/{id}/approve — bấm hai lần vẫn chỉ gửi một lần. */
       confirmationId?: string
+      /** Tên tệp sẽ đi kèm thư. PHẢI hiện trên thẻ: cổng xác nhận chỉ có nghĩa khi
+       *  người dùng thấy ĐÚNG thứ sắp ra ngoài — duyệt một lá thư mà không biết nó
+       *  kèm tệp gì thì cái nút duyệt đó không bảo vệ được gì. */
+      attachments?: string[]
     }
   // --- Generative widgets (UC014/015/016) — render bento tương tác ---
   | {

@@ -201,7 +201,11 @@ export interface MeoArcApi {
   sendAgentMessage(
     message: string,
     ctx: { emails: Email[] },
-    opts?: { sessionId?: string; viaVoice?: boolean },
+    opts?: { sessionId?: string; viaVoice?: boolean
+             /** Id tệp đã tải lên qua `uploadFile` — BE đính vào thư khi agent gửi.
+              *  Đi kèm LƯỢT CHAT chứ không phải tham số tool: mô hình quyết định
+              *  GỬI HAY KHÔNG, không quyết định GỬI CÁI GÌ. */
+             attachmentIds?: string[] },
   ): Promise<AgentReplyWithId>
   /** Thực thi 1 PlanOp sau khi user Approve (UC006/007). */
   executePlan(op: PlanOp): Promise<void>

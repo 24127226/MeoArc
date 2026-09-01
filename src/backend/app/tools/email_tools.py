@@ -177,16 +177,46 @@ async def list_labels(inp: ListLabelsInput, ctx: RequestContext) -> ListLabelsOu
 
 
 # ── WRITE (gửi) ──────────────────────────────────────────────────────
+def _lay_tep(ctx: RequestContext) -> list[dict]:
+    """Đổi id tệp trong ngữ cảnh thành bytes để đính vào thư.
+
+    Id đến từ NGỮ CẢNH (người dùng vừa tải lên), không phải từ tham số mô hình — xem
+    chú thích ở RequestContext.tep_dinh_kem.
+
+    Tệp đã hết hạn trong kho (TTL 30 phút) thì BỎ QUA lặng lẽ chứ không làm hỏng cả
+    lượt gửi: người dùng vẫn nhận được thư, và `send_email` báo lại số tệp thật sự
+    đính được để họ biết nếu thiếu."""
+    from app.services import upload_store
+    ra = []
+    for fid in (ctx.tep_dinh_kem or []):
+        f = upload_store.get(fid)
+        if f:
+            ra.append({"name": f["name"], "content": f["content"], "mime": f.get("mime")})
+    return ra
+
+
 @tool_registry.register(category=ToolCategory.WRITE_DESTRUCTIVE, input_schema=SendEmailInput)
 async def send_email(inp: SendEmailInput, ctx: RequestContext) -> SendEmailOutput:
-    """GỬI một email mới. Chỉ gọi sau khi người dùng đã xác nhận (registry tự đánh dấu cần duyệt)."""
+    """GỬI một email mới. Chỉ gọi sau khi người dùng đã xác nhận (registry tự đánh dấu cần duyệt).
+
+    Tệp người dùng đính kèm trong khung chat được tự động gửi kèm — bạn KHÔNG cần (và
+    không thể) chỉ định tệp nào. Nếu người dùng nói "gửi file này cho X" thì cứ gọi
+    tool bình thường, tệp sẽ tự đi theo."""
+    tep = _lay_tep(ctx)
     res = await asyncio.to_thread(
         mail.send_email, ctx.email_provider, ctx.access_token, ", ".join(inp.to), inp.subject, inp.body,
         cc=inp.cc or None, bcc=inp.bcc or None,
+        attachments=(tep or None),
     )
     return SendEmailOutput(
-        success=True, message="Đã gửi email.",
-        data={"message_id": res.get("id", ""), "thread_id": res.get("threadId", "")},
+        success=True,
+        message=("Đã gửi email." if not tep
+                 else f"Đã gửi email kèm {len(tep)} tệp: "
+                      + ", ".join(t["name"] for t in tep) + "."),
+        # `data` của SendEmailOutput là dict[str, str] — số phải ép về chuỗi, nếu
+        # không Pydantic từ chối cả kết quả gửi (thư đã đi mà tool báo lỗi).
+        data={"message_id": res.get("id", ""), "thread_id": res.get("threadId", ""),
+              "so_tep": str(len(tep))},
     )
 
 

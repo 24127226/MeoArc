@@ -963,6 +963,38 @@ export function ChatPanel({
    *  Đo lại chiều cao mỗi lần nội dung đổi: đặt `height='auto'` trước để `scrollHeight`
    *  co lại được khi xoá bớt chữ — thiếu bước đó thì ô chỉ phình ra mà không bao giờ
    *  nhỏ lại. Trần do CSS (`max-h-56`) lo, sau đó nội dung tự cuộn. */
+  /** Tệp người dùng đính kèm cho LƯỢT SẮP GỬI.
+   *
+   *  Nút kẹp giấy trước đây KHÔNG có `onClick` — thuần hình vẽ. Một nút bấm không làm
+   *  gì còn tệ hơn không có nút: người dùng thử, không thấy phản hồi, và kết luận là
+   *  ứng dụng hỏng chứ không kết luận là tính năng chưa có.
+   *
+   *  Id do POST /uploads cấp, gửi kèm lượt chat. Mô hình KHÔNG chọn được tệp — nó chỉ
+   *  quyết định có gửi thư hay không, còn gửi cái gì thì do người dùng đã tự tay chọn. */
+  const [tepDinhKem, setTepDinhKem] = useState<{ id: string; name: string }[]>([])
+  const [dangTaiTep, setDangTaiTep] = useState(false)
+  const oChonTep = useRef<HTMLInputElement>(null)
+
+  const chonTep = async (fs: FileList | null) => {
+    if (!fs?.length) return
+    setDangTaiTep(true)
+    try {
+      for (const f of Array.from(fs).slice(0, 3)) {
+        const r = await api.uploadFile(f)
+        setTepDinhKem((t) => (t.some((x) => x.id === r.id) ? t : [...t, { id: r.id, name: r.name }]))
+      }
+    } catch {
+      // Tải hỏng (quá trần dung lượng chẳng hạn) thì báo ngay trong khung chat, chứ
+      // không im lặng — im lặng ở đây khiến người dùng tưởng đã đính được rồi gửi đi
+      // một lá thư thiếu tệp.
+      push({ id: uid(), role: 'agent',
+             reply: { kind: 'text', text: 'Mình không tải được tệp đó lên. Bạn thử tệp nhỏ hơn nhé.' } })
+    } finally {
+      setDangTaiTep(false)
+      if (oChonTep.current) oChonTep.current.value = ''
+    }
+  }
+
   const oNhap = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     const el = oNhap.current
@@ -1308,12 +1340,17 @@ export function ChatPanel({
     // Bối cảnh chỉ dùng cho MỘT lượt: gửi xong là gỡ chip. Giữ mãi thì mọi câu sau đó
     // đều bị gắn thêm một việc mà người dùng đã chuyển chủ đề từ lâu.
     onBoBoiCanh?.()
+    // Tệp chỉ đi theo MỘT lượt: gửi xong là gỡ. Giữ lại thì lượt sau vô tình đính lại
+    // đúng tệp đó, và người dùng không hề biết mình vừa gửi nó lần thứ hai.
+    setTepDinhKem([])
     // Gửi kèm backendId của phiên hiện tại (nếu đã lưu) để agent NHỚ đúng cuộc trò chuyện (UC011).
     const sid = currentId
     const backendId = sessions.find((s) => s.id === sid)?.backendId
     // Qua lớp adapter (UC007): mock trả interpretCommand; backend thật gọi POST /agent/chat.
     api
-      .sendAgentMessage(guiDi, { emails }, { viaVoice, sessionId: backendId })
+      .sendAgentMessage(guiDi, { emails },
+                        { viaVoice, sessionId: backendId,
+                          attachmentIds: tepDinhKem.map((t) => t.id) })
       .then((reply) => {
         setThinking(false)
         // Lần đầu của phiên mới: BE trả conversationId → gắn vào phiên để các lượt sau bám đúng.
@@ -1894,6 +1931,26 @@ export function ChatPanel({
                 bấm vào một việc rồi hỏi chuyện khác (vé máy bay đi dự sự kiện đó) là
                 trường hợp thường gặp, mà câu hỏi dựng sẵn thì bị vứt đi cùng với lượt
                 gọi model đã trả tiền. Ở đây chỉ ghim ngữ cảnh rồi CHỜ người dùng gõ. */}
+            {/* TỆP ĐÃ ĐÍNH — hiện ra để người dùng thấy mình sắp gửi gì. Đính kèm mà
+                không thấy gì đổi trên màn hình thì không ai dám bấm gửi. */}
+            {tepDinhKem.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap gap-1.5">
+                {tepDinhKem.map((t) => (
+                  <span key={t.id}
+                        className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/60 px-2 py-1 text-[11.5px]">
+                    <Paperclip className="size-3 shrink-0 text-muted-foreground" />
+                    <span className="max-w-[160px] truncate">{t.name}</span>
+                    <button
+                      onClick={() => setTepDinhKem((v) => v.filter((x) => x.id !== t.id))}
+                      aria-label={`Bỏ ${t.name}`}
+                      className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             {boiCanh && (
               <div className="mb-1.5 flex items-center gap-2 rounded-xl border border-[var(--spark)]/30 bg-[var(--spark)]/10 px-3 py-1.5">
                 <CalendarClock className="size-3.5 shrink-0 text-[var(--spark)]" />
@@ -1911,8 +1968,21 @@ export function ChatPanel({
               </div>
             )}
             <div className="flex items-end gap-2 rounded-2xl p-2.5 shadow-soft transition-shadow glass focus-within:shadow-float focus-within:ring-2 focus-within:ring-ring/40">
-              <button className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-                <Paperclip className="size-4" />
+              <input
+                ref={oChonTep}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => void chonTep(e.target.files)}
+              />
+              <button
+                onClick={() => oChonTep.current?.click()}
+                disabled={dangTaiTep}
+                title="Đính kèm tệp để trợ lý gửi đi"
+                aria-label="Đính kèm tệp"
+                className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+              >
+                {dangTaiTep ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
               </button>
               <button
                 onClick={() => setVoiceOpen(true)}
@@ -2324,6 +2394,20 @@ function DraftCard({
               <div className="neon-edge mt-2 whitespace-pre-line rounded-xl bg-elevated/70 px-4 py-3.5 text-[14px] leading-relaxed text-foreground backdrop-blur-sm"
                 style={{ ['--tint' as string]: 'var(--spark)' }}>
                 {body}
+              </div>
+            )}
+            {/* TỆP ĐÍNH KÈM trên thẻ duyệt. Cổng xác nhận chỉ có nghĩa khi người dùng
+                thấy ĐÚNG thứ sắp đi ra ngoài — duyệt một lá thư mà không biết nó kèm
+                tệp gì thì cái nút duyệt đó không bảo vệ được gì cả. */}
+            {reply.attachments && reply.attachments.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {reply.attachments.map((ten) => (
+                  <span key={ten}
+                        className="flex items-center gap-1.5 rounded-lg border border-[var(--spark)]/35 bg-[var(--spark)]/10 px-2 py-1 text-[11.5px]">
+                    <Paperclip className="size-3 shrink-0 text-[var(--spark)]" />
+                    <span className="max-w-[180px] truncate">{ten}</span>
+                  </span>
+                ))}
               </div>
             )}
           </>

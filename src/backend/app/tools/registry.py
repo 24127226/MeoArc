@@ -77,6 +77,13 @@ class RequestContext(BaseModel):
     # Gói dịch vụ của người dùng — quyết định cửa sổ quét hộp thư (NFR-08).
     # Mặc định là gói HẸP NHẤT: quên truyền thì siết lại, không nới ra.
     tier: str = 'free'
+    # ── TỆP NGƯỜI DÙNG VỪA ĐÍNH KÈM TRONG LƯỢT NÀY ──
+    # Id do POST /uploads cấp. Nằm ở NGỮ CẢNH chứ KHÔNG phải tham số của tool, và đó
+    # là quyết định an toàn: nếu để mô hình tự điền id thì nó có thể (a) bịa một id,
+    # (b) tệ hơn, đính một tệp của lượt khác hoặc do người khác tải lên. Ở đây tool
+    # chỉ gửi được ĐÚNG những tệp người dùng vừa tự tay chọn trong chính lượt đó —
+    # mô hình quyết định GỬI HAY KHÔNG, chứ không quyết định GỬI CÁI GÌ.
+    tep_dinh_kem: list[str] = []
     # Cửa sổ quét ĐÃ CHỐT trong bản ghi subscription. None → suy từ `tier`.
     # Có cột này để đổi bảng giá không làm phạm vi của người dùng hiện hữu đổi theo.
     scan_days: int | None = None
