@@ -44,6 +44,23 @@ TAI_CHINH = Category("tai_chinh","Tài chính",          "wine",   "ngân hàng/
 
 ALL_CATEGORIES = [HOC_TAP, CONG_VIEC, HE_THONG, CA_NHAN, MANG_XH, MUA_SAM, TAI_CHINH]
 _BY_KEY = {c.key: c for c in ALL_CATEGORIES}
+_BY_LABEL = {c.label.lower(): c for c in ALL_CATEGORIES}
+
+
+def tu_ten_nhan(ten: str) -> Category | None:
+    """Tên nhãn NGƯỜI DÙNG đã đặt → Category. Không khớp thì None.
+
+    ── VÌ SAO CẦN, VÀ VÌ SAO PHẢI DÙNG CHUNG ──
+    Nhãn người dùng đặt phải THẮNG `classify()`. Nếu không thì thao tác gắn nhãn được
+    GHI xuống nhà cung cấp rồi KHÔNG BAO GIỜ được đọc lại — nhìn từ ngoài đúng như
+    "app quên thao tác trước đó".
+    Cả Gmail (nhãn) lẫn Outlook (categories) đều cần luật này. Viết hai bản thì chúng
+    sẽ lệch nhau, và lệch ở tầng này rất khó thấy: mỗi nhà cung cấp chỉ sai khi có
+    người dùng thật đăng nhập bằng đúng loại tài khoản đó.
+
+    So khớp KHÔNG phân biệt hoa/thường và bỏ khoảng trắng thừa: nhà cung cấp giữ
+    nguyên cách người dùng gõ, khớp chặt thì gắn nhãn xong vẫn không nhận ra."""
+    return _BY_LABEL.get((ten or "").strip().lower())
 
 
 @dataclass(frozen=True)

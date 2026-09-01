@@ -175,6 +175,53 @@ def test_endpoint_san_bay_de_giao_dien_goi_y():
     assert d["pho_bien"] and all({"ma", "ten"} <= set(x) for x in d["pho_bien"])
 
 
+# ── BỘ LỌC sinh từ chính dữ liệu trả về ─────────────────────────────────────
+
+def test_bo_loc_sinh_TU_DU_LIEU_that(monkeypatch):
+    """Gõ cứng danh sách hãng thì giao diện hiện ô lọc cho hãng không bay chặng đó;
+    người dùng bấm vào nhận danh sách rỗng và tưởng hỏng. Sinh từ dữ liệu thì MỌI ô
+    lọc đều đảm bảo ra ít nhất một chuyến."""
+    _mo_phong(monkeypatch)
+    d = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "TP HCM", "den": "Đà Nẵng", "ngay": "16/09/2026",
+                      "so_ket_qua": 10}).json()
+    bl = d["bo_loc"]
+    assert {"hang", "may_bay", "nha_ga", "trang_thai", "khung_gio"} <= set(bl)
+
+    hang_that = {k["hang"] for k in d["ket_qua"]}
+    hang_loc = {x["gia_tri"] for x in bl["hang"]}
+    assert hang_loc <= hang_that, "ô lọc hãng không được có hãng nào ngoài kết quả"
+    assert sum(x["so_chuyen"] for x in bl["hang"]) == d["so_ket_qua"]
+
+
+def test_bo_loc_khung_gio_dung_so_dem(monkeypatch):
+    _mo_phong(monkeypatch)
+    d = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "SGN", "den": "DAD", "ngay": "16/09/2026",
+                      "so_ket_qua": 10}).json()
+    tong = sum(x["so_chuyen"] for x in d["bo_loc"]["khung_gio"])
+    assert tong == d["so_ket_qua"], "mỗi chuyến phải rơi vào đúng MỘT khung giờ"
+    assert all(x["ten"] for x in d["bo_loc"]["khung_gio"]), "khung giờ phải có tên đọc được"
+
+
+def test_KHONG_de_o_loc_rong(monkeypatch):
+    """Giá trị rỗng (nguồn không có nhà ga chẳng hạn) không được thành một ô lọc."""
+    _mo_phong(monkeypatch)
+    d = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "SGN", "den": "DAD", "ngay": "16/09/2026"}).json()
+    for nhom in ("hang", "may_bay", "nha_ga", "trang_thai"):
+        assert all(x["gia_tri"].strip() for x in d["bo_loc"][nhom]), nhom
+
+
+def test_tra_du_chuyen_de_bo_loc_co_nghia(monkeypatch):
+    """Trần cũ là 10. Cắt còn vài chuyến thì lọc không còn gì để lọc — mà cả ngày bay
+    đã tải về rồi, cắt đi là vứt dữ liệu đã trả tiền để lấy."""
+    _mo_phong(monkeypatch)
+    r = c.get("/tra-cuu/chuyen-bay",
+              params={"tu": "SGN", "den": "DAD", "ngay": "16/09/2026", "so_ket_qua": 40})
+    assert r.status_code == 200, r.text
+
+
 # ── Ranh giới: CHỈ tra cứu ───────────────────────────────────────────────────
 
 def test_KHONG_co_endpoint_dat_cho_hay_thanh_toan():

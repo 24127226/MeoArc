@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import re
 import httpx
 from app.schemas.email import Email
-from app.core.labeling import classify
+from app.core.labeling import classify, tu_ten_nhan
 
 GRAPH = "https://graph.microsoft.com/v1.0"
 _TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -58,7 +58,15 @@ def _to_email(m: dict, folder: str = "inbox", full: bool = False) -> Email:
     snippet = m.get("bodyPreview", "") or ""
     subject = m.get("subject") or "(không tiêu đề)"
     time_s, date_s = _fmt_local(m.get("receivedDateTime", "") or m.get("sentDateTime", "") or "")
-    cls = classify(addr, name, subject if subject != "(không tiêu đề)" else "", snippet)
+    # NGƯỜI DÙNG ĐÃ ĐẶT CATEGORY thì dùng cái đó; chưa thì mới để bộ phân loại đoán.
+    # `apply_label` bên dưới GHI `categories` xuống Outlook, nhưng trước đây chỗ đọc này
+    # bỏ qua hoàn toàn — thao tác được ghi rồi không bao giờ được đọc, nên gắn nhãn xong
+    # quay lại là thấy nhãn cũ. Gmail đã sửa; thiếu ở đây thì lỗi vẫn còn nguyên với
+    # người dùng Outlook, và chỉ lộ ra khi có tài khoản Outlook thật đăng nhập.
+    # Outlook trả THẲNG TÊN category (không cần tra id như Gmail) nên đơn giản hơn.
+    nhom = next((n for n in (tu_ten_nhan(c) for c in (m.get("categories") or [])) if n), None)
+    if nhom is None:
+        nhom = classify(addr, name, subject if subject != "(không tiêu đề)" else "", snippet).category
 
     html_body = None
     if full:
@@ -87,8 +95,8 @@ def _to_email(m: dict, folder: str = "inbox", full: bool = False) -> Email:
         date=date_s,
         unread=(not m.get("isRead", True)),
         starred=(flag == "flagged"),
-        category=cls.category.color,   # type: ignore[arg-type]
-        label=cls.category.label,
+        category=nhom.color,           # type: ignore[arg-type]
+        label=nhom.label,
         folder=folder,                 # type: ignore[arg-type]
         threadId=m.get("conversationId"),
         html=html_body,
@@ -96,8 +104,11 @@ def _to_email(m: dict, folder: str = "inbox", full: bool = False) -> Email:
     )
 
 
+# `categories` PHẢI có trong $select: Graph chỉ trả về đúng những trường được xin, nên
+# thiếu nó thì nhãn người dùng đặt không bao giờ về tới nơi và bản vá ở _to_email vô
+# hiệu — im lặng, không lỗi, chỉ là nhãn cứ quay về giá trị bộ phân loại đoán.
 _SELECT = ("id,subject,from,toRecipients,receivedDateTime,sentDateTime,"
-           "bodyPreview,isRead,hasAttachments,flag,conversationId")
+           "bodyPreview,isRead,hasAttachments,flag,conversationId,categories")
 
 
 def list_messages(access_token: str, folder: str = "inbox", q: str | None = None,

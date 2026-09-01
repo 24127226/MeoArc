@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2, ExternalLink, MapPin } from 'lucide-react'
 import { duongDanApi, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -33,7 +33,35 @@ type Nguon = {
   nguon: string; la_that: boolean; nhan: string
   co_gia?: boolean; huong_dan?: string | null
 }
-type KetQua = Nguon & { thoi_diem: string; so_ket_qua: number; ket_qua: Record<string, unknown>[] }
+/** Một giá trị lọc CÓ THẬT trong kết quả, kèm số chuyến. Máy chủ sinh từ chính dữ
+ *  liệu trả về nên mọi ô lọc đều đảm bảo ra ít nhất một chuyến. */
+type OLoc = { gia_tri: string; ten?: string; so_chuyen: number }
+type BoLoc = {
+  hang: OLoc[]; may_bay: OLoc[]; nha_ga: OLoc[]; trang_thai: OLoc[]; khung_gio: OLoc[]
+}
+type KetQua = Nguon & {
+  thoi_diem: string; so_ket_qua: number; ket_qua: Record<string, unknown>[]
+  bo_loc?: BoLoc
+}
+
+/** Các nhóm lọc, theo ĐÚNG những gì nguồn dữ liệu trả về — không hơn.
+ *  AeroDataBox cho: hãng, giờ khởi hành, loại máy bay, nhà ga, trạng thái. KHÔNG có
+ *  giá, nên không có ô lọc giá — thêm một ô lọc không có dữ liệu đằng sau là hứa suông. */
+const NHOM_LOC = [
+  { khoa: 'khung_gio' as const, ten: 'Giờ bay', truong: null },
+  { khoa: 'hang' as const, ten: 'Hãng', truong: 'hang' },
+  { khoa: 'may_bay' as const, ten: 'Máy bay', truong: 'may_bay' },
+  { khoa: 'nha_ga' as const, ten: 'Nhà ga', truong: 'nha_ga' },
+  { khoa: 'trang_thai' as const, ten: 'Trạng thái', truong: 'trang_thai' },
+]
+
+function _khungCua(khoiHanh: unknown): string {
+  // "dd/mm/yyyy HH:MM" → giờ nằm ở vị trí 11–13. Cùng cách cắt với máy chủ, nên hai
+  // bên không thể xếp một chuyến vào hai khung khác nhau.
+  const g = Number(String(khoiHanh ?? '').slice(11, 13))
+  if (Number.isNaN(g)) return ''
+  return g < 6 ? 'dem_khuya' : g < 12 ? 'sang' : g < 18 ? 'chieu' : 'toi'
+}
 
 const HOM_NAY_CONG = (n: number) => {
   const d = new Date()
@@ -57,6 +85,9 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
   const [loi, setLoi] = useState<string | null>(null)
   const [hienTho, setHienTho] = useState(false)
   const [nguon, setNguon] = useState<Nguon | null>(null)
+  // Bộ lọc đang chọn: nhóm → tập giá trị. Lọc chạy TẠI CHỖ, không gọi lại máy chủ —
+  // cả ngày bay đã tải về rồi, và gọi lại còn tốn hạn mức nhà cung cấp.
+  const [dangLoc, setDangLoc] = useState<Record<string, Set<string>>>({})
 
   // Hỏi máy chủ đang dùng nhà cung cấp nào NGAY KHI MỞ, để nhãn có mặt trước cả
   // lần tra cứu đầu tiên — người xem biết mình sắp thấy gì.
@@ -72,10 +103,17 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
     setDangChay(true)
     setLoi(null)
     setKetQua(null)
+    // Bỏ bộ lọc cũ: các giá trị lọc sinh từ KẾT QUẢ, nên giữ lại lựa chọn của chặng
+    // trước là lọc theo một hãng có thể không bay chặng mới — bảng rỗng mà không rõ
+    // vì sao, và người dùng sẽ tưởng chặng đó không có chuyến nào.
+    setDangLoc({})
     try {
       const d =
         loai === 'bay'
-          ? `/tra-cuu/chuyen-bay?tu=${tu}&den=${den}&ngay=${encodeURIComponent(ngay)}&so_ket_qua=5`
+          // Lấy nhiều chuyến để bộ lọc có ý nghĩa. Không tốn thêm lượt gọi nhà cung
+          // cấp: máy chủ vẫn quét cả ngày như cũ, chỉ là không cắt bớt trước khi trả.
+          ? `/tra-cuu/chuyen-bay?tu=${encodeURIComponent(tu)}&den=${encodeURIComponent(den)}`
+            + `&ngay=${encodeURIComponent(ngay)}&so_ket_qua=60`
           : `/tra-cuu/khach-san?thanh_pho=${encodeURIComponent(thanhPho)}`
             + `&nhan_phong=${encodeURIComponent(ngay)}&tra_phong=${encodeURIComponent(tra)}&so_ket_qua=5`
       const r = await fetch(duongDanApi(d))
@@ -97,6 +135,30 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
 
   const that = nguon?.la_that === true
 
+  // Lọc TẠI CHỖ. Mỗi nhóm là "hoặc" trong nhóm, "và" giữa các nhóm — đúng cách mọi
+  // trang đặt vé hoạt động, nên không phải giải thích cho người dùng.
+  const daLoc = useMemo(() => {
+    const ds = ketQua?.ket_qua ?? []
+    const nhomDangChon = Object.entries(dangLoc).filter(([, v]) => v.size > 0)
+    if (!nhomDangChon.length) return ds
+    return ds.filter((k) =>
+      nhomDangChon.every(([khoa, chon]) =>
+        chon.has(khoa === 'khung_gio'
+          ? _khungCua(k.khoi_hanh)
+          : String(k[NHOM_LOC.find((n) => n.khoa === khoa)?.truong ?? ''] ?? '').trim()),
+      ),
+    )
+  }, [ketQua, dangLoc])
+
+  const doiLoc = (nhom: string, gt: string) =>
+    setDangLoc((truoc) => {
+      const chon = new Set(truoc[nhom] ?? [])
+      chon.has(gt) ? chon.delete(gt) : chon.add(gt)
+      return { ...truoc, [nhom]: chon }
+    })
+
+  const soDangChon = Object.values(dangLoc).reduce((s, v) => s + v.size, 0)
+
   return (
     // z CAO HƠN lớp thông báo nổi (z-9999). Thông báo là thứ tự nó xen vào; hộp
     // thoại là thứ người dùng CHỦ ĐỘNG mở — cái sau phải thắng. Đã chụp được cảnh
@@ -107,7 +169,9 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Tra cứu chuyến bay và phòng"
-        className="goc-cat den-vien-chon mt-10 flex max-h-[calc(100dvh-6rem)] w-[min(680px,96vw)]
+        // RỘNG HƠN vì giờ có cột bộ lọc bên trái. Khung 680px cũ vừa đủ cho một bảng
+        // trơn; nhét thêm bộ lọc vào đó thì cả hai phần đều chật và bảng bị cắt chữ.
+        className="goc-cat den-vien-chon mt-8 flex max-h-[calc(100dvh-4.5rem)] w-[min(1040px,97vw)]
                    flex-col overflow-hidden bg-[var(--elevated)]/97 backdrop-blur-md"
       >
         {/* ── Đầu khung: NHÃN NGUỒN là thứ đầu tiên đập vào mắt ── */}
@@ -197,15 +261,39 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
           {ketQua && (
             <>
               <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                {ketQua.so_ket_qua} kết quả · truy vấn lúc {ketQua.thoi_diem}
+                {soDangChon > 0
+                  ? `${daLoc.length}/${ketQua.so_ket_qua} chuyến · đang lọc`
+                  : `${ketQua.so_ket_qua} kết quả`}
+                {' · truy vấn lúc '}{ketQua.thoi_diem}
               </p>
 
-              <div className="flex flex-col gap-1.5">
-                {ketQua.ket_qua.map((k, i) => (
-                  <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
-                    {loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
+              {/* HAI CỘT: bộ lọc trái, kết quả phải. Bộ lọc nằm CẠNH bảng chứ không
+                  nằm trên: đặt trên thì mỗi lần đổi lọc mắt phải chạy xuống tìm lại
+                  chỗ cũ, còn cạnh nhau thì thấy bảng đổi ngay lúc bấm. */}
+              <div className="flex gap-4">
+                {loai === 'bay' && ketQua.bo_loc && (
+                  <CotBoLoc boLoc={ketQua.bo_loc} dangLoc={dangLoc} doiLoc={doiLoc}
+                            soDangChon={soDangChon} xoaHet={() => setDangLoc({})} />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-1.5">
+                    {daLoc.map((k, i) => (
+                      <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
+                        {loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  {daLoc.length === 0 && (
+                    // Nói RÕ là do bộ lọc, không phải do chặng không có chuyến — hai
+                    // chuyện đó khác hẳn nhau mà bảng rỗng thì nhìn giống hệt.
+                    <p className="py-8 text-center text-[12.5px] text-muted-foreground">
+                      Không chuyến nào khớp bộ lọc.{' '}
+                      <button onClick={() => setDangLoc({})}
+                              className="text-[var(--spark)] underline">Bỏ lọc</button>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* XEM PHẢN HỒI GỐC — dành cho người hoài nghi. Đây là chỗ chuyển từ
@@ -248,6 +336,79 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Cột bộ lọc — dựng TỪ dữ liệu máy chủ trả về, không gõ cứng.
+ *
+ *  Mỗi ô kèm SỐ CHUYẾN. Con số đó làm hai việc cùng lúc: cho biết trước bấm vào sẽ
+ *  còn lại bao nhiêu, và chứng minh ô lọc này có thật — không ô nào bấm vào ra rỗng.
+ *
+ *  Chỉ có 5 nhóm vì nguồn chỉ cho 5 loại dữ liệu lọc được. Không có ô lọc GIÁ, vì
+ *  AeroDataBox không bán vé nên không có giá — thêm một ô lọc không có dữ liệu đằng
+ *  sau là hứa suông với người dùng. */
+function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
+  boLoc: BoLoc
+  dangLoc: Record<string, Set<string>>
+  doiLoc: (nhom: string, gt: string) => void
+  soDangChon: number
+  xoaHet: () => void
+}) {
+  const coGiDeLoc = NHOM_LOC.some((n) => (boLoc[n.khoa]?.length ?? 0) > 1)
+  if (!coGiDeLoc) return null   // một hãng, một nhà ga → cột lọc chỉ tổ chiếm chỗ
+
+  return (
+    <aside className="w-[188px] shrink-0 border-r border-border/30 pr-3">
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
+          Bộ lọc
+        </span>
+        {soDangChon > 0 && (
+          <button onClick={xoaHet} className="text-[10.5px] text-[var(--spark)] hover:underline">
+            Xoá ({soDangChon})
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {NHOM_LOC.map((nhom) => {
+          const muc = boLoc[nhom.khoa] ?? []
+          // Nhóm chỉ có MỘT giá trị thì lọc theo nó là vô nghĩa — bấm vào không bớt
+          // được chuyến nào. Ẩn đi để cột lọc chỉ chứa thứ dùng được.
+          if (muc.length < 2) return null
+          const chon = dangLoc[nhom.khoa] ?? new Set<string>()
+          return (
+            <div key={nhom.khoa}>
+              <p className="mb-1 text-[10.5px] font-medium text-muted-foreground">{nhom.ten}</p>
+              <div className="flex flex-col gap-0.5">
+                {muc.map((m) => {
+                  const dangBat = chon.has(m.gia_tri)
+                  return (
+                    <button
+                      key={m.gia_tri}
+                      onClick={() => doiLoc(nhom.khoa, m.gia_tri)}
+                      aria-pressed={dangBat}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left',
+                        'text-[11.5px] transition-colors',
+                        dangBat
+                          ? 'bg-[var(--spark)]/15 font-medium text-[var(--spark)]'
+                          : 'text-foreground/85 hover:bg-foreground/5',
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{m.ten ?? m.gia_tri}</span>
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                        {m.so_chuyen}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </aside>
   )
 }
 

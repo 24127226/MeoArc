@@ -142,13 +142,11 @@ def _nhan_nguoi_dung_dat(label_ids: list[str], ban_do: dict[str, str]):
     đoán màu cho một nhãn lạ là bịa ra thông tin không có thật."""
     if not label_ids or not ban_do:
         return None
-    if not _NHAN_MEOARC:
-        from app.core.labeling import ALL_CATEGORIES
-        _NHAN_MEOARC.update({c.label.lower(): c for c in ALL_CATEGORIES})
+    from app.core.labeling import tu_ten_nhan
     for lid in label_ids:
-        ten = (ban_do.get(lid) or "").strip().lower()
-        if ten in _NHAN_MEOARC:
-            return _NHAN_MEOARC[ten]
+        nhom = tu_ten_nhan(ban_do.get(lid) or "")
+        if nhom is not None:
+            return nhom
     return None
 
 

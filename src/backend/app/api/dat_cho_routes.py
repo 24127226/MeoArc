@@ -44,6 +44,63 @@ def _doc_ngay(s: str) -> datetime:
         raise HTTPException(400, f"Ngày '{s}' phải theo dạng dd/mm/yyyy")
 
 
+def _khung_gio(gio: int) -> str:
+    """Gộp giờ khởi hành thành 4 khung. Người ta chọn chuyến theo "sáng hay chiều",
+    không theo từng giờ một — cho 24 ô lọc là bắt họ đọc nhiều hơn cần thiết."""
+    if gio < 6:
+        return "dem_khuya"
+    if gio < 12:
+        return "sang"
+    if gio < 18:
+        return "chieu"
+    return "toi"
+
+
+_TEN_KHUNG = {"dem_khuya": "Đêm/sáng sớm (00–06)", "sang": "Sáng (06–12)",
+              "chieu": "Chiều (12–18)", "toi": "Tối (18–24)"}
+
+
+def _bo_loc_co_the_dung(ds: list[dict]) -> dict:
+    """Liệt kê các GIÁ TRỊ LỌC CÓ THẬT trong kết quả, kèm số chuyến mỗi giá trị.
+
+    ── VÌ SAO SINH TỪ DỮ LIỆU, KHÔNG GÕ CỨNG DANH SÁCH ──
+    Gõ cứng thì giao diện hiện "Bamboo Airways" cho một chặng không hãng nào bay, người
+    dùng bấm vào rồi nhận danh sách rỗng và tưởng hỏng. Sinh từ dữ liệu thì mỗi ô lọc
+    đều đảm bảo ra ít nhất một chuyến, và con số bên cạnh cho biết trước sẽ còn bao nhiêu.
+
+    Lọc chạy ở GIAO DIỆN chứ không gọi lại máy chủ: cả ngày bay đã tải về rồi, lọc lại
+    là việc của trình duyệt. Gọi lại vừa chậm vừa tốn hạn mức nhà cung cấp (gói miễn phí
+    tính từng lượt), mà không biết thêm điều gì.
+    """
+    def dem(lay) -> list[dict]:
+        d: dict[str, int] = {}
+        for c in ds:
+            v = (lay(c) or "").strip()
+            if v:
+                d[v] = d.get(v, 0) + 1
+        return [{"gia_tri": k, "so_chuyen": n} for k, n in sorted(d.items(), key=lambda x: (-x[1], x[0]))]
+
+    khung: dict[str, int] = {}
+    for c in ds:
+        try:
+            g = int(str(c.get("khoi_hanh", ""))[11:13])
+        except ValueError:
+            continue
+        k = _khung_gio(g)
+        khung[k] = khung.get(k, 0) + 1
+
+    return {
+        "hang": dem(lambda c: c.get("hang")),
+        "may_bay": dem(lambda c: c.get("may_bay")),
+        "nha_ga": dem(lambda c: c.get("nha_ga")),
+        "trang_thai": dem(lambda c: c.get("trang_thai")),
+        "khung_gio": [
+            {"gia_tri": k, "ten": _TEN_KHUNG[k], "so_chuyen": khung[k]}
+            for k in ("dem_khuya", "sang", "chieu", "toi") if khung.get(k)
+        ],
+    }
+
+
 def _vo_nguon(du_lieu: list[dict], ncc) -> dict:
     """Bọc kết quả kèm KHAI BÁO NGUỒN. Đây là phần khiến bản demo đáng tin.
 
@@ -119,7 +176,10 @@ def tim_chuyen_bay(
     tu: str = Query(..., min_length=2, description="Tên thành phố hoặc mã sân bay, vd 'Hà Nội' hay HAN"),
     den: str = Query(..., min_length=2, description="Tên thành phố hoặc mã sân bay, vd 'Đà Nẵng' hay DAD"),
     ngay: str = Query(..., description="Ngày bay dd/mm/yyyy"),
-    so_ket_qua: int = Query(5, ge=1, le=10),
+    # Trần nâng từ 10 lên 100: cả ngày bay đã được tải về rồi (2 lượt gọi nhà cung cấp,
+    # xem _CUA_SO), nên cắt còn 5 chuyến là VỨT ĐI dữ liệu đã trả tiền để lấy — mà
+    # người dùng lại cần đủ chuyến thì bộ lọc mới có ý nghĩa.
+    so_ket_qua: int = Query(30, ge=1, le=100),
 ):
     """TRA CỨU chuyến bay. Không giữ chỗ, không đặt, không thanh toán."""
     ncc = dat_cho.lay_nha_cung_cap()
@@ -139,7 +199,10 @@ def tim_chuyen_bay(
         # Lỗi CHƯA diễn giải: nói THẲNG cả tên lớp. Nuốt thành "có lỗi xảy ra" thì lúc
         # trình bày mà hỏng, không ai biết đường sửa trong ba mươi giây.
         raise HTTPException(502, f"{type(exc).__name__}: {str(exc)[:200]}")
-    return _vo_nguon([c.to_dict() for c in ds], ncc)
+    ket_qua = [c.to_dict() for c in ds]
+    # Kèm CÁC GIÁ TRỊ LỌC CÓ THẬT trong đúng kết quả này — giao diện dựng ô lọc từ
+    # đó, nên không bao giờ có ô lọc bấm vào ra danh sách rỗng.
+    return {**_vo_nguon(ket_qua, ncc), "bo_loc": _bo_loc_co_the_dung(ket_qua)}
 
 
 @router.get("/khach-san")
