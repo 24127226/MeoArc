@@ -62,7 +62,10 @@ for (const c of CA.trich) {
     const thu = {
       id: '1', sender: 'Ai đó', senderEmail: 'a@b.c', senderInitial: 'A', to: 'tôi',
       subject: c.subject, preview: '', body: c.body, time: '', date: '',
-      unread: false, starred: false, category: 'sea', folder: 'inbox',
+      unread: false, starred: false, category: 'sea',
+      // Ca nào không nói thư mục thì là hộp thư đến. Ca CÓ nói là đang kiểm bộ lọc
+      // thư mục — cùng một nội dung, chỉ đổi chỗ nó nằm, và kết quả phải đổi theo.
+      folder: (c as { folder?: string }).folder ?? 'inbox',
       priority: c.priority ?? undefined,
     } as unknown as Email
     const ra = trichCamKet([thu], MOC)

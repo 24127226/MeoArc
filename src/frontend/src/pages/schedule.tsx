@@ -66,7 +66,11 @@ export function SchedulePage() {
 
   useEffect(() => {
     if (!apiBaseUrlDaCauHinh) return
-    api.listEmails({ folder: 'inbox' }).then((r) => setEmails(r.items)).catch(() => {})
+    // XIN ĐÚNG SỐ THƯ AGENT QUÉT (60). Mặc định của API là 30, còn `ap_luc_lich_trinh`
+    // và `liet_ke_cam_ket` quét 60 — nên trợ lý tìm ra cam kết trong lá thứ 45 mà cuốn
+    // lịch chưa bao giờ tải về. Người dùng thấy AI nhắc một việc rồi mở lịch không có nó,
+    // và kết luận là một trong hai đang bịa.
+    api.listEmails({ folder: 'inbox', limit: 60 }).then((r) => setEmails(r.items)).catch(() => {})
   }, [])
 
   const camKet = useMemo(() => trichCamKet(emails), [emails])

@@ -71,8 +71,26 @@ export type CamKet = {
 
 /** Động từ báo hiệu một nghĩa vụ. Chỉ có ngày tháng thì chưa đủ — "hẹn gặp lại
  *  bạn tháng sau" có ngày nhưng không phải việc phải làm. */
+/** ── KHÔNG DÙNG `\b` Ở ĐÂY. ĐÃ ĐO ĐƯỢC LÀ NÓ HỤT. ──
+ *
+ *  `\b` của JavaScript chỉ định nghĩa trên ký tự ASCII `[A-Za-z0-9_]`. Chữ Việt có
+ *  dấu KHÔNG phải ASCII, nên ranh giới từ hoạt động sai với bất kỳ từ nào bắt đầu
+ *  hoặc kết thúc bằng ký tự có dấu:
+ *
+ *      "nộp"      n…p đều ASCII        → khớp
+ *      "xác nhận" x…n đều ASCII        → khớp
+ *      "đăng ký"  bắt đầu bằng "đ"     → HỤT
+ *      "bảo vệ"   kết thúc bằng "ệ"    → HỤT
+ *
+ *  Hậu quả đo được trên 77 thư demo: bản TS trích 35 cam kết, bản Python trích 39 —
+ *  bốn thư "đăng ký"/"bảo vệ" chỉ hiện trong câu trả lời của trợ lý mà KHÔNG có trên
+ *  cuốn lịch. Người dùng thấy AI nhắc một việc rồi mở lịch ra không tìm thấy nó.
+ *
+ *  Đây là kiểu lỗi tệ nhất: không ném lỗi, không có cảnh báo, và chỉ sai với ĐÚNG
+ *  tiếng Việt — ngôn ngữ duy nhất sản phẩm này phục vụ. Bỏ `\b` để khớp đúng bản
+ *  Python; `src/lib/cam-ket.test.ts` có phép so chéo giữ hai bên không lệch lại. */
 const DONG_TU_CAM_KET =
-  /\b(nộp|gửi|hoàn thành|hoàn tất|phản hồi|trả lời|xác nhận|đăng ký|thanh toán|đóng|bảo vệ|trình bày|báo cáo|deadline|hạn chót|hạn cuối|due)\b/i
+  /(nộp|gửi|hoàn thành|hoàn tất|phản hồi|trả lời|xác nhận|đăng ký|thanh toán|đóng|bảo vệ|trình bày|báo cáo|deadline|hạn chót|hạn cuối|due)/i
 
 /** Dấu hiệu có mốc thời gian. Gộp cả dạng số lẫn dạng chữ tiếng Việt. */
 const DAU_HIEU_THOI_GIAN =

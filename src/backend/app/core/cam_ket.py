@@ -353,6 +353,14 @@ def trich_cam_ket(emails: list, moc: datetime | None = None) -> list[CamKet]:
         if isinstance(body, str):
             body = [body]
         folder = g("folder") or "inbox"
+        # ── CHỈ HỘP THƯ ĐẾN VÀ ĐÃ GỬI ──
+        # Thư trong Thùng rác / Thư rác / Lưu trữ / Nháp KHÔNG phải việc phải làm:
+        # người dùng đã chủ động dọn chúng đi. Bản TS có bộ lọc này từ đầu, bản Python
+        # thì không — nên trợ lý có thể nhắc một việc nằm trong thùng rác, còn cuốn
+        # lịch thì không hiện. Hai bên phải cùng một luật, nếu không thì mỗi lần người
+        # dùng đối chiếu là một lần họ mất niềm tin vào cả hai.
+        if folder not in ("inbox", "sent"):
+            continue
         eid = str(g("id") or "")
         sender = g("sender") or "ai đó"
         priority = g("priority")

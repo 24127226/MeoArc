@@ -63,7 +63,10 @@ def test_doc_khoang(c):
 def test_trich(c):
     thu = {
         "id": "1", "subject": c["subject"], "body": c["body"],
-        "priority": c["priority"], "sender": "Ai đó", "folder": "inbox",
+        "priority": c["priority"], "sender": "Ai đó",
+        # Ca nào không nói thư mục thì là hộp thư đến. Ca CÓ nói là đang kiểm
+        # bộ lọc thư mục — thứ bản Python từng thiếu.
+        "folder": c.get("folder", "inbox"),
     }
     ra = ck.trich_cam_ket([thu], MOC)
     assert (len(ra) == 1) is c["nhan"], (
