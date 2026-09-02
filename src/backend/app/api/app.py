@@ -248,6 +248,82 @@ def data_size(db: Session = Depends(get_db),
     return {"table_rows": maintenance.table_sizes(db)}
 
 
+@app.get("/admin/kiem-khoa")
+async def kiem_khoa(session: AuthSession = Depends(get_current_session)):
+    """Từng khoá có SỐNG không, và có THẤY được các model đã cấu hình không.
+
+    ── VÌ SAO DÙNG ListModels ──
+    Đây là lời gọi SIÊU DỮ LIỆU, không tiêu hạn mức sinh nội dung. Nên hỏi được ngay
+    cả khi mọi khoá đã cạn — đúng lúc cần câu trả lời nhất. Thử bằng một câu chat thật
+    thì vừa tốn lượt vừa không phân biệt được "khoá hỏng" với "hết hạn mức".
+
+    Trả lời hai câu hỏi mà nhìn thông báo lỗi không tài nào biết được:
+      • Khoá có hợp lệ không, hay đã bị thu hồi / gõ thiếu ký tự khi dán vào Azure.
+      • Model trong MODEL_NAME / MODEL_FALLBACKS có THẬT SỰ TỒN TẠI với khoá đó không.
+        Google từng gỡ `gemini-2.5-flash` giữa ngày (xem tests/test_llm_du_phong.py).
+        Tên model chết thì bậc đó chỉ là chỗ trống — cấu hình trông như có dự phòng mà
+        thực tế không có, và không có triệu chứng nào nhìn ra được từ ngoài.
+
+    KHÔNG BAO GIỜ trả về khoá, chỉ số thứ tự. Cần đăng nhập mới gọi được.
+    """
+    import asyncio
+
+    import httpx
+
+    goc = (settings.ai_base_url or "https://generativelanguage.googleapis.com").rstrip("/")
+    dau = {}
+    if settings.ai_base_url and settings.ai_proxy_secret:
+        dau["x-meoarc-proxy"] = settings.ai_proxy_secret
+
+    can_co = [settings.model_name] + [
+        t.strip() for t in (settings.model_fallbacks or "").split(",") if t.strip()
+    ]
+    can_co = list(dict.fromkeys(can_co))
+
+    async def _thu(i: int, khoa: str) -> dict:
+        ra: dict = {"khoa": f"#{i}"}
+        try:
+            async with httpx.AsyncClient(timeout=20) as cl:
+                # Khoá đi trong HEADER chứ không phải query string: chuỗi truy vấn bị
+                # ghi vào log của mọi tầng trung gian, header thì không.
+                r = await cl.get(f"{goc}/v1beta/models",
+                                 headers={**dau, "x-goog-api-key": khoa})
+            if r.status_code != 200:
+                ra["ok"] = False
+                ra["loi"] = f"HTTP {r.status_code}: {r.text[:200]}"
+                return ra
+            co = {
+                (m.get("name") or "").removeprefix("models/")
+                for m in (r.json().get("models") or [])
+            }
+            ra["ok"] = True
+            ra["so_model"] = len(co)
+            ra["model_thieu"] = [t for t in can_co if t not in co]
+        except Exception as exc:  # noqa: BLE001 — một khoá hỏng không được làm chết cả bảng
+            ra["ok"] = False
+            ra["loi"] = str(exc)[:200]
+        return ra
+
+    ds = settings.danh_sach_khoa_ai
+    if not ds:
+        return {"so_khoa": 0, "ghi_chu": "Chưa cấu hình AI_API_KEY."}
+
+    ket = await asyncio.gather(*(_thu(i, k) for i, k in enumerate(ds, start=1)))
+    thieu = sorted({t for r in ket for t in r.get("model_thieu", [])})
+    return {
+        "so_khoa": len(ds),
+        "model_dang_cau_hinh": can_co,
+        "khoa_hong": [r["khoa"] for r in ket if not r.get("ok")],
+        # Model KHÔNG khoá nào thấy = tên model sai hoặc đã bị gỡ. Đây là thứ đáng xem
+        # trước tiên: nó biến một nửa chuỗi dự phòng thành chỗ trống mà không báo gì.
+        "model_KHONG_KHOA_NAO_THAY": [
+            t for t in thieu
+            if all(t in r.get("model_thieu", []) for r in ket if r.get("ok"))
+        ],
+        "chi_tiet": ket,
+    }
+
+
 def _table_rows_once() -> dict:
     from app.core.db import SessionLocal
     db = SessionLocal()

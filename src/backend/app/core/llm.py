@@ -1,4 +1,5 @@
 import os
+import re
 import time
 
 from langchain.chat_models import init_chat_model
@@ -139,12 +140,46 @@ def _che_khoa(van: str) -> str:
 _LOI_GAN_NHAT: dict = {}
 
 
+# Google nhét thông tin quyết định vào PHẦN ĐUÔI của thông báo lỗi:
+#   * Quota exceeded for metric: generativelanguage.googleapis.com/…_free_tier_requests,
+#     limit: 0
+# `limit: 0` nghĩa là model đó KHÔNG có gói free — mọi khoá đều hỏng ngay lập tức, và
+# thêm bao nhiêu khoá cũng vô ích. `limit: 250` nghĩa là hạn mức thật và đã dùng hết.
+# Hai bệnh hoàn toàn khác nhau, mà chỉ phân biệt được bằng đúng con số này. Cắt chuỗi
+# ở 400 ký tự thì cắt mất nó — đã vấp một lần rồi.
+# Google viết cùng một thứ bằng HAI kiểu tuỳ đường trả lỗi, và phải bắt được cả hai:
+#   • văn xuôi     : "* Quota exceeded for metric: generativelanguage.…, limit: 0"
+#   • có cấu trúc  : "quota_metric": "generativelanguage.…"  (khối QuotaFailure)
+# Chỉ khớp kiểu có cấu trúc là hụt đúng dạng đang gặp trên bản triển khai.
+_RE_HAN_MUC = re.compile(
+    r"(?:quota[_ ]?(?:metric|id)|quota exceeded for metric)"
+    r"['\"]?\s*[:=]\s*['\"]?([\w./-]+)",
+    re.I,
+)
+_RE_GIA_TRI = re.compile(r"(?:limit|quota_value)['\"]?\s*[:=]\s*['\"]?(\d+)", re.I)
+
+
 def _ghi_loi_gan_nhat(nhan: str, e: BaseException) -> None:
+    van = _che_khoa(str(e))
+    han_muc: dict = {}
+    m = _RE_HAN_MUC.search(van)
+    if m:
+        han_muc["metric"] = m.group(1)
+    g = _RE_GIA_TRI.search(van)
+    if g:
+        han_muc["gia_tri"] = int(g.group(1))
+        # Nói thẳng ra kết luận thay vì bắt người đọc tự suy: 0 là bệnh khác hẳn.
+        han_muc["nghia"] = (
+            "model KHÔNG có gói free — thêm khoá cũng vô ích, phải ĐỔI MODEL"
+            if han_muc["gia_tri"] == 0
+            else "hạn mức thật và đã dùng hết — thêm khoá ở project khác sẽ có thêm lượt"
+        )
     _LOI_GAN_NHAT.clear()
     _LOI_GAN_NHAT.update({
         "bac": nhan,
         "luc": time.time(),
-        "loi": _che_khoa(str(e))[:400],
+        "han_muc": han_muc,
+        "loi": van[:1500],
     })
 
 

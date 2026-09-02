@@ -590,3 +590,76 @@ async def test_loi_THAT_cung_duoc_ghi_lai(monkeypatch):
     with pytest.raises(ValueError):
         await LLMDuPhong([_Model("A", LOI_THAT)], ["A"]).ainvoke("x")
     assert loi_llm_gan_nhat()["bac"] == "A"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BÓC CON SỐ HẠN MỨC RA KHỎI THÔNG BÁO LỖI
+#
+# Nguyên văn lỗi thật lấy từ bản triển khai 02/09/2026. Bản trước cắt chuỗi ở 400 ký
+# tự và cắt mất đúng đoạn quan trọng: `Quota exceeded for metric: generati…`. Con số
+# `limit` nằm ngay sau đó, và nó phân biệt HAI BỆNH KHÁC HẲN NHAU:
+#   • limit: 0   → model không có gói free. Mọi khoá hỏng ngay. Thêm khoá VÔ ÍCH.
+#   • limit: 250 → hạn mức thật, đã dùng hết. Thêm khoá ở project khác thì có thêm.
+# Chữa nhầm bệnh này bằng thuốc của bệnh kia là mất cả buổi.
+# ══════════════════════════════════════════════════════════════════════════════
+
+LOI_THAT_TU_AZURE = RuntimeError(
+    "Error calling model 'gemini-3.6-flash' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. "
+    "{'error': {'code': 429, 'message': 'You exceeded your current quota, please check "
+    "your plan and billing details. For more information on this error, head to: "
+    "https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, "
+    "head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: "
+    "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0"
+    "'}}"
+)
+
+
+@pytest.mark.asyncio
+async def test_boc_duoc_metric_va_gia_tri_han_muc(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong([_Model("A", LOI_THAT_TU_AZURE)], ["A"]).ainvoke("x")
+    hm = loi_llm_gan_nhat()["han_muc"]
+    assert "free_tier_requests" in hm["metric"]
+    assert hm["gia_tri"] == 0
+
+
+@pytest.mark.asyncio
+async def test_limit_0_thi_noi_thang_la_PHAI_DOI_MODEL(monkeypatch):
+    """Không bắt người đọc tự suy ra từ một con số 0. Đây là chỗ dễ đọc lướt qua nhất
+    mà lại quyết định làm gì tiếp theo."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong([_Model("A", LOI_THAT_TU_AZURE)], ["A"]).ainvoke("x")
+    assert "ĐỔI MODEL" in loi_llm_gan_nhat()["han_muc"]["nghia"]
+
+
+@pytest.mark.asyncio
+async def test_limit_KHAC_0_thi_khuyen_them_khoa(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    loi = RuntimeError(
+        "429 RESOURCE_EXHAUSTED * Quota exceeded for metric: "
+        "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 250"
+    )
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong([_Model("A", loi)], ["A"]).ainvoke("x")
+    hm = loi_llm_gan_nhat()["han_muc"]
+    assert hm["gia_tri"] == 250
+    assert "project khác" in hm["nghia"]
+
+
+@pytest.mark.asyncio
+async def test_giu_du_dai_de_KHONG_cat_mat_doan_han_muc(monkeypatch):
+    """Chính lỗi đã vấp: 400 ký tự cắt đúng chỗ `Quota exceeded for metric: generati`."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong([_Model("A", LOI_THAT_TU_AZURE)], ["A"]).ainvoke("x")
+    assert "limit: 0" in loi_llm_gan_nhat()["loi"]
+
+
+@pytest.mark.asyncio
+async def test_loi_khong_co_han_muc_thi_de_trong_chu_khong_bia(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(ValueError):
+        await LLMDuPhong([_Model("A", LOI_THAT)], ["A"]).ainvoke("x")
+    assert loi_llm_gan_nhat()["han_muc"] == {}
