@@ -127,27 +127,30 @@ def test_with_structured_output_ap_cho_MOI_model():
 def test_bo_model_du_phong_TRUNG_voi_model_chinh(monkeypatch):
     """Rơi sang chính mình thì chỉ tốn thêm một lần gọi hỏng rồi vẫn lỗi như cũ."""
     from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1")
     monkeypatch.setattr(mod.settings, "model_name", "gemini-2.5-flash")
     monkeypatch.setattr(mod.settings, "model_fallbacks", "gemini-2.5-flash")
-    monkeypatch.setattr(mod, "create_llm", lambda ten=None: _Model(ten or "chinh"))
+    monkeypatch.setattr(mod, "create_llm", lambda ten=None, khoa=None: _Model(ten or "chinh"))
     ra = mod.create_llm_du_phong()
     assert not isinstance(ra, LLMDuPhong), "trùng tên thì không nên dựng chuỗi"
 
 
 def test_khong_cau_hinh_du_phong_thi_tra_ve_llm_thuong(monkeypatch):
     from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1")
     monkeypatch.setattr(mod.settings, "model_fallbacks", "")
-    monkeypatch.setattr(mod, "create_llm", lambda ten=None: _Model(ten or "chinh"))
+    monkeypatch.setattr(mod, "create_llm", lambda ten=None, khoa=None: _Model(ten or "chinh"))
     assert not isinstance(mod.create_llm_du_phong(), LLMDuPhong)
 
 
 def test_model_du_phong_dung_hong_KHONG_lam_chet_agent(monkeypatch):
     """Một tên model gõ sai trong .env không được làm chết cả agent — bỏ qua nó thôi."""
     from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1")
     monkeypatch.setattr(mod.settings, "model_name", "chinh")
     monkeypatch.setattr(mod.settings, "model_fallbacks", "hong,tot")
 
-    def gia(ten=None):
+    def gia(ten=None, khoa=None):
         if ten == "hong":
             raise RuntimeError("không dựng được")
         return _Model(ten or "chinh")
@@ -156,3 +159,260 @@ def test_model_du_phong_dung_hong_KHONG_lam_chet_agent(monkeypatch):
     ra = mod.create_llm_du_phong()
     assert isinstance(ra, LLMDuPhong)
     assert len(ra._chuoi) == 2, "phải còn model chính + model dự phòng dựng được"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRỤC THỨ HAI: NHIỀU KHOÁ
+#
+# Vì sao có phần này. Khoá chỉ được đọc MỘT LẦN lúc dựng `settings`, còn client LLM
+# thì nằm trong biến toàn cục ở agent_node — nên đổi khoá bắt buộc phải khởi động lại
+# tiến trình. Máy nhà 2 giây; trên Azure là khởi động lại cả container, đo được 2–4
+# phút và không có tín hiệu nào cho biết còn bao lâu. Nạp sẵn mọi khoá thì lúc cạn
+# không phải đụng vào Azure giữa buổi trình bày nữa.
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.core.config import Settings
+from app.core.llm import _NGHI, _cho_nghi, _dang_nghi, _nhan_bac, trang_thai_khoa
+
+
+@pytest.fixture(autouse=True)
+def _don_bo_nho_nghi():
+    """`_NGHI` sống ở tầng module nên nó RÒ TỪ CA NÀY SANG CA KHÁC. Một ca đánh dấu
+    "bậc 1 nghỉ" là mọi ca sau đó chạy trên một chuỗi đã bị xếp lại thứ tự — hỏng theo
+    kiểu chạy riêng thì xanh, chạy cả file thì đỏ, và rất lâu mới lần ra."""
+    _NGHI.clear()
+    yield
+    _NGHI.clear()
+
+
+# ── Tách danh sách khoá ──────────────────────────────────────────────────────
+
+def test_mot_khoa_van_nhu_cu():
+    """Không ai phải sửa .env vì tính năng này."""
+    assert Settings(ai_api_key="AIzaMotKhoa").danh_sach_khoa_ai == ["AIzaMotKhoa"]
+
+
+def test_tach_nhieu_khoa_theo_dau_phay_va_xuong_dong():
+    """Dán từ AI Studio ra hay dính sẵn dòng mới và khoảng trắng."""
+    s = Settings(ai_api_key="k1, k2\nk3,  k4 ")
+    assert s.danh_sach_khoa_ai == ["k1", "k2", "k3", "k4"]
+
+
+def test_bo_khoa_TRUNG_nhung_giu_thu_tu():
+    """Khoá đứng hai lần = khi nó cạn, chuỗi thử lại đúng nó lần nữa: tốn thêm một
+    lượt gọi CHẮC CHẮN hỏng, đúng lúc đang cần câu trả lời nhất."""
+    assert Settings(ai_api_key="k1,k2,k1,k3").danh_sach_khoa_ai == ["k1", "k2", "k3"]
+
+
+def test_khong_co_khoa_thi_danh_sach_rong():
+    assert Settings(ai_api_key="").danh_sach_khoa_ai == []
+    assert Settings(ai_api_key="").khoa_ai_dau_tien == ""
+
+
+def test_khoa_dau_tien_KHONG_phai_ca_chuoi():
+    """Chỗ nào không có chuỗi dự phòng (embeddings) mà đọc thẳng `ai_api_key` thì đang
+    dán cả "k1,k2,k3" vào header x-goog-api-key → 400, và thông báo lỗi của Google
+    không hề nhắc gì tới dấu phẩy nên rất lâu mới lần ra."""
+    assert Settings(ai_api_key="k1,k2,k3").khoa_ai_dau_tien == "k1"
+
+
+# ── Dựng chuỗi model × khoá ──────────────────────────────────────────────────
+
+def _bay_create_llm(monkeypatch, mod):
+    """Ghi lại đúng thứ tự (model, khoá) mà chuỗi được dựng."""
+    da_dung: list[tuple] = []
+
+    def gia(ten=None, khoa=None):
+        da_dung.append((ten, khoa))
+        return _Model(f"{ten}|{khoa}")
+
+    monkeypatch.setattr(mod, "create_llm", gia)
+    return da_dung
+
+
+def test_chuoi_no_ra_thanh_model_NHAN_khoa(monkeypatch):
+    from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1,k2,k3")
+    monkeypatch.setattr(mod.settings, "model_name", "m1")
+    monkeypatch.setattr(mod.settings, "model_fallbacks", "m2")
+    _bay_create_llm(monkeypatch, mod)
+
+    ra = mod.create_llm_du_phong()
+    assert isinstance(ra, LLMDuPhong)
+    assert len(ra._chuoi) == 6, "2 model × 3 khoá"
+
+
+def test_DOI_KHOA_TRUOC_roi_moi_ha_model(monkeypatch):
+    """Phép kiểm quan trọng nhất của phần này.
+
+    Đổi khoá thì người dùng không nhận ra gì — cùng model, cùng chất lượng. Hạ model
+    thì giọng văn và khả năng suy luận đổi theo. Nên phải vét sạch khoá của model tốt
+    TRƯỚC khi chịu xuống model kém hơn. Xếp ngược lại thì câu hỏi thứ hai của buổi
+    demo đã chạy bằng model dự phòng trong khi model chính vẫn còn nguyên hạn mức ở
+    khoá #2."""
+    from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1,k2")
+    monkeypatch.setattr(mod.settings, "model_name", "m1")
+    monkeypatch.setattr(mod.settings, "model_fallbacks", "m2")
+    da_dung = _bay_create_llm(monkeypatch, mod)
+
+    mod.create_llm_du_phong()
+    assert da_dung == [("m1", "k1"), ("m1", "k2"), ("m2", "k1"), ("m2", "k2")]
+
+
+def test_mot_khoa_thi_chuoi_y_HET_nhu_truoc(monkeypatch):
+    """Không có khoá thứ hai thì không được đẻ thêm bậc nào."""
+    from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1")
+    monkeypatch.setattr(mod.settings, "model_name", "m1")
+    monkeypatch.setattr(mod.settings, "model_fallbacks", "m2")
+    _bay_create_llm(monkeypatch, mod)
+    assert len(mod.create_llm_du_phong()._chuoi) == 2
+
+
+def test_nhieu_khoa_MOT_model_van_dung_chuoi(monkeypatch):
+    """Không khai MODEL_FALLBACKS nhưng có 3 khoá thì vẫn phải có 3 bậc — nếu không,
+    người dùng dán đủ 3 khoá vào .env rồi vẫn chết ở khoá đầu mà không hiểu vì sao."""
+    from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1,k2,k3")
+    monkeypatch.setattr(mod.settings, "model_name", "m1")
+    monkeypatch.setattr(mod.settings, "model_fallbacks", "")
+    _bay_create_llm(monkeypatch, mod)
+    assert len(mod.create_llm_du_phong()._chuoi) == 3
+
+
+@pytest.mark.asyncio
+async def test_het_quota_khoa_1_thi_sang_khoa_2_CUNG_model(monkeypatch):
+    from app.core import llm as mod
+    monkeypatch.setattr(mod.settings, "ai_api_key", "k1,k2")
+    monkeypatch.setattr(mod.settings, "model_name", "m1")
+    monkeypatch.setattr(mod.settings, "model_fallbacks", "m2")
+    monkeypatch.setattr(
+        mod, "create_llm",
+        lambda ten=None, khoa=None: _Model(f"{ten}|{khoa}",
+                                           HET_QUOTA if khoa == "k1" else None),
+    )
+    assert await mod.create_llm_du_phong().ainvoke("x") == "m1|k2"
+
+
+# ── Nhãn bậc KHÔNG được chứa khoá ────────────────────────────────────────────
+
+def test_nhan_bac_KHONG_lo_khoa():
+    """Nhãn đi thẳng vào log và vào /metrics. Lọt khoá vào đây là phát tán bí mật ra
+    một nơi ai cũng đọc được, và không có cách nào thu lại."""
+    nhan = _nhan_bac("gemini-2.5-flash-lite", 2, 3)
+    assert "khoá #2" in nhan
+    assert "AIza" not in nhan and "k1" not in nhan
+
+
+def test_mot_khoa_thi_nhan_KHONG_deo_them_so():
+    """Một con số luôn bằng 1 thì chỉ làm log ồn."""
+    assert _nhan_bac("m1", 1, 1) == "m1"
+
+
+# ── Nhớ bậc đã cạn ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_bac_da_can_thi_LAN_SAU_khong_thu_lai(monkeypatch):
+    """Không nhớ thì mỗi câu hỏi lại đâm vào đúng bậc đã chết — mà mỗi lần đâm còn
+    kèm `max_retries=3` và backoff của riêng nó. Người dùng không thấy lỗi, chỉ thấy
+    trợ lý chậm dần đều."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    a, b = _Model("A", HET_QUOTA), _Model("B")
+    chuoi = LLMDuPhong([a, b], ["A", "B"])
+
+    assert await chuoi.ainvoke("x") == "B"
+    assert a.so_lan_goi == 1
+
+    assert await chuoi.ainvoke("x") == "B"
+    assert a.so_lan_goi == 1, "bậc đã cạn KHÔNG được gọi lại trong thời gian nghỉ"
+    assert b.so_lan_goi == 2
+
+
+@pytest.mark.asyncio
+async def test_bo_nho_nghi_DUNG_CHUNG_giua_cac_chuoi(monkeypatch):
+    """agent và bộ trình bày là HAI chuỗi khác nhau nhưng cùng đi qua một khoá. Nhớ
+    riêng thì agent học được "khoá #1 chết" còn bộ trình bày vẫn tự đâm đầu vào lần
+    nữa — mỗi câu hỏi đốt oan thêm một lượt."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    a1, b1 = _Model("A", HET_QUOTA), _Model("B")
+    await LLMDuPhong([a1, b1], ["A", "B"]).ainvoke("x")
+
+    a2, b2 = _Model("A", HET_QUOTA), _Model("B")
+    assert await LLMDuPhong([a2, b2], ["A", "B"]).ainvoke("x") == "B"
+    assert a2.so_lan_goi == 0, "chuỗi thứ hai phải THỪA HƯỞNG hiểu biết của chuỗi đầu"
+
+
+@pytest.mark.asyncio
+async def test_moi_bac_deu_nghi_thi_VAN_THU_chu_khong_tu_choi(monkeypatch):
+    """Thời gian nghỉ chỉ là phỏng đoán (Google trả cùng một mã cho hạn mức phút và
+    hạn mức ngày). Nó đủ để SẮP LẠI THỨ TỰ, không đủ để tự cho phép mình từ chối phục
+    vụ — biết đâu hạn mức đã hồi rồi."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    _cho_nghi("A")
+    _cho_nghi("B")
+    b = _Model("B")
+    assert await LLMDuPhong([_Model("A", HET_QUOTA), b], ["A", "B"]).ainvoke("x") == "B"
+    assert b.so_lan_goi == 1
+
+
+@pytest.mark.asyncio
+async def test_bac_dang_nghi_XUONG_CUOI_chu_khong_bi_bo(monkeypatch):
+    """Bậc nghỉ vẫn là lưới cuối. Bỏ hẳn thì lúc mọi bậc cùng nghỉ ta phải bịa ra một
+    lỗi mới để ném, trong khi thứ người dùng cần lúc đó là cứ thử."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    _cho_nghi("A")
+    a = _Model("A")
+    assert await LLMDuPhong([a, _Model("B", HET_QUOTA)], ["A", "B"]).ainvoke("x") == "A"
+
+
+@pytest.mark.asyncio
+async def test_loi_THAT_khong_lam_bac_bi_cho_nghi(monkeypatch):
+    """Cho một bậc nghỉ vì lỗi schema tool thì ta vừa che mất lỗi thật, vừa tự tay
+    loại một bậc còn nguyên hạn mức — hỏng gấp đôi."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(ValueError):
+        await LLMDuPhong([_Model("A", LOI_THAT), _Model("B")], ["A", "B"]).ainvoke("x")
+    assert not _dang_nghi("A")
+
+
+@pytest.mark.asyncio
+async def test_bac_CUOI_can_cung_duoc_ghi_nho(monkeypatch):
+    """Cạn sạch thì vẫn phải ném lỗi, nhưng bậc cuối cũng đã cạn thật — không ghi lại
+    thì câu hỏi kế tiếp lại đi đủ cả chuỗi lần nữa."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong(
+            [_Model("A", HET_QUOTA), _Model("B", HET_QUOTA)], ["A", "B"]
+        ).ainvoke("x")
+    assert _dang_nghi("A") and _dang_nghi("B")
+
+
+def test_loi_dong_bo_cung_ghi_nho(monkeypatch):
+    """`invoke` và `ainvoke` phải cư xử y hệt — chúng dùng chung `_xu_ly_loi`."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    ra = LLMDuPhong([_Model("A", HET_QUOTA), _Model("B")], ["A", "B"]).invoke("x")
+    assert ra == "B"
+    assert _dang_nghi("A")
+
+
+def test_cooldown_0_thi_TAT_han_viec_nho(monkeypatch):
+    """Lối thoát khi muốn quay lại hành vi cũ mà không phải sửa mã."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 0)
+    _cho_nghi("A")
+    assert not _dang_nghi("A")
+
+
+# ── /metrics ─────────────────────────────────────────────────────────────────
+
+def test_trang_thai_khoa_chi_liet_ke_bac_DANG_nghi(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    _cho_nghi("m1 - khoa 1")
+    ra = trang_thai_khoa()
+    assert len(ra) == 1
+    assert ra[0]["bac"] == "m1 - khoa 1"
+    assert 0 < ra[0]["nghi_them_giay"] <= 15 * 60
+
+
+def test_trang_thai_khoa_rong_khi_moi_thu_con_song():
+    assert trang_thai_khoa() == []

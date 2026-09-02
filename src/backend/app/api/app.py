@@ -213,6 +213,14 @@ def metrics():
         snap["db_pool"] = "n/a"
     snap["kv_backend"] = kv.backend_name
     snap["thread_pool"] = _thread_pool_size()
+    # Bậc LLM nào đang nghỉ vì hết hạn mức. Ngày trình bày, đây là con số đáng nhìn
+    # nhất mà trước giờ chỉ đoán được bằng cách hỏi thử — tức là tốn đúng cái đang đo.
+    # Chỉ có tên model + số thứ tự khoá, KHÔNG có khoá (xem `_nhan_bac`).
+    try:
+        from app.core.llm import trang_thai_khoa
+        snap["llm_dang_nghi"] = trang_thai_khoa()
+    except Exception:
+        snap["llm_dang_nghi"] = "n/a"
     snap["workers"] = settings.web_concurrency
     # Trạng thái ngắt mạch: 'mo' nghĩa là dịch vụ ngoài đang sập và ta đang tạm ngừng gọi.
     snap["ngat_mach"] = {

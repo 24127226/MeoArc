@@ -31,7 +31,14 @@ def _get_embedder():
         if not settings.ai_api_key:
             raise RuntimeError("Chưa cấu hình AI_API_KEY nên không dùng được tìm kiếm ngữ nghĩa.")
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
-        kw = {"model": _EMBED_MODEL, "google_api_key": settings.ai_api_key}
+        # Khoá ĐẦU TIÊN, không phải cả trường: AI_API_KEY nay có thể là danh sách
+        # "k1,k2,k3" (xem `danh_sach_khoa_ai`). Dán nguyên chuỗi vào đây thì Google
+        # trả 400, và thông báo lỗi của họ không hề nhắc gì tới dấu phẩy.
+        #
+        # Chỗ này KHÔNG có chuỗi dự phòng như chat: embeddings hết hạn mức thì tìm-
+        # theo-nghĩa hỏng, chứ không tự sang khoá khác. Chấp nhận được vì nó rẻ hơn
+        # chat nhiều lần; nếu sau này cũng cạn thì dựng chuỗi cho nó y như `llm.py`.
+        kw = {"model": _EMBED_MODEL, "google_api_key": settings.khoa_ai_dau_tien}
         # Embedding cũng gọi generativelanguage.googleapis.com nên DÍNH ĐÚNG lệnh chặn
         # theo vùng như chat. Quên chỗ này thì agent chạy được nhưng tìm-theo-nghĩa vẫn
         # hỏng — một nửa tính năng sống, một nửa chết, rất khó lần ra.

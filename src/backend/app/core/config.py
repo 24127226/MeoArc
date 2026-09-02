@@ -9,6 +9,8 @@
 # ║   khởi động (fail fast) thay vì chạy giữa chừng mới lỗi.            ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
+import re
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +52,9 @@ class Settings(BaseSettings):
     #   • ai_api_key          ← AI_API_KEY        : KHOÁ Gemini (lấy free ở aistudio.google.com).
     #                            ĐỂ TRỐNG = chưa cấu hình → /agent/chat tự lùi về câu trả lời mẫu
     #                            (app KHÔNG sập, vẫn chạy mọi tính năng khác).
+    #                            NHẬN NHIỀU KHOÁ, ngăn bằng dấu phẩy — xem `danh_sach_khoa_ai`
+    #                            và `create_llm_du_phong`. Hết hạn mức khoá này thì tự sang
+    #                            khoá kế, KHÔNG phải khởi động lại tiến trình.
     #   • model_name          ← MODEL_NAME        : tên model.
     #
     #     KHÔNG ĐỂ gemini-2.0-flash. Đo thật: model đó có hạn mức GÓI FREE = 0, nên MỌI
@@ -93,6 +98,20 @@ class Settings(BaseSettings):
     #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
     #     Để trống = không dự phòng.
     model_fallbacks: str = "gemini-3.6-flash"
+    #   • quota_cooldown_min ← QUOTA_COOLDOWN_MIN : bậc vừa hết hạn mức thì NGHỈ bao lâu.
+    #
+    #     Không nhớ bậc nào đã cạn thì mỗi câu hỏi sau đó lại đi lại từ đầu chuỗi và
+    #     đâm vào đúng bậc đã chết — với 9 khoá là 9 lần gọi hỏng (mỗi lần còn `max_retries`
+    #     riêng của nó) trước khi tới bậc còn sống. Người dùng không thấy lỗi, chỉ thấy
+    #     trợ lý chậm dần đều mà không hiểu tại sao.
+    #
+    #     15 phút là chọn có chủ ý. Google trả cùng một mã RESOURCE_EXHAUSTED cho CẢ
+    #     hạn mức theo PHÚT lẫn theo NGÀY, mà đọc chuỗi lỗi để đoán là chuyện mong manh.
+    #     Nghỉ 24h thì một cú vọt theo phút cũng bị coi là chết cả ngày — vứt oan một
+    #     khoá còn tốt. Nghỉ 15 phút thì hạn mức phút tự hồi, còn hạn mức ngày thì mỗi
+    #     giờ chỉ tốn 4 lượt gọi thăm dò. Sai về phía "thử lại hơi thừa" chứ đừng sai về
+    #     phía "tự tay loại một khoá đang sống".
+    quota_cooldown_min: int = 15
 
     # ── Tra cứu chuyến bay / khách sạn (Giai đoạn 2) ──
     # amadeus_key / amadeus_secret ← AMADEUS_KEY / AMADEUS_SECRET : khoá môi trường TEST
@@ -264,6 +283,34 @@ class Settings(BaseSettings):
         """Agent có thể CHẠY THẬT không? (có key cloud HOẶC có model local).
         Dùng ở /agent/chat để quyết định gọi LLM hay trả câu mẫu (fallback)."""
         return bool(self.ai_api_key or self.local_model_base_url)
+
+    @property
+    def danh_sach_khoa_ai(self) -> list[str]:
+        """AI_API_KEY tách thành DANH SÁCH khoá — xem `create_llm_du_phong` để biết vì sao.
+
+        Một khoá thì viết như cũ, không phải đổi gì. Nhiều khoá thì ngăn bằng dấu phẩy
+        (hoặc xuống dòng — dán từ AI Studio ra hay dính sẵn dòng mới):
+
+            AI_API_KEY=AIza...mot,AIza...hai,AIza...ba
+
+        BỎ TRÙNG mà vẫn giữ thứ tự: cùng một khoá đứng hai lần trong chuỗi nghĩa là
+        khi nó cạn, chuỗi sẽ thử lại đúng nó lần nữa — tốn thêm một lượt gọi chắc chắn
+        hỏng, ngay giữa lúc đang cần câu trả lời nhất.
+        """
+        ra: list[str] = []
+        for k in re.split(r"[,\s]+", self.ai_api_key or ""):
+            k = k.strip()
+            if k and k not in ra:
+                ra.append(k)
+        return ra
+
+    @property
+    def khoa_ai_dau_tien(self) -> str:
+        """Khoá dùng cho các lời gọi KHÔNG có chuỗi dự phòng (vd embeddings).
+        Đọc thẳng `ai_api_key` ở những chỗ đó là dán cả chuỗi "k1,k2,k3" vào header
+        `x-goog-api-key` → 400, và thông báo lỗi không hề nhắc tới dấu phẩy."""
+        ds = self.danh_sach_khoa_ai
+        return ds[0] if ds else ""
 
 
 # Tạo MỘT instance dùng chung toàn app: `from app.core.config import settings`.
