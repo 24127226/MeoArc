@@ -648,6 +648,23 @@ def main() -> int:
             if provider != "google":
                 bo_qua.append(f"{u.email} (đăng nhập bằng {provider}, không phải Gmail)")
                 continue
+
+            # ── THỬ TOKEN BẰNG MỘT LỜI GỌI THẬT ──
+            # `_token_for_user` chỉ nói "có token trong DB", KHÔNG nói token đó còn
+            # sống. Token Google hết hạn mà refresh cũng hỏng thì nó vẫn trả về một
+            # chuỗi — và kịch bản in ra "Tài khoản: ..." đầy tự tin, rồi gửi hỏng CẢ
+            # 77 thư với lỗi 401 trôi lẫn trong output.
+            # Người dùng đọc dòng đầu thấy tên tài khoản đúng nên tin là đã gửi xong,
+            # rồi đi tìm nguyên nhân ở hộp thư NHẬN — sai chỗ hoàn toàn.
+            # Một lời gọi đọc nhẹ ở đây biến hỏng-âm-thầm thành hỏng-nói-rõ.
+            try:
+                from app.services import gmail_service as _gs
+                _gs.list_messages(tok, max_results=1)
+            except Exception as exc:
+                ma = "401" if "401" in str(exc) else type(exc).__name__
+                bo_qua.append(f"{u.email} (token hết hạn — {ma})")
+                continue
+
             user, token = u, tok
             break
 
