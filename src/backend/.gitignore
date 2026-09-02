@@ -9,3 +9,6 @@ __pycache__/
 .env.example
 # Database SQLite cục bộ — dữ liệu máy bạn, không commit
 meoarc.db
+
+# CSDL tam khi chay thu trong moi truong gia lap CI (SQLite)
+ci*.db
