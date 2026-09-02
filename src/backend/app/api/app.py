@@ -292,13 +292,21 @@ async def kiem_khoa(session: AuthSession = Depends(get_current_session)):
                 ra["ok"] = False
                 ra["loi"] = f"HTTP {r.status_code}: {r.text[:200]}"
                 return ra
+            # CHỈ model sinh nội dung được. Danh sách thô còn có model nhúng
+            # (embedding) và TTS — liệt kê hết thì người đọc phải tự lọc, rồi rất dễ
+            # đặt MODEL_FALLBACKS bằng một model không chat được.
             co = {
                 (m.get("name") or "").removeprefix("models/")
                 for m in (r.json().get("models") or [])
+                if "generateContent" in (m.get("supportedGenerationMethods") or [])
             }
             ra["ok"] = True
             ra["so_model"] = len(co)
             ra["model_thieu"] = [t for t in can_co if t not in co]
+            # Tên model DÙNG ĐƯỢC, không chỉ số đếm. Biết "thiếu 1 model" mà không biết
+            # thay bằng gì thì vẫn phải đi tra Google rồi đoán — đúng cái vòng lặp mà
+            # bảng này sinh ra để cắt. Chỉ lấy dòng Gemini cho gọn.
+            ra["model_dung_duoc"] = sorted(t for t in co if t.startswith("gemini"))
         except Exception as exc:  # noqa: BLE001 — một khoá hỏng không được làm chết cả bảng
             ra["ok"] = False
             ra["loi"] = str(exc)[:200]
