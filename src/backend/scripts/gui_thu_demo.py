@@ -429,6 +429,155 @@ _THU_KICH_BAN: list[tuple[str, str, str]] = [
 ]
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# BỘ KHÓ (--kich-ban, nối tiếp bộ trên) — dựng để AGENT PHẢI SUY LUẬN
+#
+# Bộ trước đã đa dạng về THỂ LOẠI, nhưng mỗi thư vẫn tự đứng một mình: đọc một lá là
+# biết ngay phải làm gì. Trình bày bằng bộ đó thì trợ lý trông như một bộ lọc từ khoá.
+#
+# Bộ này cố ý làm khó theo sáu hướng, mỗi hướng là một câu hỏi mà tìm kiếm thường
+# KHÔNG trả lời được:
+#   1. Thư SAU phủ định thư TRƯỚC   → phải biết lấy cái mới nhất
+#   2. Thông tin nằm ở HAI lá khác nhau → phải nối lại mới ra kết luận
+#   3. Việc CHÔN GIỮA một thư dài   → phải đọc hết chứ không lướt tiêu đề
+#   4. Mốc thời gian NÓI MƠ HỒ      → phải quy ra ngày thật
+#   5. HAI NGƯỜI TRÙNG TÊN          → phải phân biệt bằng ngữ cảnh
+#   6. Thư TRÔNG NHƯ việc nhưng KHÔNG phải, và ngược lại
+# ══════════════════════════════════════════════════════════════════════════════
+_THU_KHO: list[tuple[str, str, str]] = [
+    # ── (1) CHUỖI PHỦ ĐỊNH: ba lá, chỉ lá cuối còn đúng ──
+    ("Phòng Đào tạo HCMUS", "Lịch bảo vệ đồ án — dự kiến 9h00 thứ Ba 15/9",
+     "Thông báo lịch bảo vệ đồ án Nhập môn CNPM:\n\n"
+     "Thời gian: 9h00 thứ Ba ngày 15/9\nĐịa điểm: phòng I.53\n\n"
+     "Các nhóm có mặt trước 15 phút."),
+    ("Phòng Đào tạo HCMUS", "Re: Lịch bảo vệ đồ án — DỜI sang chiều 15/9",
+     "Do phòng I.53 trùng lịch thi, buổi bảo vệ DỜI sang 14h00 cùng ngày 15/9.\n\n"
+     "Địa điểm giữ nguyên. Xin lỗi các em vì thay đổi gấp."),
+    ("Phòng Đào tạo HCMUS", "Re: Re: Lịch bảo vệ đồ án — CHỐT 15h30 thứ Tư 16/9",
+     "Thông báo CUỐI CÙNG, thay thế toàn bộ các thông báo trước:\n\n"
+     "Buổi bảo vệ diễn ra 15h30 thứ Tư ngày 16/9 tại phòng E.202.\n\n"
+     "Các em bỏ qua hai email trước. Không còn thay đổi nào nữa."),
+
+    # ── (2) NỐI HAI LÁ: hoá đơn + xác nhận đã trả ──
+    ("Phòng Kế hoạch Tài chính", "Thông báo học phí học kỳ 1 — 8.500.000đ",
+     "Học phí học kỳ 1 năm học 2026-2027 của sinh viên là 8.500.000đ.\n\n"
+     "Hạn thanh toán: trước 17h00 ngày 25/9. Quá hạn sẽ bị khoá kết quả học tập."),
+    ("Vietcombank", "Xác nhận giao dịch thành công",
+     "Giao dịch chuyển khoản đã hoàn tất.\n\n"
+     "Số tiền: 8.500.000 VND\nNội dung: HOC PHI HK1 2026 2027\n"
+     "Đơn vị thụ hưởng: TRUONG DH KHOA HOC TU NHIEN\nThời gian: 14:22 ngày 18/9"),
+
+    # ── (2b) NỐI HAI LÁ kiểu khác: mời xác nhận + đã ghi nhận ──
+    ("CLB Học thuật", "Mời tham gia buổi seminar 21/9",
+     "Mời bạn tham dự seminar về AI trong giáo dục lúc 18h00 ngày 21/9 tại hội trường C.\n\n"
+     "Bạn xác nhận tham dự trước ngày 19/9 để ban tổ chức chuẩn bị chỗ ngồi."),
+    ("CLB Học thuật", "Re: Mời tham gia buổi seminar 21/9",
+     "Cảm ơn bạn đã xác nhận. Ban tổ chức đã ghi nhận bạn vào danh sách tham dự.\n\n"
+     "Không cần làm gì thêm, hẹn gặp bạn ngày 21/9."),
+
+    # ── (3) VIỆC CHÔN GIỮA THƯ DÀI ──
+    ("Ban Truyền thông HCMUS", "Bản tin sinh viên tháng 9 — nhiều hoạt động thú vị",
+     "Chào các bạn sinh viên,\n\n"
+     "Tháng 9 này trường có rất nhiều hoạt động đáng chú ý.\n\n"
+     "Đầu tiên là Hội thao sinh viên, khai mạc ngày 20/9 tại sân vận động trường. "
+     "Các môn thi đấu gồm bóng đá, bóng chuyền, cầu lông và điền kinh. Năm nay ban tổ "
+     "chức mở rộng thêm hạng mục cờ vua.\n\n"
+     "Tiếp theo, Câu lạc bộ Tiếng Anh khai giảng lớp giao tiếp miễn phí vào các tối "
+     "thứ Ba và thứ Năm hàng tuần, bắt đầu từ tuần sau tại phòng B.12.\n\n"
+     "Thư viện trường vừa bổ sung hơn 300 đầu sách chuyên ngành Công nghệ Thông tin, "
+     "các bạn có thể tra cứu trên cổng thư viện điện tử.\n\n"
+     "LƯU Ý QUAN TRỌNG: sinh viên khoá 2024 phải hoàn tất khảo sát đánh giá môn học "
+     "trên cổng thông tin TRƯỚC NGÀY 23/9. Sinh viên không hoàn tất sẽ không xem được "
+     "điểm cuối kỳ.\n\n"
+     "Cuối cùng, chúc các bạn một tháng học tập hiệu quả.\n\nBan Truyền thông"),
+
+    # ── (4) MỐC THỜI GIAN MƠ HỒ — phải quy ra ngày thật ──
+    ("GVHD Nguyễn Văn Sơn", "Về bản chỉnh sửa chương 4",
+     "Em xem lại phần đặc tả ca kiểm thử ở chương 4 nhé.\n\n"
+     "Gửi lại thầy vào ĐẦU TUẦN SAU, thầy sẽ đọc trong tuần đó."),
+    ("Trần Minh Khoa", "Phần MCP server",
+     "Mình cần đặc tả tool của bạn để làm tiếp.\n\n"
+     "Bạn gửi trong VÀI NGÀY TỚI nhé, chậm nhất là CUỐI TUẦN này."),
+    ("Phòng CTSV", "Đăng ký học bổng khuyến khích học tập",
+     "Sinh viên nộp hồ sơ xin học bổng TRƯỚC KHI KẾT THÚC THÁNG NÀY.\n\n"
+     "Hồ sơ gồm: đơn xin học bổng, bảng điểm, và giấy xác nhận hoàn cảnh (nếu có)."),
+
+    # ── (5) HAI NGƯỜI TRÙNG TÊN — phân biệt bằng ngữ cảnh ──
+    ("Nguyễn Văn Sơn (GVHD)", "Nhắc nộp báo cáo tiến độ tuần 3",
+     "Nhóm 7 nộp báo cáo tiến độ tuần 3 trước 17h thứ Sáu 18/9.\n\n"
+     "Thầy cần thấy phần demo chạy được, không chỉ slide."),
+    ("Nguyễn Văn Sơn (lớp trưởng)", "Thu tiền quỹ lớp học kỳ này",
+     "Các bạn chuyển 100k tiền quỹ lớp cho mình trước thứ Sáu 18/9 nhé.\n\n"
+     "Quỹ dùng cho hoạt động lớp và quà cho thầy cô dịp 20/11."),
+
+    # ── (6) TRÔNG NHƯ VIỆC nhưng KHÔNG phải ──
+    ("Booking.com", "Xác nhận đặt phòng của bạn — hạn huỷ miễn phí 20/9",
+     "Đây là email quảng cáo. Bạn CHƯA đặt phòng nào cả.\n\n"
+     "Nếu bạn đặt phòng trong tháng này, bạn sẽ được huỷ miễn phí đến ngày 20/9. "
+     "Ưu đãi áp dụng cho hơn 1000 khách sạn tại Việt Nam."),
+    ("LinkedIn", "Hạn chót ứng tuyển: 3 vị trí phù hợp đóng đơn ngày 22/9",
+     "Ba vị trí phù hợp với hồ sơ của bạn sắp đóng đơn.\n\n"
+     "Xem ngay để không bỏ lỡ cơ hội. Bạn chưa ứng tuyển vị trí nào."),
+
+    # ── (6b) TRÔNG KHÔNG PHẢI VIỆC nhưng LẠI LÀ ──
+    ("Mẹ", "con nhớ nhé",
+     "Con ơi ngày 19/9 là giỗ ông nội, con thu xếp về nhà trước tối 18 nha.\n\n"
+     "Mẹ đã nói với cô Ba là con về rồi đó."),
+    ("Phạm Thu Trang", "hihi",
+     "Ê nhớ mai 8h qua phòng lab phụ mình bê đồ cho buổi demo nha, mình một mình không xuể đâu."),
+
+    # ── CHUỖI ĐI LẠI: đặt vé → đổi giờ → khách sạn ──
+    ("Vietnam Airlines", "Xác nhận đặt chỗ — SGN đi HAN ngày 19/9",
+     "Mã đặt chỗ: XKPQ7M\n\n"
+     "Chuyến VN256, SGN đi HAN, khởi hành 06:00 ngày 19/9, hạ cánh 08:10.\n"
+     "Vui lòng có mặt tại sân bay trước 2 tiếng."),
+    ("Vietnam Airlines", "THAY ĐỔI LỊCH BAY — mã đặt chỗ XKPQ7M",
+     "Chuyến VN256 ngày 19/9 đã đổi giờ khởi hành từ 06:00 sang 09:45.\n\n"
+     "Bạn xác nhận chấp nhận thay đổi trước ngày 17/9, nếu không đặt chỗ sẽ tự huỷ."),
+    ("Hanoi La Siesta Premium", "Xác nhận đặt phòng 19/9 - 21/9",
+     "Cảm ơn bạn đã đặt phòng.\n\n"
+     "Nhận phòng: 14h00 ngày 19/9\nTrả phòng: 12h00 ngày 21/9\n"
+     "Loại phòng: Deluxe Double. Huỷ miễn phí đến hết ngày 17/9."),
+
+    # ── THƯ TIẾNG ANH CÓ HẠN THẬT ──
+    ("IEEE Xplore", "Your submission requires action before Sep 24",
+     "Dear author,\n\n"
+     "Your manuscript on agent-native email management has been reviewed. "
+     "Please submit the revised version before September 24, 2026.\n\n"
+     "Reviewers requested clarification on Section 3 (evaluation methodology)."),
+
+    # ── THƯ RẤT DÀI, NHIỀU VIỆC CHO NHIỀU NGƯỜI (thử Meeting Brief) ──
+    ("Nguyễn Hoàng Anh", "Tổng hợp việc còn lại trước bảo vệ — đọc kỹ giúp mình",
+     "Chào cả nhóm,\n\n"
+     "Còn 5 ngày nữa là bảo vệ. Mình tổng hợp lại toàn bộ việc còn dang dở:\n\n"
+     "QUÂN — màn Lịch trình đã xong, nhưng phần tra cứu đi lại còn thiếu bộ lọc theo "
+     "hãng. Ngoài ra bạn kiểm lại giúp phần đính kèm trong khung chat, hôm qua mình thử "
+     "thì nút bấm không phản hồi. Hạn: trước tối thứ Tư.\n\n"
+     "KHOA — MCP server chạy được rồi nhưng chưa có tài liệu hướng dẫn kết nối từ "
+     "Claude Desktop. Thầy chắc chắn sẽ hỏi phần này. Hạn: trước trưa thứ Năm.\n\n"
+     "TRANG — slide phần an toàn (cổng xác nhận, cổng tiền) mới có khung, chưa có nội "
+     "dung. Bạn lấy số liệu từ file test của Khoa nhé. Hạn: trước tối thứ Năm.\n\n"
+     "MÌNH — hoàn thiện SRS chương 4 và 5, và chuẩn bị phần mở đầu 2 phút.\n\n"
+     "Sáng thứ Bảy cả nhóm chạy thử 15 phút, ai không tới được báo trước.\n\n"
+     "Ai kẹt phần nào thì nói sớm để chia lại, đừng để tới thứ Sáu mới báo."),
+
+    # ── THƯ NGẮN NHƯNG GẤP TRONG NGÀY ──
+    ("Giáo vụ HCMUS", "GẤP: xác nhận danh sách trước 16h chiều nay",
+     "Danh sách nhóm 7 còn thiếu MSSV của một thành viên.\n\n"
+     "Em bổ sung và phản hồi email này TRƯỚC 16H CHIỀU NAY, sau giờ đó danh sách "
+     "sẽ khoá và nhóm em không có tên trong lịch bảo vệ."),
+
+    # ── THƯ HỆ THỐNG, KHÔNG PHẢI VIỆC ──
+    ("GitHub", "[MeoArc] 3 workflow runs completed",
+     "All checks passed on branch integration. 543 tests passed, 21 skipped."),
+    ("Azure", "Your App Service was restarted",
+     "meoarc was restarted at 10:49 UTC as part of a deployment. No action required."),
+    ("Google", "Cảnh báo bảo mật: thiết bị mới đăng nhập",
+     "Tài khoản của bạn vừa được đăng nhập trên một thiết bị Windows mới tại "
+     "TP Hồ Chí Minh.\n\nNếu là bạn thì không cần làm gì."),
+]
+
+
 def _dung_bo_day() -> list[tuple[str, str, str]]:
     """Dựng bộ thư dày từ hai bảng gọn ở trên."""
     ra: list[tuple[str, str, str]] = []
@@ -517,8 +666,9 @@ def main() -> int:
         # Bộ kịch bản đi kèm --bo-day, và cũng bật riêng được bằng --kich-ban: có lúc
         # chỉ cần dữ liệu ĐA DẠNG để thử agent, không cần hộp thư quá tải.
         if args.kich_ban or args.bo_day:
-            bo += _THU_KICH_BAN
+            bo += _THU_KICH_BAN + _THU_KHO
             thanh_phan.append(f"{len(_THU_KICH_BAN)} kịch bản")
+            thanh_phan.append(f"{len(_THU_KHO)} khó")
         if args.bo_day:
             day = _dung_bo_day()
             bo += day
