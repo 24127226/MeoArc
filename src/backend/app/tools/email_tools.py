@@ -578,8 +578,11 @@ async def tom_tat_ngay(inp: TomTatNgayInput, ctx: RequestContext) -> TomTatNgayO
     vài thư nổi bật. Dùng khi người dùng hỏi "tóm tắt hộp thư hôm nay", "digest",
     "tuần này có gì". KHÔNG gọi mô hình — số liệu đếm trực tiếp nên luôn nhất quán."""
     ds, _ = await asyncio.to_thread(
+        # `mail.list_messages(provider, token, **kw)` chỉ nhận THAM SỐ THEO TÊN sau
+        # hai cái đầu. Gọi bằng vị trí thì ném TypeError ngay — và agent dịch nó thành
+        # "em đang gặp sự cố kỹ thuật", nên nhìn từ ngoài không thể đoán ra nguyên nhân.
         mail.list_messages, ctx.email_provider, ctx.access_token,
-        "inbox", None, inp.limit,
+        folder="inbox", max_results=inp.limit,
     )
     chua_doc = [e for e in ds if e.unread]
     theo_nhan: dict[str, int] = {}
@@ -629,8 +632,11 @@ async def phan_loai_uu_tien(inp: PhanLoaiUuTienInput, ctx: RequestContext) -> Ph
     này xếp theo VIỆC CÓ GẤP KHÔNG và ai đang chờ ai. Dùng khi người dùng hỏi "thư nào
     cần xử lý trước", "triage hộp thư". KHÔNG gọi mô hình."""
     ds, _ = await asyncio.to_thread(
+        # `mail.list_messages(provider, token, **kw)` chỉ nhận THAM SỐ THEO TÊN sau
+        # hai cái đầu. Gọi bằng vị trí thì ném TypeError ngay — và agent dịch nó thành
+        # "em đang gặp sự cố kỹ thuật", nên nhìn từ ngoài không thể đoán ra nguyên nhân.
         mail.list_messages, ctx.email_provider, ctx.access_token,
-        "inbox", None, inp.limit,
+        folder="inbox", max_results=inp.limit,
     )
     if inp.chi_chua_doc:
         ds = [e for e in ds if e.unread]

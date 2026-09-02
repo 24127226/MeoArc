@@ -129,3 +129,59 @@ def test_CHI_lay_tool_cua_luot_NAY():
 def test_du_lieu_tool_hong_thi_tra_None_chu_khong_no():
     tm = ToolMessage(content="khong-phai-json", name="tim_chuyen_bay", tool_call_id="t1")
     assert _di_lai_card([HumanMessage(content="tìm vé"), tm]) is None
+
+
+# ── DIGEST & TRIAGE: gọi ĐÚNG chữ ký `mail.list_messages` ───────────────────
+
+def _mail_gia_dung_chu_ky(monkeypatch, so_thu=3):
+    """Giả lập mang ĐÚNG chữ ký thật: `(provider, token, **kw)`.
+
+    Đây là điểm mấu chốt. `mail.list_messages` chỉ nhận tham số THEO TÊN sau hai cái
+    đầu; gọi bằng vị trí thì ném TypeError ngay. Bản đầu của tom_tat_ngay và
+    phan_loai_uu_tien gọi sai như vậy, và agent dịch lỗi đó thành "em đang gặp sự cố
+    kỹ thuật" — nhìn từ giao diện không có cách nào đoán ra nguyên nhân.
+
+    Giả lập nhận `*args` thì test sẽ XANH trên một lời gọi hỏng. Nên nó phải giống
+    hàm thật tới mức từ chối đúng những gì hàm thật từ chối."""
+    from app.schemas.email import Email
+    from app.tools import email_tools as T
+
+    def gia(provider, token, **kw):
+        ds = [Email(id=f"m{i}", sender="Giáo vụ HCMUS", senderEmail="gv@hcmus.edu.vn",
+                    senderInitial="G", to="me@x.com",
+                    subject=f"Nộp báo cáo {i} trước 18/9",
+                    preview="Vui lòng nộp trước 23:59 ngày 18/9.",
+                    body=["x"], time="10:00", date="02/09/2026 10:00",
+                    unread=True, starred=False, category="moss", label="Học tập",
+                    folder="inbox")
+             for i in range(so_thu)]
+        return (ds, None)
+
+    monkeypatch.setattr(T.mail, "list_messages", gia)
+
+
+def test_digest_chay_duoc_va_dem_dung(monkeypatch):
+    import asyncio
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import TomTatNgayInput
+
+    _mail_gia_dung_chu_ky(monkeypatch, so_thu=3)
+    out = asyncio.run(T.tom_tat_ngay(TomTatNgayInput(),
+                                     RequestContext(user_id="1", access_token="t")))
+    assert out.success, out.message
+    assert out.data["tong"] == 3 and out.data["chua_doc"] == 3
+    assert out.data["thu"], "phải kèm id thư để giao diện gắn nút Mở nhanh"
+
+
+def test_triage_chay_duoc(monkeypatch):
+    import asyncio
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import PhanLoaiUuTienInput
+
+    _mail_gia_dung_chu_ky(monkeypatch, so_thu=2)
+    out = asyncio.run(T.phan_loai_uu_tien(PhanLoaiUuTienInput(),
+                                          RequestContext(user_id="1", access_token="t")))
+    assert out.success, out.message
+    assert out.data["nhom"], "thư có hạn nộp thì phải rơi vào một nhóm ưu tiên"
