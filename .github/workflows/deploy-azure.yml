@@ -31,6 +31,21 @@ on:
       - '.gitignore'
   workflow_dispatch:          # cho phep bam chay tay tu tab Actions
 
+# ── XEP HANG, KHONG CHAY CHONG NHAU ──────────────────────────────────────────
+# Moi lan deploy, App Service khoi dong lai va mat 2-4 phut moi phuc vu lai. Neu lan
+# deploy sau bat dau trong khoang do thi buoc `webapps-deploy` dam vao mot may dang
+# khoi dong lai va HONG — trong khi ma nguon hoan toan khong co van de gi.
+#
+# Da xay ra that: run #82 (bcd7214) thanh cong, run #83 (994c162) day len 2 phut sau
+# va chet o dung buoc do; bo kiem thu cua chinh no thi xanh. Nhin vao chi thay "deploy
+# failed" nen rat de di tim loi trong ma nguon — cho khong he co loi.
+#
+# `cancel-in-progress: false`: XEP HANG chu khong huy. Huy mot lan deploy dang giua
+# chung co the de app o trang thai do dang, ma do la thu dat nhat trong ca quy trinh.
+concurrency:
+  group: trien-khai-azure
+  cancel-in-progress: false
+
 env:
   TEN_APP: meoarc             # doi neu ban dat ten khac luc tao Web App
   PYTHON_VERSION: '3.13'
