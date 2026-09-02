@@ -39,18 +39,45 @@ class _NguoiGia:
         self.name = f"Người {uid}"
 
 
+class _DbGia:
+    """CSDL giả: chỉ cần `.get(Model, id)`. Trả người dùng khớp id."""
+
+    def get(self, _model, uid):
+        return _NguoiGia(uid)
+
+
 @pytest.fixture()
 def _hai_tai_khoan(monkeypatch):
-    """Trình duyệt đang giữ hai phiên: 'tok-a' (user 1) và 'tok-b' (user 2)."""
+    """Trình duyệt đang giữ hai phiên: 'tok-a' (user 1) và 'tok-b' (user 2).
+
+    ── VÌ SAO THAY DEPENDENCY, KHÔNG VÁ ĐÈ LÊN CLASS SESSION ──
+    Bản đầu vá `type(next(get_db())).get` — tức là đè lên PHƯƠNG THỨC CỦA CẢ LỚP
+    Session, và `next(get_db())` còn mở một generator rồi bỏ đó, nên mỗi lần chạy rò
+    một kết nối không bao giờ trả lại pool.
+
+    Trên máy dev dùng SQLite thì không thấy gì: SQLite gần như không có áp lực pool.
+    CI dùng PostgreSQL với pool có trần — bảy lần rò là các test SAU chết, và chúng
+    chết ở những chỗ chẳng liên quan gì tới đăng nhập nên rất khó lần ra.
+    Thay dependency thì FastAPI tự dọn, không đụng tới lớp thật, và không rò gì.
+    """
     from app.api import auth as A
+    from app.core.db import get_db
+
+    # DỌN HỘP COOKIE TRƯỚC MỖI PHÉP KIỂM.
+    # `TestClient` dùng CHUNG một hộp cookie cho cả tệp, nên `Set-Cookie` của phép kiểm
+    # trước còn đọng lại — phép kiểm "không có cookie thì không đổi được" thật ra vẫn
+    # đang mang cookie của phép kiểm đứng trước nó, và nó xanh vì lý do sai.
+    # Trên máy dev lỗi này BỊ CHE: `.env` bật cookie `secure=True`, mà TestClient chạy
+    # trên http nên loại cookie đó đi. CI không có `.env` → cookie được giữ → đỏ.
+    # Đúng loại lỗi chỉ hiện ở một môi trường, và hiện ở nơi trông như vô can.
+    c.cookies.clear()
+
     ban_do = {"tok-a": 1, "tok-b": 2}
     monkeypatch.setattr(A.session_repo, "get_valid_session",
                         lambda db, t: _PhienGia(ban_do[t]) if t in ban_do else None)
-    monkeypatch.setattr(A, "User", object)   # chỉ để db.get(User, ...) có tham số
-    import app.core.db as _db
-    monkeypatch.setattr(type(next(_db.get_db())), "get",
-                        lambda self, model, uid: _NguoiGia(uid), raising=False)
-    return ban_do
+    app.dependency_overrides[get_db] = lambda: _DbGia()
+    yield ban_do
+    app.dependency_overrides.pop(get_db, None)
 
 
 def test_liet_ke_du_ca_hai_tai_khoan(_hai_tai_khoan):
