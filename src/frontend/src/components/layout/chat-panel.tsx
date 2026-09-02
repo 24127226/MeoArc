@@ -2892,6 +2892,26 @@ function AgentMessage({
                 )
               })}
             </ol>
+            {/* ĐÍCH DANH THƯ SẼ BỊ ĐỤNG TỚI.
+                Thẻ chỉ ghi "Xoá 2 thư" là bắt người dùng DUYỆT MÙ một hành động không
+                hoàn tác. Câu cảnh báo "kiểm tra kỹ trước khi duyệt" mà không cho thấy
+                cái gì để kiểm thì chỉ là chữ, không phải một lớp bảo vệ. */}
+            {reply.emails && reply.emails.length > 0 && !running && (
+              <div className="space-y-1 rounded-xl bg-popover-foreground/5 p-2">
+                <p className="px-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {reply.emails.length} thư sẽ bị đụng tới
+                </p>
+                {reply.emails.map((e) => (
+                  <div key={e.id} className="flex min-w-0 gap-2 px-1 text-[12px]">
+                    <span className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                    <span className="min-w-0">
+                      <span className="text-muted-foreground">{e.sender}: </span>
+                      <span className="text-foreground/90">{e.subject}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             {reply.warn && !running && (
               <div className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

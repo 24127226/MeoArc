@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 
 # =========================================================
@@ -588,9 +588,26 @@ class LietKeCamKetOutput(ToolResult):
 class ApLucLichTrinhInput(BaseModel):
     """Tham số cho `ap_luc_lich_trinh`."""
 
+    # ── "TUẦN NÀY" KHÔNG PHẢI "7 NGÀY TỚI" ──
+    # Hai khái niệm khác hẳn nhau và người dùng phân biệt rất rõ. Hỏi hôm thứ Tư mà
+    # trả lời tới thứ Ba tuần sau là trả lời một câu KHÁC với câu được hỏi — và người
+    # dùng không có cách nào biết mình vừa nhận thông tin của một khoảng khác.
+    pham_vi: Annotated[
+        Literal["tuan_nay", "tuan_sau", "n_ngay"],
+        Field(
+            default="n_ngay",
+            description=(
+                "'tuan_nay' = TỪ HÔM NAY ĐẾN HẾT CHỦ NHẬT tuần này — dùng khi người "
+                "dùng nói 'tuần này'. 'tuan_sau' = trọn thứ Hai→Chủ nhật tuần kế. "
+                "'n_ngay' = cửa sổ trượt `so_ngay` ngày tới, dùng khi họ nói 'mấy ngày "
+                "tới', 'sắp tới', hoặc không nói rõ."
+            ),
+        ),
+    ] = "n_ngay"
+
     so_ngay: Annotated[int, Field(
         default=7, ge=1, le=30,
-        description="Xem tải của bao nhiêu ngày tới. Mặc định 7.",
+        description="Chỉ dùng khi pham_vi='n_ngay'. Số ngày tới. Mặc định 7.",
     )]
 
 

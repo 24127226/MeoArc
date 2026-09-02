@@ -75,6 +75,14 @@ def _to_summary(e: Email) -> EmailSummary:
 async def search_emails(inp: SearchEmailsInput, ctx: RequestContext) -> SearchEmailsOutput:
     """Tìm email theo từ khoá hoặc cú pháp Gmail. Trả danh sách tóm tắt để agent chọn lọc."""
     q = inp.query or ""
+    # ── CỤM TỪ PHẢI TÌM NGUYÊN CỤM ──
+    # Gmail tách "học phí" thành hai từ rời, nên nó khớp cả thư quảng cáo chứa "MIỄN
+    # PHÍ" — người dùng hỏi về học phí mà nhận về bản tin khuyến mãi. Bọc ngoặc kép
+    # thì Gmail tìm nguyên cụm.
+    # CHỈ áp khi truy vấn là văn xuôi thuần: có toán tử Gmail (from:, subject:,
+    # newer_than:...) hay đã có ngoặc kép thì giữ nguyên, vì bọc thêm sẽ phá cú pháp.
+    if q and '"' not in q and ":" not in q and len(q.split()) > 1:
+        q = f'"{q}"'
     if inp.is_read is True:
         q = (q + " -is:unread").strip()       # chỉ thư đã đọc
     elif inp.is_read is False:
@@ -368,13 +376,33 @@ async def ap_luc_lich_trinh(inp: ApLucLichTrinhInput, ctx: RequestContext) -> Ap
         lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
     )
     moc = datetime.now()
+
+    # ── "TUẦN NÀY" = TỪ HÔM NAY ĐẾN HẾT CHỦ NHẬT, không phải 7 ngày tới ──
+    # Hỏi hôm thứ Tư mà trả lời tới thứ Ba tuần sau là trả lời một câu KHÁC với câu
+    # được hỏi. Người dùng phân biệt hai khái niệm này rất rõ, và họ không có cách nào
+    # biết mình vừa nhận thông tin của một khoảng thời gian khác.
+    # weekday(): thứ Hai=0 … Chủ nhật=6 → còn (6 - weekday) ngày nữa tới hết Chủ nhật.
+    if inp.pham_vi == "tuan_nay":
+        so_ngay = 6 - moc.weekday() + 1          # gồm cả hôm nay
+        bat_dau = moc
+        ten_pham_vi = "tuần này (từ hôm nay đến hết Chủ nhật)"
+    elif inp.pham_vi == "tuan_sau":
+        bat_dau = moc + timedelta(days=7 - moc.weekday())   # thứ Hai kế tiếp
+        so_ngay = 7
+        ten_pham_vi = "tuần sau (thứ Hai đến Chủ nhật)"
+    else:
+        bat_dau, so_ngay = moc, inp.so_ngay
+        ten_pham_vi = f"{so_ngay} ngày tới"
+
     ds = _cam_ket.trich_cam_ket(thu, moc)
-    bang = _cam_ket.ap_luc_theo_ngay(ds, inp.so_ngay, moc)
+    bang = _cam_ket.ap_luc_theo_ngay(ds, so_ngay, bat_dau)
     so_qua_tai = sum(1 for x in bang if x["qua_tai"])
     return ApLucLichTrinhOutput(
         success=True,
-        message=(f"{so_qua_tai} ngày quá tải trong {inp.so_ngay} ngày tới."
-                 if so_qua_tai else f"Không ngày nào quá tải trong {inp.so_ngay} ngày tới."),
+        # Nói RÕ khoảng đang trả lời. Người dùng đối chiếu được ngay là đúng hay sai
+        # khoảng họ hỏi, thay vì phải tự đếm ngày trong bảng.
+        message=(f"{so_qua_tai} ngày quá tải trong {ten_pham_vi}."
+                 if so_qua_tai else f"Không ngày nào quá tải trong {ten_pham_vi}."),
         data=bang,
     )
 

@@ -185,3 +185,81 @@ def test_triage_chay_duoc(monkeypatch):
                                           RequestContext(user_id="1", access_token="t")))
     assert out.success, out.message
     assert out.data["nhom"], "thư có hạn nộp thì phải rơi vào một nhóm ưu tiên"
+
+
+# ── "TUẦN NÀY" ≠ "7 NGÀY TỚI" ───────────────────────────────────────────────
+
+@pytest.mark.parametrize("thu_trong_tuan,so_ngay_mong_doi", [
+    (0, 7),  # thứ Hai  → Hai..CN = 7 ngày
+    (2, 5),  # thứ Tư   → Tư..CN  = 5 ngày
+    (5, 2),  # thứ Bảy  → Bảy, CN = 2 ngày
+    (6, 1),  # Chủ nhật → chỉ hôm nay
+])
+def test_tuan_nay_la_tu_hom_nay_den_het_chu_nhat(monkeypatch, thu_trong_tuan, so_ngay_mong_doi):
+    """Hỏi hôm thứ Tư mà trả lời tới thứ Ba tuần sau là trả lời một câu KHÁC với câu
+    được hỏi — và người dùng không có cách nào biết mình vừa nhận khoảng thời gian khác."""
+    import asyncio
+    from datetime import datetime, timedelta
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import ApLucLichTrinhInput
+
+    # Dựng một ngày có đúng thứ mong muốn (02/09/2026 là thứ Tư).
+    goc = datetime(2026, 9, 2, 10, 0)
+    gia_ngay = goc + timedelta(days=(thu_trong_tuan - goc.weekday()))
+
+    class _DT(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return gia_ngay
+
+    monkeypatch.setattr(T, "datetime", _DT)
+    monkeypatch.setattr(T.mail, "list_messages", lambda p, t, **kw: ([], None))
+
+    out = asyncio.run(T.ap_luc_lich_trinh(
+        ApLucLichTrinhInput(pham_vi="tuan_nay"),
+        RequestContext(user_id="1", access_token="t")))
+    assert len(out.data) == so_ngay_mong_doi, (
+        f"weekday={thu_trong_tuan}: ra {len(out.data)} ngày, mong đợi {so_ngay_mong_doi}")
+    assert "tuần này" in out.message, "phải NÓI RÕ khoảng đang trả lời để đối chiếu được"
+
+
+def test_n_ngay_van_giu_hanh_vi_cu(monkeypatch):
+    """Không nói rõ thì vẫn là cửa sổ trượt — đừng đổi mặc định dưới chân người dùng."""
+    import asyncio
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import ApLucLichTrinhInput
+
+    monkeypatch.setattr(T.mail, "list_messages", lambda p, t, **kw: ([], None))
+    out = asyncio.run(T.ap_luc_lich_trinh(
+        ApLucLichTrinhInput(), RequestContext(user_id="1", access_token="t")))
+    assert len(out.data) == 7 and "7 ngày tới" in out.message
+
+
+# ── TÌM CỤM TỪ NGUYÊN CỤM ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize("vao,ra", [
+    ("học phí", '"học phí"'),               # Gmail tách rời sẽ khớp cả "MIỄN PHÍ"
+    ("lịch bảo vệ", '"lịch bảo vệ"'),
+    # CÓ dấu hai chấm → để nguyên, kể cả khi nó không phải toán tử Gmail thật.
+    # Đây là lựa chọn THẬN TRỌNG có chủ ý: bọc nhầm một truy vấn có toán tử sẽ phá cú
+    # pháp và trả về rỗng, còn bỏ sót một cụm có dấu hai chấm thì chỉ kém chính xác
+    # một chút. Hỏng im lặng đắt hơn hỏng lộ.
+    ("từ:x học phí", "từ:x học phí"),
+    ("from:giaovu học phí", "from:giaovu học phí"),   # có toán tử → giữ nguyên
+    ('"đã có ngoặc"', '"đã có ngoặc"'),      # đã bọc rồi → không bọc thêm
+    ("baocao", "baocao"),                    # một từ → không cần bọc
+])
+def test_cum_tu_duoc_boc_ngoac_kep(monkeypatch, vao, ra):
+    import asyncio
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import SearchEmailsInput
+
+    ghi = {}
+    monkeypatch.setattr(T.mail, "list_messages",
+                        lambda p, t, **kw: (ghi.update(q=kw.get("q")), ([], None))[1])
+    asyncio.run(T.search_emails(SearchEmailsInput(query=vao),
+                                RequestContext(user_id="1", access_token="t")))
+    assert ghi["q"] == ra, f"{vao!r} → {ghi['q']!r}, mong đợi {ra!r}"

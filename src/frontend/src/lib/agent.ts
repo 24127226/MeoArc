@@ -36,7 +36,18 @@ export type AgentReply =
   | { kind: 'text'; text: string; emails?: EmailRef[] }
   | { kind: 'done'; text: string }
   | { kind: 'result'; title: string; intro: string; lines: string[]; emails?: EmailRef[] }
-  | { kind: 'plan'; intro: string; steps: string[]; warn?: string; confirmLabel: string; op: PlanOp }
+  | {
+      kind: 'plan'
+      intro: string
+      steps: string[]
+      warn?: string
+      confirmLabel: string
+      op: PlanOp
+      /** Thư ĐÍCH DANH sẽ bị đụng tới. Thẻ chỉ ghi "Xoá 2 thư" là bắt người dùng
+       *  DUYỆT MÙ một hành động không hoàn tác — "kiểm tra kỹ trước khi duyệt" mà
+       *  không cho thấy cái gì để kiểm thì chỉ là một câu chữ, không phải lớp bảo vệ. */
+      emails?: EmailRef[]
+    }
   | {
       kind: 'draft'
       intro: string

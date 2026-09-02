@@ -1416,6 +1416,17 @@ def _confirm_card(messages: list) -> dict | None:
                     "confirmLabel": f"{verb} {len(ids)} thư",
                     "op": op,
                 }
+                # ── LIỆT KÊ ĐÍCH DANH THƯ SẼ BỊ ĐỤNG TỚI ──
+                # Thẻ chỉ ghi "Xoá 2 thư" là bắt người dùng DUYỆT MÙ một hành động
+                # không hoàn tác — đúng thứ cổng xác nhận sinh ra để ngăn. "Kiểm tra kỹ
+                # trước khi duyệt" mà không cho thấy cái gì để kiểm thì chỉ là một câu
+                # chữ, không phải một lớp bảo vệ.
+                # Lấy từ kết quả search_emails CỦA LƯỢT NÀY (id thật, không nhờ mô hình),
+                # rồi lọc đúng những id sắp bị thao tác.
+                _tap = set(ids)
+                _ds = [e for e in _emails_from_search(messages, cap=60) if e.get("id") in _tap]
+                if _ds:
+                    card["emails"] = _ds[:20]
                 if op["type"] == "delete":
                     card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
                 card["_tool"] = "bulk_action"
