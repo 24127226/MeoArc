@@ -360,14 +360,27 @@ function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
   if (!coGiDeLoc) return null   // một hãng, một nhà ga → cột lọc chỉ tổ chiếm chỗ
 
   return (
-    <aside className="w-[188px] shrink-0 border-r border-border/30 pr-3">
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
+    // DÍNH THEO CUỘN. Danh sách bên phải có thể dài vài chục chuyến; cuộn xuống mà bộ
+    // lọc trôi mất thì muốn đổi một ô lọc lại phải cuộn ngược lên đầu — và sau khi bấm
+    // thì mất luôn chỗ đang xem. `self-start` là bắt buộc: mặc định của flex là kéo
+    // con giãn hết chiều cao, mà một phần tử cao bằng cả cha thì `sticky` không có gì
+    // để trượt bên trong, nên nó đứng im một cách vô hại và rất khó nhận ra là hỏng.
+    <aside className="sticky top-0 z-10 max-h-[62vh] w-[196px] shrink-0 self-start
+                      overflow-y-auto scrollbar-thin pr-3">
+      {/* Nền kính + viền cắt góc — cùng chất liệu với phần còn lại của app, thay cho
+          một cột trắng trơn có mỗi đường kẻ dọc. */}
+      <div className="goc-cat-nho goc-cat den-vien glass p-2.5"
+           style={{ position: 'relative' }}>
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
           Bộ lọc
         </span>
         {soDangChon > 0 && (
-          <button onClick={xoaHet} className="text-[10.5px] text-[var(--spark)] hover:underline">
-            Xoá ({soDangChon})
+          <button
+            onClick={xoaHet}
+            className="rounded-full bg-[var(--spark)]/15 px-2 py-0.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[var(--spark)] transition-colors hover:bg-[var(--spark)]/25"
+          >
+            Xoá {soDangChon}
           </button>
         )}
       </div>
@@ -381,7 +394,9 @@ function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
           const chon = dangLoc[nhom.khoa] ?? new Set<string>()
           return (
             <div key={nhom.khoa}>
-              <p className="mb-1 text-[10.5px] font-medium text-muted-foreground">{nhom.ten}</p>
+              <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60">
+                {nhom.ten}
+              </p>
               <div className="flex flex-col gap-0.5">
                 {muc.map((m) => {
                   const dangBat = chon.has(m.gia_tri)
@@ -391,15 +406,26 @@ function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
                       onClick={() => doiLoc(nhom.khoa, m.gia_tri)}
                       aria-pressed={dangBat}
                       className={cn(
-                        'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left',
-                        'text-[11.5px] transition-colors',
+                        'group flex items-center gap-2 rounded-lg px-2 py-1.5 text-left',
+                        'text-[11.5px] transition-all duration-150 ease-spring',
                         dangBat
-                          ? 'bg-[var(--spark)]/15 font-medium text-[var(--spark)]'
-                          : 'text-foreground/85 hover:bg-foreground/5',
+                          ? 'bg-[var(--spark)]/15 font-medium text-foreground shadow-subtle'
+                          : 'text-foreground/80 hover:bg-foreground/[0.06]',
                       )}
                     >
-                      <span className="min-w-0 truncate">{m.ten ?? m.gia_tri}</span>
-                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                      {/* Chấm trạng thái: bật/tắt phải nhận ra được bằng HÌNH, không chỉ
+                          bằng sắc nền — nền nhạt trên kính mờ rất khó thấy ở màn sáng. */}
+                      <span className={cn(
+                        'size-1.5 shrink-0 rounded-full transition-all',
+                        dangBat ? 'bg-[var(--spark)] shadow-[0_0_6px_var(--spark)]'
+                                : 'bg-foreground/20 group-hover:bg-foreground/40',
+                      )} />
+                      <span className="min-w-0 flex-1 truncate">{m.ten ?? m.gia_tri}</span>
+                      <span className={cn(
+                        'shrink-0 rounded px-1 font-mono text-[9.5px] tabular-nums',
+                        dangBat ? 'bg-[var(--spark)]/20 text-[var(--spark)]'
+                                : 'text-muted-foreground/70',
+                      )}>
                         {m.so_chuyen}
                       </span>
                     </button>
@@ -409,6 +435,7 @@ function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
             </div>
           )
         })}
+      </div>
       </div>
     </aside>
   )

@@ -9,7 +9,7 @@
 import logging
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from app.core.db import get_db
@@ -47,7 +47,27 @@ def _set_session_cookie(token: str):
 
 @router.get("/outlook/start")
 def outlook_start():
-    """Đẩy sang trang đăng nhập Microsoft (Outlook). Chỉ hoạt động khi đã đặt MS_CLIENT_ID."""
+    """Đẩy sang trang đăng nhập Microsoft (Outlook). Chỉ chạy khi đã đặt MS_CLIENT_ID.
+
+    ── VÌ SAO PHẢI CHẶN Ở ĐÂY ──
+    Chú thích cũ đã nói "chỉ hoạt động khi đã đặt MS_CLIENT_ID" nhưng KHÔNG ai kiểm.
+    Thiếu khoá thì app vẫn đẩy người dùng sang Microsoft với `client_id=` rỗng, và họ
+    nhận về một trang lỗi của Microsoft:
+
+        AADSTS900144: The request body must contain the following parameter: 'client_id'
+
+    Người dùng đọc câu đó sẽ tưởng TÀI KHOẢN MICROSOFT của mình có vấn đề, và đi sửa
+    ở đúng chỗ không có lỗi gì. Sự thật là MeoArc chưa được cấu hình — một câu mà chỉ
+    máy chủ này biết, nên nó phải là nơi nói ra.
+
+    Chặn ở đây, không phải chỉ ẩn nút ở giao diện: ai gõ thẳng URL vẫn phải nhận được
+    câu trả lời đúng."""
+    if not settings.ms_client_id:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Đăng nhập Outlook chưa được bật trên máy chủ này (thiếu MS_CLIENT_ID). "
+            "Bạn đăng nhập bằng Google nhé.",
+        )
     return RedirectResponse(auth_service_ms.build_ms_auth_url())
 
 

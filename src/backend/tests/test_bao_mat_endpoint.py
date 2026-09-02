@@ -72,3 +72,26 @@ def test_trang_thai_van_KHONG_lo_khoa(monkeypatch):
     """Endpoint mở thì càng phải chắc nó không nói gì thừa."""
     monkeypatch.setattr(settings, "aerodatabox_key", "khoa-that-abc", raising=False)
     assert "khoa-that-abc" not in c.get("/tra-cuu/trang-thai").text
+
+
+def test_outlook_chua_cau_hinh_thi_BAO_RO_chu_khong_day_sang_microsoft(monkeypatch):
+    """Thiếu MS_CLIENT_ID mà vẫn redirect thì Microsoft trả về:
+
+        AADSTS900144: The request body must contain the following parameter: 'client_id'
+
+    Người dùng đọc câu đó sẽ tưởng TÀI KHOẢN MICROSOFT của mình có vấn đề, và đi sửa ở
+    đúng chỗ không hề có lỗi. Sự thật là MeoArc chưa được cấu hình — một điều chỉ máy
+    chủ này biết, nên nó phải là nơi nói ra.
+    """
+    monkeypatch.setattr(settings, "ms_client_id", "")
+    r = c.get("/auth/outlook/start", follow_redirects=False)
+    assert r.status_code == 503, f"trả {r.status_code} — đang đẩy sang Microsoft với client_id rỗng"
+    assert "MS_CLIENT_ID" in r.text
+
+
+def test_co_cau_hinh_thi_VAN_day_sang_microsoft(monkeypatch):
+    """Chặn quá tay thì Outlook không bao giờ dùng được, kể cả khi đã cấu hình đúng."""
+    monkeypatch.setattr(settings, "ms_client_id", "id-that")
+    r = c.get("/auth/outlook/start", follow_redirects=False)
+    assert r.status_code in (302, 307)
+    assert "login.microsoftonline.com" in r.headers.get("location", "")
