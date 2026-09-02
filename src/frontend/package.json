@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "build:gop": "vite build --mode gop",
-    "test:camket": "node --test src/lib/cam-ket.test.ts"
+    "test:camket": "node --test src/lib/cam-ket.test.ts",
+    "test:lib": "node --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.17",

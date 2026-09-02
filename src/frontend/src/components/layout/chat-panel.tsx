@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Sparkles,
   Check,
@@ -54,6 +55,8 @@ import { TokenMeter, QuotaBanner } from '@/components/layout/token-meter'
 import { PricingScreen } from '@/components/layout/pricing-screen'
 import { normalize } from '@/lib/search'
 import { VanBanDep } from '@/lib/van-ban'
+import { doDieuHuong } from '@/lib/dieu-huong-chat'
+import { chuyenCanh } from '@/lib/chuyen-canh'
 import type { EmailActions } from '@/lib/email-actions'
 import type { Category, Email } from '@/data/emails'
 import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
@@ -952,6 +955,8 @@ export function ChatPanel({
 }) {
   const [sessions, setSessions] = useState<Session[]>(initSessions)
   const [currentId, setCurrentId] = useState('s0')
+  // Điều hướng trong app khi người dùng bảo "mở lịch trình" — xem lib/dieu-huong-chat.
+  const dieuHuong = useNavigate()
   const [input, setInput] = useState('')
   /** Ô nhập TỰ GIÃN theo nội dung.
    *
@@ -1311,6 +1316,22 @@ export function ChatPanel({
   const send = (raw: string, viaVoice = false) => {
     const text = raw.trim()
     if (!text || thinking) return
+
+    // ── ĐI LẠI TRONG APP: xử lý TẠI CHỖ, KHÔNG gọi model ──
+    // "cho tôi xem lịch trình" là một lệnh đi lại, không phải một câu hỏi. Đẩy nó qua
+    // agent thì tốn một lượt trong hạn mức 20 lượt/ngày cho việc mà một biểu thức
+    // chính quy làm được — và người dùng phải ngồi chờ "đang nghĩ" cho một cú bấm.
+    // Ở đây phản hồi tức thì, tốn 0 lượt, và vẫn chạy khi đã hết quota.
+    // Luật khớp cố ý chặt tay; nghi ngờ thì nhường cho agent (xem lib/dieu-huong-chat).
+    const dich = doDieuHuong(text)
+    if (dich) {
+      push({ id: uid(), role: 'user', text })
+      push({ id: uid(), role: 'agent',
+             reply: { kind: 'done', text: `Đang mở ${dich.ten}…` } })
+      setInput('')
+      chuyenCanh(() => dieuHuong(dich.duong_dan))
+      return
+    }
     // BỐI CẢNH đính vào câu người dùng gõ, chỉ ở lượt đầu sau khi bấm vào một việc.
     // Hiện trong bong bóng là ĐÚNG câu họ gõ (biến `text`), còn bản gửi lên agent mới
     // kèm ngữ cảnh — người dùng không phải đọc lại một khối dữ liệu họ vừa bấm vào.
