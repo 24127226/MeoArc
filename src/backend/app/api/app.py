@@ -223,6 +223,28 @@ def metrics():
         # dịch sẵn, nên khi dịch SAI bệnh thì không ai có đường nào lần ra. Đây là chỗ
         # nói thật: quota hay 503 hay tên model sai.
         snap["llm_loi_gan_nhat"] = loi_llm_gan_nhat()
+        # HÌNH DẠNG CHUỖI — đọc thẳng từ cấu hình, không dựng client nên rất rẻ.
+        #
+        # Trước đó chỉ nhìn thấy được chuỗi KHI ĐÃ CÓ LỖI (qua nhãn bậc trong
+        # `llm_loi_gan_nhat`). Nghĩa là muốn kiểm "Azure đã nạp đủ khoá chưa" thì phải
+        # đợi hỏng — mà lúc đang cần kiểm nhất chính là lúc VỪA sửa xong và chưa hỏng.
+        # Đây là số khoá app THẬT SỰ đọc được, nên nó bắt được cả lỗi dán thiếu dấu phẩy.
+        _model = [settings.model_name] + [
+            t.strip() for t in (settings.model_fallbacks or "").split(",") if t.strip()
+        ]
+        _model = list(dict.fromkeys(_model))
+        _so_khoa = len(settings.danh_sach_khoa_ai)
+        snap["llm_cau_hinh"] = {
+            "so_khoa": _so_khoa,
+            "model": _model,
+            "so_bac": len(_model) * max(1, _so_khoa),
+            # Hạn mức free Gemini = 20 lượt/ngày cho mỗi PROJECT mỗi MODEL (đo được
+            # 02/09/2026, quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier).
+            # Con số dưới CHỈ ĐÚNG khi mỗi khoá nằm ở một project RIÊNG — nhiều khoá
+            # chung project thì chúng chia nhau một hạn mức, và không có cách nào biết
+            # từ phía máy chủ. Xem tên project ở https://aistudio.google.com/apikey
+            "uoc_luot_moi_ngay_NEU_moi_khoa_mot_project": len(_model) * max(1, _so_khoa) * 20,
+        }
     except Exception:
         snap["llm_dang_nghi"] = "n/a"
     snap["workers"] = settings.web_concurrency
