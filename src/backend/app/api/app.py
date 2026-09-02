@@ -217,8 +217,12 @@ def metrics():
     # nhất mà trước giờ chỉ đoán được bằng cách hỏi thử — tức là tốn đúng cái đang đo.
     # Chỉ có tên model + số thứ tự khoá, KHÔNG có khoá (xem `_nhan_bac`).
     try:
-        from app.core.llm import trang_thai_khoa
+        from app.core.llm import loi_llm_gan_nhat, trang_thai_khoa
         snap["llm_dang_nghi"] = trang_thai_khoa()
+        # NGUYÊN VĂN lỗi gần nhất (đã che khoá). Người dùng chỉ thấy câu tiếng Việt đã
+        # dịch sẵn, nên khi dịch SAI bệnh thì không ai có đường nào lần ra. Đây là chỗ
+        # nói thật: quota hay 503 hay tên model sai.
+        snap["llm_loi_gan_nhat"] = loi_llm_gan_nhat()
     except Exception:
         snap["llm_dang_nghi"] = "n/a"
     snap["workers"] = settings.web_concurrency
@@ -1723,18 +1727,32 @@ async def agent_chat(
                    "phải lỗi tài khoản hay hết lượt — nên bản chạy máy cục bộ vẫn dùng agent "
                    "bình thường. Cách sửa nhanh nhất: dựng proxy trong infra/cf-gemini-proxy "
                    "rồi đặt AI_BASE_URL. Các thao tác bấm-nút (đọc/gắn nhãn/gửi) vẫn dùng được.")
-        elif "resource_exhausted" in low or "429" in text or "quota" in low:
-            # Quota Gemini free hết (theo phút hoặc theo ngày). max_retries=6 đã tự thử lại các
-            # lỗi chớp nhoáng; tới đây là hết lượt thật → khuyên người dùng cách xử lý.
-            msg = ("🚦 Gemini đã hết lượt miễn phí (quota) lúc này. Chờ ít phút rồi thử lại, "
-                   "hoặc đổi sang model nhẹ hơn (gemini-2.5-flash-lite) / cấp khoá có quota cao hơn. "
-                   "Các thao tác bấm-nút (đọc/gắn nhãn/gửi qua nút) vẫn dùng bình thường nhé.")
-        elif "503" in text or "unavailable" in low or "overloaded" in low or "high demand" in low:
-            # Google báo model quá tải NHẤT THỜI (503). max_retries đã thử lại vài lần vẫn kẹt →
-            # khuyên chờ chút. Khác quota: đây là phía Google đông, không phải mình hết lượt.
-            msg = ("⏳ Mô hình AI của Google đang quá tải nhất thời (lỗi 503). Đây thường chỉ thoáng qua — "
-                   "bạn thử lại sau vài giây nhé. Nếu lặp lại nhiều, đổi model (gemini-2.5-flash) cũng đỡ. "
+        # ── 503 PHẢI XÉT TRƯỚC 429 ──────────────────────────────────────────
+        # Bản trước để nhánh quota lên trên, mà điều kiện của nó là `"429" in text` —
+        # một phép tìm chuỗi con trên TOÀN BỘ văn bản lỗi. Lỗi 503 của Google thường
+        # kéo theo cả lịch sử thử lại, và chỉ cần đâu đó trong đó có ba ký tự "429"
+        # là cả cú 503 bị dán nhãn "hết quota".
+        #
+        # Hậu quả không phải một chữ sai: người dùng vừa nạp 10 khoá của 10 project
+        # khác nhau, thấy báo "hết quota", và kết luận rằng tính năng nhiều khoá không
+        # chạy — trong khi thật ra Google chỉ đang đông. Chẩn đoán sai đắt hơn lỗi gốc.
+        #
+        # "unavailable"/"overloaded" là dấu hiệu KHÔNG mập mờ nên xét trước; nhánh quota
+        # ở dưới mới được phép dùng phép tìm chuỗi con rộng tay.
+        elif "unavailable" in low or "overloaded" in low or "high demand" in low or "503" in text:
+            # Google báo model quá tải NHẤT THỜI (503). Chuỗi dự phòng đã thử hết mọi bậc
+            # (xem `_la_loi_qua_tai_nhat_thoi`) mà vẫn kẹt → phía Google đông thật.
+            msg = ("⏳ Mô hình AI của Google đang quá tải nhất thời (lỗi 503). Trợ lý đã tự thử "
+                   "lại qua toàn bộ các khoá dự phòng rồi mà vẫn kẹt, nên đây là phía Google "
+                   "đông chứ KHÔNG phải bạn hết lượt. Thử lại sau vài giây là được. "
                    "Các thao tác bấm-nút vẫn dùng bình thường.")
+        elif "resource_exhausted" in low or "429" in text or "quota" in low:
+            # Quota Gemini free hết (theo phút hoặc theo ngày). Chuỗi dự phòng đã đi hết
+            # mọi model × mọi khoá; tới đây là hết lượt thật → khuyên người dùng cách xử lý.
+            msg = ("🚦 Gemini đã hết lượt miễn phí (quota) trên TẤT CẢ các khoá đã cấu hình. "
+                   "Chờ ít phút rồi thử lại, hoặc thêm khoá từ một project khác — hạn mức free "
+                   "tính theo project, nên nhiều khoá cùng một project vẫn chỉ là một hạn mức. "
+                   "Các thao tác bấm-nút (đọc/gắn nhãn/gửi qua nút) vẫn dùng bình thường nhé.")
         elif "permission" in low or "403" in text or "invalid_grant" in low or "unauthorized" in low:
             msg = ("🔑 Phiên Gmail có thể đã hết hạn hoặc thiếu quyền. Bạn đăng xuất rồi đăng nhập "
                    "lại bằng Google để cấp quyền mới giúp mình nhé.")

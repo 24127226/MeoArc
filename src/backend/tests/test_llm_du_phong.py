@@ -377,15 +377,23 @@ async def test_loi_THAT_khong_lam_bac_bi_cho_nghi(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bac_CUOI_can_cung_duoc_ghi_nho(monkeypatch):
-    """Cạn sạch thì vẫn phải ném lỗi, nhưng bậc cuối cũng đã cạn thật — không ghi lại
-    thì câu hỏi kế tiếp lại đi đủ cả chuỗi lần nữa."""
+async def test_can_SACH_ca_day_thi_van_nem_loi(monkeypatch):
+    """Cạn sạch thì phải ném lỗi, không được nuốt rồi trả rỗng.
+
+    ── CA NÀY TỪNG KHẲNG ĐỊNH NGƯỢC LẠI ──
+    Bản đầu còn assert thêm rằng cả hai bậc đều bị treo. Đo thật trên bản triển khai
+    ngày 02/09/2026 cho thấy niềm tin đó sai và sai đắt: 20/20 bậc bị treo trong một
+    khoảng 50 giây, tức là tự tắt trợ lý 15 phút ngay giữa lúc đang dùng. Cả dây cùng
+    chết trong một lượt là dấu hiệu sự cố CHUNG, không phải từng khoá cạn — xem
+    `_go_nghi_neu_CA_DAY_cung_chet` và ca `test_CA_DAY_het_quota_thi_KHONG_treo_bac_nao`.
+
+    Phần "nhớ bậc đã cạn" vẫn còn nguyên cho ca thường gặp hơn: MỘT PHẦN chuỗi cạn còn
+    phần khác chạy được (`test_chi_MOT_PHAN_can_thi_VAN_treo_dung_nhung_bac_do`)."""
     monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
     with pytest.raises(RuntimeError):
         await LLMDuPhong(
             [_Model("A", HET_QUOTA), _Model("B", HET_QUOTA)], ["A", "B"]
         ).ainvoke("x")
-    assert _dang_nghi("A") and _dang_nghi("B")
 
 
 def test_loi_dong_bo_cung_ghi_nho(monkeypatch):
@@ -416,3 +424,169 @@ def test_trang_thai_khoa_chi_liet_ke_bac_DANG_nghi(monkeypatch):
 
 def test_trang_thai_khoa_rong_khi_moi_thu_con_song():
     assert trang_thai_khoa() == []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 503 "QUÁ TẢI" — ĐO ĐƯỢC TRÊN BẢN TRIỂN KHAI 02/09/2026
+#
+# Người dùng nạp 10 khoá của 10 project khác nhau, hỏi "thư nào cần xử lý trước", và
+# nhận "Mô hình AI của Google đang quá tải". Hỏi lại thì nhận "hết quota". /metrics
+# cho thấy CẢ 20 bậc (2 model × 10 khoá) bị treo trong một khoảng 50 giây.
+#
+# Hai lỗi lộ ra từ đó, và bộ ca dưới khoá cả hai lại:
+#   1. Chuỗi CHỈ rơi khi hết hạn mức → một cú 503 ở bậc 1 giết cả yêu cầu trong khi
+#      19 bậc còn lại ngồi không. Đúng là loại lỗi mà đổi bậc có ích nhất.
+#   2. Cả dây cùng chết trong một lượt thì cả dây bị treo 15 phút — tự khoá mình ra
+#      ngoài vì một sự cố CHUNG chẳng liên quan gì tới hạn mức.
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.core.llm import (
+    _LOI_GAN_NHAT, _che_khoa, _la_loi_qua_tai_nhat_thoi, _nen_doi_bac,
+    loi_llm_gan_nhat,
+)
+
+QUA_TAI = RuntimeError(
+    "503 UNAVAILABLE. {'error': {'code': 503, 'message': 'The model is overloaded. "
+    "Please try again later.', 'status': 'UNAVAILABLE'}}"
+)
+
+
+@pytest.fixture(autouse=True)
+def _don_loi_gan_nhat():
+    _LOI_GAN_NHAT.clear()
+    yield
+    _LOI_GAN_NHAT.clear()
+
+
+# ── Nhận diện ────────────────────────────────────────────────────────────────
+
+def test_nhan_dung_loi_qua_tai():
+    assert _la_loi_qua_tai_nhat_thoi(QUA_TAI) is True
+
+
+def test_qua_tai_KHONG_bi_nham_thanh_het_quota():
+    """Hai bệnh khác nhau: hết quota là mình hết lượt, quá tải là Google đang đông.
+    Chữa giống nhau thì lời khuyên cho người dùng sai, và bậc còn tốt bị treo oan."""
+    assert _la_loi_het_quota(QUA_TAI) is False
+
+
+def test_loi_THAT_khong_duoc_coi_la_dang_doi_bac():
+    """Vẫn phải giữ nguyên tính chất cũ: lỗi schema tool không được chữa bằng đổi bậc."""
+    assert _nen_doi_bac(LOI_THAT) is False
+    assert _nen_doi_bac(HET_QUOTA) is True
+    assert _nen_doi_bac(QUA_TAI) is True
+
+
+# ── Hành vi rơi khi 503 ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_qua_tai_thi_VAN_ROI_sang_bac_ke(monkeypatch):
+    """Lỗi đúng như người dùng gặp: bậc 1 quá tải, bậc 2 sống. Bản trước ném thẳng lỗi
+    ra dù còn 19 bậc chưa dùng."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    a, b = _Model("A", QUA_TAI), _Model("B")
+    assert await LLMDuPhong([a, b], ["A", "B"]).ainvoke("x") == "B"
+    assert b.so_lan_goi == 1
+
+
+@pytest.mark.asyncio
+async def test_qua_tai_KHONG_cho_bac_do_nghi(monkeypatch):
+    """Khoá không mất gì cả — Google chỉ đang bận. Treo nó 15 phút là tự vứt một bậc
+    còn nguyên hạn mức, rồi câu hỏi sau phải chạy bằng model kém hơn."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    await LLMDuPhong([_Model("A", QUA_TAI), _Model("B")], ["A", "B"]).ainvoke("x")
+    assert not _dang_nghi("A"), "503 KHÔNG được treo bậc"
+
+
+@pytest.mark.asyncio
+async def test_het_quota_VAN_cho_nghi_nhu_cu(monkeypatch):
+    """Đừng sửa lỗi này mà làm hỏng lỗi kia."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    await LLMDuPhong([_Model("A", HET_QUOTA), _Model("B")], ["A", "B"]).ainvoke("x")
+    assert _dang_nghi("A")
+
+
+# ── Cả dây cùng chết = sự cố CHUNG ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_CA_DAY_het_quota_thi_KHONG_treo_bac_nao(monkeypatch):
+    """Đây là ca đã xảy ra thật: 20/20 bậc bị treo trong 50 giây.
+
+    Mười khoá của mười project KHÔNG THỂ cùng cạn hạn mức ngày trong vài chục giây —
+    nên đó là sự cố chung, và treo cả dây là tự tắt trợ lý 15 phút giữa buổi bảo vệ."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = [f"k{i}" for i in range(4)]
+    chuoi = LLMDuPhong([_Model(n, HET_QUOTA) for n in nhan], nhan)
+    with pytest.raises(RuntimeError):
+        await chuoi.ainvoke("x")
+    assert not any(_dang_nghi(n) for n in nhan), (
+        "cả dây cùng chết là dấu hiệu sự cố CHUNG — không được treo bậc nào"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chi_MOT_PHAN_can_thi_VAN_treo_dung_nhung_bac_do(monkeypatch):
+    """Ranh giới của quy tắc trên. Một vài khoá cạn còn khoá khác chạy được là chuyện
+    BÌNH THƯỜNG và có thật — lúc đó phải nhớ, nếu không thì mỗi câu hỏi lại đâm vào
+    đúng những bậc đã chết."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    chuoi = LLMDuPhong(
+        [_Model("k0", HET_QUOTA), _Model("k1", HET_QUOTA), _Model("k2")],
+        ["k0", "k1", "k2"],
+    )
+    assert await chuoi.ainvoke("x") == "k2"
+    assert _dang_nghi("k0") and _dang_nghi("k1")
+    assert not _dang_nghi("k2")
+
+
+@pytest.mark.asyncio
+async def test_ca_day_QUA_TAI_thi_van_nem_loi_nhung_khong_treo(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["k0", "k1"]
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong([_Model(n, QUA_TAI) for n in nhan], nhan).ainvoke("x")
+    assert not any(_dang_nghi(n) for n in nhan)
+
+
+def test_ca_day_chet_o_loi_dong_bo_cung_KHONG_treo(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["k0", "k1"]
+    with pytest.raises(RuntimeError):
+        LLMDuPhong([_Model(n, HET_QUOTA) for n in nhan], nhan).invoke("x")
+    assert not any(_dang_nghi(n) for n in nhan)
+
+
+# ── Nguyên văn lỗi cho /metrics ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ghi_lai_NGUYEN_VAN_loi_gan_nhat(monkeypatch):
+    """Người dùng chỉ thấy câu tiếng Việt đã dịch sẵn. Khi bản dịch đoán SAI bệnh thì
+    không còn đường nào lần ra — trừ chỗ này."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    await LLMDuPhong([_Model("A", QUA_TAI), _Model("B")], ["A", "B"]).ainvoke("x")
+    ra = loi_llm_gan_nhat()
+    assert ra["bac"] == "A"
+    assert "overloaded" in ra["loi"]
+    assert ra["cach_day_giay"] >= 0
+
+
+def test_loi_gan_nhat_rong_khi_chua_co_gi():
+    assert loi_llm_gan_nhat() == {}
+
+
+def test_che_khoa_truoc_khi_ra_metrics(monkeypatch):
+    """Thông báo lỗi của nhà cung cấp CÓ THỂ vọng lại khoá vừa gửi. /metrics không có
+    xác thực, nên lọt khoá ra đây là phát tán bí mật và không thu lại được."""
+    monkeypatch.setattr("app.core.llm.settings", Settings(ai_api_key="AIzaBIMAT123"))
+    ra = _che_khoa("API key not valid: AIzaBIMAT123 rejected")
+    assert "AIzaBIMAT123" not in ra
+    assert "[da-che]" in ra
+
+
+@pytest.mark.asyncio
+async def test_loi_THAT_cung_duoc_ghi_lai(monkeypatch):
+    """Lỗi thật vẫn ném ra nguyên vẹn, nhưng vẫn phải ghi — đó là loại đáng xem nhất."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    with pytest.raises(ValueError):
+        await LLMDuPhong([_Model("A", LOI_THAT)], ["A"]).ainvoke("x")
+    assert loi_llm_gan_nhat()["bac"] == "A"

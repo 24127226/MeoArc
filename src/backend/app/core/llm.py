@@ -100,6 +100,63 @@ def _la_loi_het_quota(e: BaseException) -> bool:
     return "RESOURCE_EXHAUSTED" in t or "429" in t
 
 
+def _la_loi_qua_tai_nhat_thoi(e: BaseException) -> bool:
+    """503 / UNAVAILABLE / "model is overloaded" — GOOGLE đang đông, không phải khoá mình cạn.
+
+    Đây CHÍNH LÀ trường hợp đổi bậc có ích nhất, mà bản trước lại không rơi: nó chỉ rơi
+    khi hết hạn mức, nên một cú 503 ở bậc 1 giết cả yêu cầu trong khi 19 bậc còn lại đang
+    ngồi không. Người dùng nhận đúng câu "Mô hình AI của Google đang quá tải" dù vừa nạp
+    đủ 10 khoá — và không có cách nào hiểu vì sao 10 khoá không cứu nổi.
+
+    Vẫn KHÁC quota ở một điểm quan trọng: 503 KHÔNG được cho bậc đó nghỉ. Khoá không mất
+    gì cả, Google chỉ đang bận; treo nó 15 phút là tự vứt một bậc còn nguyên hạn mức."""
+    t = str(e).lower()
+    return (
+        "unavailable" in t or "overloaded" in t or "high demand" in t
+        or "503" in t or "internal error" in t or "500" in t
+    )
+
+
+def _nen_doi_bac(e: BaseException) -> bool:
+    """Có đáng đổi sang bậc kế không. Chỉ hai loại: hết hạn mức, và sự cố nhất thời phía
+    nhà cung cấp. Mọi thứ khác phải nổi lên nguyên vẹn — xem `_la_loi_het_quota`."""
+    return _la_loi_het_quota(e) or _la_loi_qua_tai_nhat_thoi(e)
+
+
+def _che_khoa(van: str) -> str:
+    """Xoá mọi khoá đã cấu hình khỏi một chuỗi trước khi nó đi vào log hay /metrics.
+    Thông báo lỗi của nhà cung cấp CÓ THỂ vọng lại khoá đã gửi — đưa nguyên xi ra một
+    endpoint ai cũng đọc được là phát tán bí mật, và không thu lại được."""
+    for k in settings.danh_sach_khoa_ai:
+        if k:
+            van = van.replace(k, "[da-che]")
+    return van
+
+
+# Lỗi THẬT gần nhất của chuỗi, cho /metrics. Không có nó thì mọi chẩn đoán đều là đoán:
+# người dùng chỉ thấy câu tiếng Việt đã được dịch sẵn, còn nguyên văn lỗi của Google —
+# thứ duy nhất nói được là quota hay 503 hay tên model sai — thì không ai nhìn thấy.
+_LOI_GAN_NHAT: dict = {}
+
+
+def _ghi_loi_gan_nhat(nhan: str, e: BaseException) -> None:
+    _LOI_GAN_NHAT.clear()
+    _LOI_GAN_NHAT.update({
+        "bac": nhan,
+        "luc": time.time(),
+        "loi": _che_khoa(str(e))[:400],
+    })
+
+
+def loi_llm_gan_nhat() -> dict:
+    """Nguyên văn lỗi gần nhất (đã che khoá) — cho /metrics."""
+    if not _LOI_GAN_NHAT:
+        return {}
+    ra = dict(_LOI_GAN_NHAT)
+    ra["cach_day_giay"] = int(time.time() - ra.pop("luc"))
+    return ra
+
+
 # ── BỘ NHỚ "BẬC NÀY ĐÃ CẠN" ──────────────────────────────────────────────────
 # nhãn bậc → thời điểm (epoch giây) được phép dùng lại.
 #
@@ -178,36 +235,78 @@ class LLMDuPhong:
             x for x in cap if _dang_nghi(x[0])
         ]
 
-    def _xu_ly_loi(self, nhan: str, e: BaseException, cuoi: bool) -> None:
-        """Chung cho cả hai lối gọi — sửa một chỗ thì cả hai cùng đổi."""
-        if not _la_loi_het_quota(e):
+    def _xu_ly_loi(self, nhan: str, e: BaseException) -> bool:
+        """Chung cho cả hai lối gọi — sửa một chỗ thì cả hai cùng đổi.
+
+        Ném lại nguyên vẹn nếu là lỗi THẬT. Trả về True nếu bậc này vừa bị cho nghỉ."""
+        _ghi_loi_gan_nhat(nhan, e)
+        if not _nen_doi_bac(e):
             raise e
-        _cho_nghi(nhan)
-        if cuoi:
-            raise e
-        logger.warning(
-            "%s hết hạn mức → nghỉ %d phút, rơi sang bậc kế",
-            nhan, settings.quota_cooldown_min,
-        )
+        if _la_loi_het_quota(e):
+            _cho_nghi(nhan)
+            logger.warning(
+                "%s hết hạn mức → nghỉ %d phút, rơi sang bậc kế",
+                nhan, settings.quota_cooldown_min,
+            )
+            return True
+        # 503/UNAVAILABLE: đổi bậc nhưng KHÔNG treo bậc này. Khoá không mất gì, Google
+        # chỉ đang bận — treo nó là tự vứt một bậc còn nguyên hạn mức.
+        logger.warning("%s quá tải nhất thời → rơi sang bậc kế (KHÔNG cho nghỉ)", nhan)
+        return False
+
+    def _go_nghi_neu_CA_DAY_cung_chet(self, da_nghi: list[str], tong: int) -> None:
+        """CẢ DÂY cùng chết trong MỘT lượt = nguyên nhân CHUNG, không phải từng khoá cạn.
+
+        Mười khoá của mười project khác nhau KHÔNG THỂ cùng cạn hạn mức ngày trong vài
+        chục giây. Khi chuyện đó xảy ra, thủ phạm nằm ở chỗ CHUNG trên đường đi — proxy
+        chết, mạng đứt, tên model sai, tài khoản bị chặn — và mỗi bậc chỉ đang vọng lại
+        cùng một sự cố.
+
+        Đánh dấu cả dây "nghỉ 15 phút" lúc đó là tự khoá mình ra ngoài suốt 15 phút vì
+        một sự cố chẳng liên quan gì tới hạn mức. ĐÃ ĐO THẬT trên bản triển khai: 20/20
+        bậc bị treo trong một khoảng 50 giây, ngay giữa lúc đang cần dùng.
+
+        Đúng là ta KHÔNG phân biệt được ca này với ca "mọi khoá cùng một project và đều
+        cạn thật". Nhưng hai cái giá không bằng nhau: đoán sai kiểu này thì chỉ tốn một
+        chuỗi gọi chậm cho thứ vốn đã hỏng, còn đoán sai kiểu kia thì tự tắt trợ lý 15
+        phút giữa buổi bảo vệ."""
+        if tong >= 2 and len(da_nghi) == tong:
+            for n in da_nghi:
+                _NGHI.pop(n, None)
+            logger.error(
+                "CẢ %d bậc cùng hỏng trong MỘT lượt — sự cố CHUNG chứ không phải hết hạn "
+                "mức. Không cho bậc nào nghỉ. Nguyên văn lỗi: xem `llm_loi_gan_nhat` "
+                "trong /metrics.", tong,
+            )
 
     async def ainvoke(self, dau_vao, **kw):
         thu = self._thu_tu()
         cuoi = len(thu) - 1
+        da_nghi: list[str] = []
         for i, (nhan, m) in enumerate(thu):
             try:
                 return await m.ainvoke(dau_vao, **kw)
             except Exception as e:
-                self._xu_ly_loi(nhan, e, i == cuoi)
+                if self._xu_ly_loi(nhan, e):
+                    da_nghi.append(nhan)
+                if i == cuoi:
+                    self._go_nghi_neu_CA_DAY_cung_chet(da_nghi, len(thu))
+                    raise
         raise RuntimeError("chuỗi LLM rỗng")   # không tới được: __init__ luôn có ≥1
 
     def invoke(self, dau_vao, **kw):
         thu = self._thu_tu()
         cuoi = len(thu) - 1
+        da_nghi: list[str] = []
         for i, (nhan, m) in enumerate(thu):
             try:
                 return m.invoke(dau_vao, **kw)
             except Exception as e:
-                self._xu_ly_loi(nhan, e, i == cuoi)
+                if self._xu_ly_loi(nhan, e):
+                    da_nghi.append(nhan)
+                if i == cuoi:
+                    self._go_nghi_neu_CA_DAY_cung_chet(da_nghi, len(thu))
+                    raise
         raise RuntimeError("chuỗi LLM rỗng")
 
 
