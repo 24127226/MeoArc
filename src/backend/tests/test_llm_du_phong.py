@@ -663,3 +663,122 @@ async def test_loi_khong_co_han_muc_thi_de_trong_chu_khong_bia(monkeypatch):
     with pytest.raises(ValueError):
         await LLMDuPhong([_Model("A", LOI_THAT)], ["A"]).ainvoke("x")
     assert loi_llm_gan_nhat()["han_muc"] == {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE GỠ MODEL GIỮA CHỪNG — LẦN THỨ HAI (02/09/2026)
+#
+# Nguyên văn: "This model models/gemini-2.5-flash-lite is no longer available to new
+# users. Please update your code to use models/gemini-3.5-flash-lite".
+#
+# Nghiệt ở mệnh đề "TO NEW USERS": khoá cũ vẫn gọi được, khoá VỪA TẠO thì 404. Nên
+# thao tác "lập thêm project để có thêm hạn mức" lại chính là thao tác làm mất model
+# chính — hai việc trông chẳng liên quan gì nhau, và triệu chứng thì giống hệt một
+# lỗi cấu hình.
+#
+# 404 trước đó KHÔNG nằm trong danh sách được phép rơi, nên nó giết cả yêu cầu ngay ở
+# bậc 1 dù 10 bậc của model kia vẫn dùng được.
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.core.llm import _la_loi_model_bien_mat, _ten_model
+
+MODEL_GO = RuntimeError(
+    "Error calling model 'gemini-2.5-flash-lite' (NOT_FOUND): 404 NOT_FOUND. "
+    "{'error': {'code': 404, 'message': 'This model models/gemini-2.5-flash-lite is no "
+    "longer available to new users. Please update your code to use "
+    "models/gemini-3.5-flash-lite for the latest features and improvements.', "
+    "'status': 'NOT_FOUND'}}"
+)
+
+
+def test_nhan_dung_loi_model_bi_go():
+    assert _la_loi_model_bien_mat(MODEL_GO) is True
+
+
+def test_KHONG_nham_model_bi_go_thanh_het_quota():
+    """Ba bệnh, ba cách chữa khác hẳn. Nhầm 404 thành quota là đi thay khoá cho một
+    vấn đề mà thay khoá không chữa được."""
+    assert _la_loi_het_quota(MODEL_GO) is False
+    assert _la_loi_model_bien_mat(HET_QUOTA) is False
+    assert _la_loi_model_bien_mat(LOI_THAT) is False
+
+
+def test_KHONG_dung_tim_chuoi_con_404():
+    """Đã vấp đúng bẫy này với "429": ba ký tự số nằm trong id / URL / lịch sử thử lại
+    cũng khớp, và một lần dán nhãn sai làm cả buổi đi tìm lỗi ở chỗ không có lỗi."""
+    assert _la_loi_model_bien_mat(RuntimeError("tool call id abc404def failed")) is False
+
+
+def test_tach_ten_model_khoi_nhan_bac():
+    assert _ten_model("gemini-3.6-flash · khoá #2") == "gemini-3.6-flash"
+    assert _ten_model("gemini-3.6-flash") == "gemini-3.6-flash"
+
+
+@pytest.mark.asyncio
+async def test_model_bi_go_thi_ROI_sang_model_khac(monkeypatch):
+    """Lỗi đúng như người dùng gặp: model chính bị gỡ, model dự phòng vẫn sống."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["mA · khoá #1", "mB · khoá #1"]
+    chuoi = LLMDuPhong([_Model("A", MODEL_GO), _Model("B")], nhan)
+    assert await chuoi.ainvoke("x") == "B"
+
+
+@pytest.mark.asyncio
+async def test_model_bi_go_thi_BO_QUA_MOI_KHOA_cua_model_do(monkeypatch):
+    """Phép kiểm quan trọng nhất ở đây. Model bị gỡ thì CẢ 10 khoá của nó đều 404 —
+    đâm tiếp 9 lượt nữa là 9 lần chờ mạng vô ích, người dùng ngồi nhìn màn hình đứng
+    im. Phải loại cả cụm ngay trong lượt hiện tại, không đợi lượt sau."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    chet = [_Model(f"A{i}", MODEL_GO) for i in range(3)]
+    song = _Model("B")
+    nhan = ["mA · khoá #1", "mA · khoá #2", "mA · khoá #3", "mB · khoá #1"]
+    assert await LLMDuPhong([*chet, song], nhan).ainvoke("x") == "B"
+    assert chet[0].so_lan_goi == 1
+    assert chet[1].so_lan_goi == 0, "khoá #2 của model đã chết KHÔNG được gọi"
+    assert chet[2].so_lan_goi == 0, "khoá #3 của model đã chết KHÔNG được gọi"
+
+
+@pytest.mark.asyncio
+async def test_model_bi_go_thi_treo_CA_CUM_cho_luot_sau(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["mA · khoá #1", "mA · khoá #2", "mB · khoá #1"]
+    chuoi = LLMDuPhong(
+        [_Model("A1", MODEL_GO), _Model("A2", MODEL_GO), _Model("B")], nhan)
+    await chuoi.ainvoke("x")
+    assert _dang_nghi("mA · khoá #1") and _dang_nghi("mA · khoá #2")
+    assert not _dang_nghi("mB · khoá #1")
+
+
+@pytest.mark.asyncio
+async def test_moi_model_deu_bi_go_thi_bao_DUNG_BENH(monkeypatch):
+    """Không còn bậc nào để thử thì vẫn phải nói rõ là MODEL bị gỡ, chứ không phải hết
+    lượt — nếu không, người đọc lại đi thay khoá lần nữa."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["mA · khoá #1", "mA · khoá #2"]
+    with pytest.raises(RuntimeError) as ex:
+        await LLMDuPhong(
+            [_Model("A1", MODEL_GO), _Model("A2", MODEL_GO)], nhan).ainvoke("x")
+    assert "NOT_FOUND" in str(ex.value)
+    assert "mA" in str(ex.value)
+
+
+def test_model_bi_go_o_loi_dong_bo_cung_bo_qua_ca_cum(monkeypatch):
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    a2 = _Model("A2", MODEL_GO)
+    nhan = ["mA · khoá #1", "mA · khoá #2", "mB · khoá #1"]
+    ra = LLMDuPhong([_Model("A1", MODEL_GO), a2, _Model("B")], nhan).invoke("x")
+    assert ra == "B"
+    assert a2.so_lan_goi == 0
+
+
+@pytest.mark.asyncio
+async def test_model_go_KHONG_bi_quy_tac_ca_day_go_mat(monkeypatch):
+    """Quy tắc "cả dây cùng chết thì gỡ hết đánh dấu" chỉ áp cho HẾT HẠN MỨC — đó là
+    chỗ ta không phân biệt được sự cố chung với cạn thật. Model bị gỡ thì Google đã
+    nói thẳng tên model, không có gì để đoán, nên đánh dấu phải được giữ."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    nhan = ["mA · khoá #1", "mA · khoá #2"]
+    with pytest.raises(RuntimeError):
+        await LLMDuPhong(
+            [_Model("A1", MODEL_GO), _Model("A2", MODEL_GO)], nhan).ainvoke("x")
+    assert _dang_nghi("mA · khoá #1"), "đánh dấu model-bị-gỡ KHÔNG được gỡ bỏ"

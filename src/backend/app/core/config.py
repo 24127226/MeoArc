@@ -66,7 +66,13 @@ class Settings(BaseSettings):
     #   • model_provider      ← MODEL_PROVIDER    : nhà cung cấp; "google_genai" cho Gemini.
     #   • local_model_base_url← LOCAL_MODEL_BASE_URL : nếu chạy model LOCAL (Ollama…) thay vì cloud.
     ai_api_key: str = ""
-    model_name: str = "gemini-2.5-flash-lite"
+    #     ĐỔI 02/09/2026: gemini-2.5-flash-lite → gemini-3.5-flash-lite. Google trả 404
+    #     "no longer available TO NEW USERS" — khoá cũ vẫn gọi được, khoá vừa tạo thì
+    #     không. Nên vừa lập thêm project để có thêm hạn mức là vừa mất model chính,
+    #     hai việc trông chẳng liên quan gì nhau. Tên thay thế do CHÍNH Google chỉ ra
+    #     trong thông báo lỗi. Đây là lần thứ hai bị gỡ giữa chừng (gemini-2.5-flash,
+    #     29/08) — danh sách model phải được kiểm định kỳ, không đặt một lần rồi quên.
+    model_name: str = "gemini-3.5-flash-lite"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
     #   • ai_base_url ← AI_BASE_URL : ĐỔI NƠI GỬI lời gọi Gemini (mặc định trống = gọi

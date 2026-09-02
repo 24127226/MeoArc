@@ -41,6 +41,7 @@ from app.core.breaker import CircuitOpen, llm_breaker, provider_breaker
 from app.core import errors  # thu thập lỗi: Sentry khi có DSN, không thì ghi log
 from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
 import logging
+import re
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.conversation import ConversationSummary, ConversationDetail, UpdateConversationReq
 
@@ -1833,6 +1834,20 @@ async def agent_chat(
                    "phải lỗi tài khoản hay hết lượt — nên bản chạy máy cục bộ vẫn dùng agent "
                    "bình thường. Cách sửa nhanh nhất: dựng proxy trong infra/cf-gemini-proxy "
                    "rồi đặt AI_BASE_URL. Các thao tác bấm-nút (đọc/gắn nhãn/gửi) vẫn dùng được.")
+        elif "not_found" in low or "no longer available" in low:
+            # GOOGLE ĐÃ GỠ MODEL. Không phải hết lượt, không phải khoá hỏng — nên mọi
+            # lời khuyên kiểu "chờ ít phút" hay "thêm khoá" đều dẫn đi sai đường.
+            # Nghiệt nhất là mệnh đề "to new users": khoá cũ vẫn gọi được, khoá VỪA TẠO
+            # thì 404. Nên vừa lập thêm project để có thêm hạn mức là vừa mất model
+            # chính — hai việc trông không liên quan gì nhau.
+            #
+            # Google có nói sẵn tên thay thế trong chính thông báo; lôi nó ra để người
+            # đọc không phải đi tra, vì đây là lúc họ đang kẹt giữa buổi trình bày.
+            _thay = re.search(r"use\s+models/([\w.-]+)", text)
+            msg = ("🚫 Model AI đang cấu hình đã bị Google gỡ (404), không phải bạn hết lượt. "
+                   + (f"Google đề nghị dùng `{_thay.group(1)}` thay thế. " if _thay else "")
+                   + "Sửa MODEL_NAME (hoặc MODEL_FALLBACKS) trong cấu hình rồi khởi động lại. "
+                   "Xem /admin/kiem-khoa để biết khoá của bạn còn dùng được model nào.")
         # ── 503 PHẢI XÉT TRƯỚC 429 ──────────────────────────────────────────
         # Bản trước để nhánh quota lên trên, mà điều kiện của nó là `"429" in text` —
         # một phép tìm chuỗi con trên TOÀN BỘ văn bản lỗi. Lỗi 503 của Google thường

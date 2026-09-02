@@ -118,10 +118,38 @@ def _la_loi_qua_tai_nhat_thoi(e: BaseException) -> bool:
     )
 
 
+def _la_loi_model_bien_mat(e: BaseException) -> bool:
+    """404 — Google đã GỠ model đó. Không phải khoá có vấn đề, không phải hết lượt.
+
+    Đo thật 02/09/2026: "This model models/gemini-2.5-flash-lite is no longer available
+    to new users. Please update your code to use models/gemini-3.5-flash-lite". Nghiệt
+    ở chỗ *to new users*: khoá cũ vẫn gọi được, khoá VỪA TẠO thì 404. Nên vừa lập thêm
+    project để có thêm hạn mức là vừa mất luôn model chính — hai việc trông chẳng liên
+    quan gì nhau. Đây là lần THỨ HAI Google gỡ model giữa chừng với dự án này
+    (`gemini-2.5-flash`, 29/08 — xem đầu file test).
+
+    KHÔNG dùng phép tìm chuỗi con `"404" in t`. Đã vấp đúng bẫy đó với `"429"`: ba ký
+    tự số có thể nằm trong id, trong URL, trong lịch sử thử lại — và một lần dán nhãn
+    sai làm cả buổi đi tìm lỗi ở chỗ không có lỗi. Hai cụm dưới đây không mập mờ."""
+    t = str(e).lower()
+    return "not_found" in t or "no longer available" in t
+
+
 def _nen_doi_bac(e: BaseException) -> bool:
-    """Có đáng đổi sang bậc kế không. Chỉ hai loại: hết hạn mức, và sự cố nhất thời phía
-    nhà cung cấp. Mọi thứ khác phải nổi lên nguyên vẹn — xem `_la_loi_het_quota`."""
-    return _la_loi_het_quota(e) or _la_loi_qua_tai_nhat_thoi(e)
+    """Có đáng đổi sang bậc kế không. Ba loại: hết hạn mức, sự cố nhất thời phía nhà
+    cung cấp, và model bị gỡ. Mọi thứ khác phải nổi lên nguyên vẹn — xem
+    `_la_loi_het_quota`."""
+    return (
+        _la_loi_het_quota(e)
+        or _la_loi_qua_tai_nhat_thoi(e)
+        or _la_loi_model_bien_mat(e)
+    )
+
+
+def _ten_model(nhan: str) -> str:
+    """Tách tên model khỏi nhãn bậc ("gemini-3.6-flash · khoá #2" → "gemini-3.6-flash").
+    Model bị gỡ thì MỌI khoá của nó đều 404 — phải chặn theo model, không theo bậc."""
+    return nhan.split(" · ")[0]
 
 
 def _che_khoa(van: str) -> str:
@@ -233,6 +261,18 @@ def trang_thai_khoa() -> list[dict]:
     ]
 
 
+def _het_bac(model_chet: set[str]) -> Exception:
+    """Lỗi ném ra khi bậc cuối bị BỎ QUA vì model của nó đã chết — không có ngoại lệ
+    thật nào để ném lại. Thông báo phải nói ĐÚNG bệnh: model bị gỡ, không phải hết
+    lượt. Nhầm hai cái này là đi thay khoá cho một vấn đề mà thay khoá không chữa."""
+    ten = ", ".join(sorted(model_chet))
+    return RuntimeError(
+        f"NOT_FOUND: model đã bị Google gỡ ({ten}) và không còn bậc nào khác để thử. "
+        f"Đổi MODEL_NAME / MODEL_FALLBACKS sang model còn phục vụ — xem "
+        f"/admin/kiem-khoa để biết khoá của bạn dùng được model nào."
+    )
+
+
 class LLMDuPhong:
     """Chuỗi LLM: gọi cái đầu, CHỈ KHI hết hạn mức thì rơi sang cái kế.
 
@@ -270,24 +310,44 @@ class LLMDuPhong:
             x for x in cap if _dang_nghi(x[0])
         ]
 
-    def _xu_ly_loi(self, nhan: str, e: BaseException) -> bool:
+    def _xu_ly_loi(self, nhan: str, e: BaseException) -> str | None:
         """Chung cho cả hai lối gọi — sửa một chỗ thì cả hai cùng đổi.
 
-        Ném lại nguyên vẹn nếu là lỗi THẬT. Trả về True nếu bậc này vừa bị cho nghỉ."""
+        Ném lại nguyên vẹn nếu là lỗi THẬT. Ngược lại trả về LOẠI bệnh: "quota" |
+        "model" | None (nhất thời). Ba loại phải xử lý khác nhau, gộp lại là hỏng:
+        quota thì treo đúng bậc đó, model bị gỡ thì treo CẢ MODEL, còn 503 thì không
+        treo gì cả."""
         _ghi_loi_gan_nhat(nhan, e)
         if not _nen_doi_bac(e):
             raise e
+
+        if _la_loi_model_bien_mat(e):
+            # Google gỡ model → MỌI khoá của model đó đều 404. Treo cả cụm, và treo
+            # LÂU: model bị gỡ không quay lại trong ngày. Nếu chỉ treo mỗi bậc này thì
+            # lượt gọi kế đâm tiếp vào 9 khoá còn lại của đúng model đã chết.
+            ten = _ten_model(nhan)
+            for n in self._nhan:
+                if _ten_model(n) == ten:
+                    _NGHI[n] = time.time() + 24 * 3600
+            logger.error(
+                "MODEL %s đã bị Google gỡ (404). Treo toàn bộ %d bậc của model này và "
+                "rơi sang model khác. Cần đổi MODEL_NAME/MODEL_FALLBACKS.",
+                ten, sum(1 for n in self._nhan if _ten_model(n) == ten),
+            )
+            return "model"
+
         if _la_loi_het_quota(e):
             _cho_nghi(nhan)
             logger.warning(
                 "%s hết hạn mức → nghỉ %d phút, rơi sang bậc kế",
                 nhan, settings.quota_cooldown_min,
             )
-            return True
+            return "quota"
+
         # 503/UNAVAILABLE: đổi bậc nhưng KHÔNG treo bậc này. Khoá không mất gì, Google
         # chỉ đang bận — treo nó là tự vứt một bậc còn nguyên hạn mức.
         logger.warning("%s quá tải nhất thời → rơi sang bậc kế (KHÔNG cho nghỉ)", nhan)
-        return False
+        return None
 
     def _go_nghi_neu_CA_DAY_cung_chet(self, da_nghi: list[str], tong: int) -> None:
         """CẢ DÂY cùng chết trong MỘT lượt = nguyên nhân CHUNG, không phải từng khoá cạn.
@@ -317,30 +377,51 @@ class LLMDuPhong:
     async def ainvoke(self, dau_vao, **kw):
         thu = self._thu_tu()
         cuoi = len(thu) - 1
-        da_nghi: list[str] = []
+        can_quota: list[str] = []
+        model_chet: set[str] = set()
         for i, (nhan, m) in enumerate(thu):
+            # Model này vừa 404 ở bậc trước → 9 khoá còn lại của nó cũng 404. Bỏ qua
+            # NGAY trong lượt này, đừng đợi lần sau: mỗi lượt gọi vô ích là ~2 giây
+            # người dùng ngồi nhìn màn hình đứng im.
+            if _ten_model(nhan) in model_chet:
+                if i == cuoi:
+                    self._go_nghi_neu_CA_DAY_cung_chet(can_quota, len(thu))
+                    raise _het_bac(model_chet)
+                continue
             try:
                 return await m.ainvoke(dau_vao, **kw)
             except Exception as e:
-                if self._xu_ly_loi(nhan, e):
-                    da_nghi.append(nhan)
+                loai = self._xu_ly_loi(nhan, e)
+                if loai == "quota":
+                    can_quota.append(nhan)
+                elif loai == "model":
+                    model_chet.add(_ten_model(nhan))
                 if i == cuoi:
-                    self._go_nghi_neu_CA_DAY_cung_chet(da_nghi, len(thu))
+                    self._go_nghi_neu_CA_DAY_cung_chet(can_quota, len(thu))
                     raise
         raise RuntimeError("chuỗi LLM rỗng")   # không tới được: __init__ luôn có ≥1
 
     def invoke(self, dau_vao, **kw):
         thu = self._thu_tu()
         cuoi = len(thu) - 1
-        da_nghi: list[str] = []
+        can_quota: list[str] = []
+        model_chet: set[str] = set()
         for i, (nhan, m) in enumerate(thu):
+            if _ten_model(nhan) in model_chet:
+                if i == cuoi:
+                    self._go_nghi_neu_CA_DAY_cung_chet(can_quota, len(thu))
+                    raise _het_bac(model_chet)
+                continue
             try:
                 return m.invoke(dau_vao, **kw)
             except Exception as e:
-                if self._xu_ly_loi(nhan, e):
-                    da_nghi.append(nhan)
+                loai = self._xu_ly_loi(nhan, e)
+                if loai == "quota":
+                    can_quota.append(nhan)
+                elif loai == "model":
+                    model_chet.add(_ten_model(nhan))
                 if i == cuoi:
-                    self._go_nghi_neu_CA_DAY_cung_chet(da_nghi, len(thu))
+                    self._go_nghi_neu_CA_DAY_cung_chet(can_quota, len(thu))
                     raise
         raise RuntimeError("chuỗi LLM rỗng")
 
