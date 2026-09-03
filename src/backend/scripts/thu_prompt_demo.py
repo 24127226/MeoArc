@@ -40,7 +40,7 @@ from app.agent.nodes.agent_node import coerce_text      # noqa: E402
 from app.agent.skills.skill_loader import load_skills   # noqa: E402
 from app.api.app import (                               # noqa: E402
     _categorize_card, _confirm_card, _di_lai_card, _digest_card,
-    _lich_trinh_card, _triage_card,
+    _lich_trinh_card, _triage_card, ha_the_bia,
 )
 from app.core.db import SessionLocal                    # noqa: E402
 from app.models.user import User                        # noqa: E402
@@ -85,7 +85,8 @@ CAU_HOI: list[tuple[int, str, str, str, str]] = [
     # ── CỔNG DUYỆT ──────────────────────────────────────────────────────────
     (17, "duyet", "xoá hết thư quảng cáo trong hộp thư của tôi", "plan",
      "phải DỪNG chờ duyệt, ghi rõ thư nào sẽ bị xoá"),
-    (18, "duyet", "soạn thư xin lỗi thầy vì nộp bài trễ", "draft", ""),
+    (18, "duyet", "soạn thư xin lỗi thầy vì nộp bài trễ, gửi tới meoarc.hcmus@gmail.com", "draft",
+     "PHẢI có người nhận trong câu — thiếu thì agent hỏi lại, và đó là hành vi ĐÚNG"),
     (19, "duyet", "đặt chỗ mô phỏng chuyến bay TP HCM đi Hà Nội ngày 19/9",
      "dudinh|text|plan", "mã đơn phải có tiền tố MP-"),
     (20, "duyet", "đánh dấu đã đọc tất cả thư từ noreply", "plan|text|result", ""),
@@ -101,7 +102,21 @@ CAU_HOI: list[tuple[int, str, str, str, str]] = [
      "HAI người trùng tên Nguyễn Văn Sơn — GVHD và lớp trưởng, hai việc khác hẳn"),
     (25, "kho", "mình có cần đi đâu trong tuần tới không?", "*",
      "chuỗi 3 thư: đặt vé 06:00 → ĐỔI sang 09:45 → khách sạn. Phải lấy giờ MỚI"),
+
+    # ── NỐI TIẾP: chứng minh agent GIỮ MẠCH hội thoại ───────────────────────
+    (26, "noi", "tìm chỗ ở gần đó giúp mình", "dilai",
+     "phải ra khách sạn HÀ NỘI mà KHÔNG hỏi lại thành phố — thành phố lấy từ lượt trước"),
 ]
+
+# Lượt PHẢI CHẠY TRƯỚC để câu chính có ngữ cảnh.
+#
+# Một số câu chỉ có nghĩa khi đứng sau câu khác: "tìm chỗ ở GẦN ĐÓ" cần biết "đó" là
+# đâu, "đặt chỗ mô phỏng" cần một chuyến bay đã tra được. Chạy chúng một mình rồi kết
+# luận "agent sai" là kết luận về một tình huống không ai gặp.
+TIEN_DE: dict[int, str] = {
+    19: "tìm chuyến bay từ TP HCM đi Hà Nội ngày 19/9",
+    26: "tìm chuyến bay từ TP HCM đi Hà Nội ngày 19/9",
+}
 
 # Câu KHÔNG đi qua mô hình — đã có test tự động riêng. Ghi ở đây cho đủ bộ.
 KHONG_TON_LUOT = [
@@ -131,6 +146,10 @@ def _the(result: dict) -> dict:
         "kind": "text",
         "text": (coerce_text(last_ai.content).strip() if last_ai else "") or "Mình đã xử lý xong.",
     }
+    # DÙNG CHUNG luật với endpoint, không chép lại — chép là hai bản sẽ trôi xa nhau,
+    # và đã trôi thật một lần: bản vá đầu chỉ nằm trong endpoint nên bộ kiểm vẫn báo
+    # lệch sau khi mã đã sửa xong.
+    out = ha_the_bia(out, result["messages"])
     for dung in (_categorize_card, _di_lai_card, _digest_card, _triage_card, _lich_trinh_card):
         c = dung(result["messages"])
         if c:
@@ -166,9 +185,26 @@ async def _chay(so, nhom, cau, mong, ghi_chu, ctx, graph) -> bool:
     if ghi_chu:
         print(f"        ↳ {ghi_chu}")
     print("─" * 76)
+    lich_su: list = []
+    truoc = TIEN_DE.get(so)
+    if truoc:
+        # Chạy lượt trước rồi GIỮ LẠI toàn bộ messages — đó chính là cách `/agent/chat`
+        # nạp lịch sử từ DB (xem `conversation_repo` + `messages_from_dict`). Bỏ qua
+        # bước này thì câu "gần đó" không có "đó" nào để bám.
+        print(f"        (lượt trước: {truoc})")
+        try:
+            r0 = await graph.ainvoke({
+                "messages": [HumanMessage(content=truoc)], "request_ctx": ctx,
+                "skill_context": load_skills(truoc), "user_context": "",
+                "pending_confirmation": None, "iteration_count": 0, "final_output": None,
+            })
+            lich_su = list(r0["messages"])
+        except Exception as exc:
+            print(f"  LỖI ở lượt trước: {str(exc)[:160]}")
+            return False
     try:
         result = await graph.ainvoke({
-            "messages": [HumanMessage(content=cau)],
+            "messages": [*lich_su, HumanMessage(content=cau)],
             "request_ctx": ctx,
             "skill_context": load_skills(cau),
             "user_context": "",

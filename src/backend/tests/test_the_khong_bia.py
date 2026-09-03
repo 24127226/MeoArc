@@ -19,7 +19,7 @@ import types
 
 import pytest
 
-from app.api.app import _tim_tool
+from app.api.app import ha_the_bia
 
 
 def _tool(ten: str, data):
@@ -29,14 +29,7 @@ def _tool(ten: str, data):
 _NGUOI = types.SimpleNamespace(type="human", content="tìm thư về học phí")
 
 
-def _ha_cap(out: dict, messages: list) -> dict:
-    """Bản sao ĐÚNG luật đang chạy trong `/agent/chat`. Giữ ở đây để test khoá được
-    luật mà không phải dựng cả một lượt chat."""
-    nguon = {"digest": "tom_tat_ngay", "triage": "phan_loai_uu_tien"}
-    ten = nguon.get(out.get("kind"))
-    if ten and not _tim_tool(messages, ten):
-        return {**out, "kind": "result"}
-    return out
+_ha_cap = ha_the_bia   # dùng THẲNG hàm của sản phẩm, không viết lại
 
 
 def test_triage_bia_ra_thi_bi_ha_ve_result():
