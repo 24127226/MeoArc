@@ -30,7 +30,9 @@ import {
 } from '@/components/ui/dialog'
 
 // id = mã tệp BE trả khi upload (http mode). Mock mode không có id (gửi giả).
-type Attachment = { id?: string; name: string; size: string }
+/** `loi` = tải lên máy chủ hỏng. Giữ lại để người dùng THẤY, và chặn nút Gửi —
+ *  chứ không im lặng loại ra lúc gửi như bản trước. */
+type Attachment = { id?: string; name: string; size: string; loi?: boolean }
 
 const fieldCls =
   'w-full bg-transparent text-sm text-popover-foreground outline-none placeholder:text-popover-foreground/40'
@@ -146,7 +148,16 @@ export function ComposeDialog() {
           // GIỮ r.id để lúc gửi còn biết đính tệp nào (BE tra bytes theo id).
           setFiles((prev) => [...prev, { id: r.id, name: r.name, size: r.size }])
         } catch {
-          setFiles((prev) => [...prev, { name: f.name, size: formatBytes(f.size) }])
+          // KHÔNG âm thầm thêm tệp "không có id".
+          //
+          // Bản trước làm đúng thế: tải lên hỏng thì vẫn thêm chip vào danh sách, chỉ
+          // là thiếu `id`. Lúc gửi, `.filter(x => !!x)` lặng lẽ loại nó ra — nên người
+          // dùng NHÌN THẤY tệp trên màn hình, bấm Gửi, nhận báo "đã gửi", và bức thư
+          // đi ra không có tệp nào. Họ chỉ biết sự thật từ người nhận.
+          //
+          // Nay đánh dấu `loi` để hiện đỏ và CHẶN nút Gửi (xem `canSend`). Một lỗi rõ
+          // ràng luôn tốt hơn một thành công giả.
+          setFiles((prev) => [...prev, { name: f.name, size: formatBytes(f.size), loi: true }])
         }
       }
     } else {
@@ -181,7 +192,10 @@ export function ComposeDialog() {
     }, 18)
   }
 
-  const canSend = to.trim() && subject.trim()
+  // Có tệp tải lên hỏng thì KHÔNG cho gửi. Gửi lúc này là gửi một bức thư thiếu
+  // đúng thứ người dùng muốn gửi, mà họ vẫn nhận được thông báo 'đã gửi'.
+  const coTepHong = files.some((f) => f.loi)
+  const canSend = to.trim() && subject.trim() && !coTepHong
 
   // Một ô Cc/Bcc có thể chứa NHIỀU email ngăn bởi dấu phẩy → tách thành mảng cho backend.
   const splitAddrs = (s: string): string[] | undefined => {
@@ -441,13 +455,26 @@ export function ComposeDialog() {
                   {files.map((f, i) => (
                     <span
                       key={i}
-                      className="flex items-center gap-2 rounded-lg bg-popover-foreground/10 py-1 pl-2 pr-1 text-xs text-popover-foreground"
+                      title={f.loi ? 'Tải tệp này lên máy chủ không thành công — gỡ ra hoặc thử lại' : undefined}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg py-1 pl-2 pr-1 text-xs text-popover-foreground',
+                        // Tệp hỏng phải TRÔNG KHÁC. Bản trước nó giống hệt tệp thành công,
+                        // nên người dùng không có cách nào biết nó sẽ không đi kèm thư.
+                        f.loi
+                          ? 'bg-destructive/15 ring-1 ring-destructive/50'
+                          : 'bg-popover-foreground/10',
+                      )}
                     >
-                      <span className="rounded bg-active/20 px-1 text-[9px] font-bold uppercase text-popover-foreground">
-                        {f.name.split('.').pop()}
+                      <span className={cn(
+                        'rounded px-1 text-[9px] font-bold uppercase text-popover-foreground',
+                        f.loi ? 'bg-destructive/40' : 'bg-active/20',
+                      )}>
+                        {f.loi ? 'lỗi' : f.name.split('.').pop()}
                       </span>
                       <span className="max-w-[160px] truncate">{f.name}</span>
-                      <span className="text-popover-foreground/50">{f.size}</span>
+                      <span className="text-popover-foreground/50">
+                        {f.loi ? 'chưa tải lên được' : f.size}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}

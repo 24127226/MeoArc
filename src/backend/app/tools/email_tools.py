@@ -211,6 +211,26 @@ async def send_email(inp: SendEmailInput, ctx: RequestContext) -> SendEmailOutpu
     không thể) chỉ định tệp nào. Nếu người dùng nói "gửi file này cho X" thì cứ gọi
     tool bình thường, tệp sẽ tự đi theo."""
     tep = _lay_tep(ctx)
+    # ── THIẾU TỆP THÌ KHÔNG GỬI ─────────────────────────────────────────────
+    # Bản trước cố ý bỏ qua tệp tra không ra để "thư vẫn gửi được". Quyết định đó SAI,
+    # và đã đo được hậu quả thật: người dùng báo "mail thì qua mà không có phần đính
+    # kèm" và không có bất cứ dấu hiệu nào để lần ra tại sao.
+    #
+    # Lý do sâu hơn: thẻ xác nhận CÓ LIỆT KÊ TÊN TỆP. Người dùng bấm Duyệt là duyệt
+    # "gửi thư NÀY kèm tệp NÀY". Gửi đi một bức thiếu tệp là gửi một thứ khác với thứ
+    # đã được duyệt — cổng xác nhận mất hết ý nghĩa. Thà báo lỗi để họ đính lại.
+    _thieu = len(ctx.tep_dinh_kem or []) - len(tep)
+    if _thieu > 0:
+        return SendEmailOutput(
+            success=False,
+            message=(
+                f"CHƯA GỬI: {_thieu} tệp bạn đính kèm không còn trong kho tạm nữa. "
+                "Kho chỉ giữ 30 phút và mất khi máy chủ khởi động lại (vừa deploy chẳng "
+                "hạn). Mình không gửi thư thiếu tệp vì đó không phải thứ bạn đã duyệt — "
+                "bạn đính lại tệp rồi nhờ mình gửi lần nữa nhé."
+            ),
+            data={"so_tep": "0", "so_tep_thieu": str(_thieu)},
+        )
     res = await asyncio.to_thread(
         mail.send_email, ctx.email_provider, ctx.access_token, ", ".join(inp.to), inp.subject, inp.body,
         cc=inp.cc or None, bcc=inp.bcc or None,

@@ -85,27 +85,52 @@ def test_MO_HINH_khong_chon_duoc_tep():
         )
 
 
-def test_tep_HET_HAN_thi_bo_qua_chu_khong_hong_ca_luot(monkeypatch):
-    """Kho upload có TTL 30 phút. Người dùng đính tệp rồi để đó nửa tiếng mới bấm Duyệt
-    là chuyện thường — khi đó thư vẫn phải gửi được, chỉ là không có tệp."""
+def test_tep_HET_HAN_thi_KHONG_GUI_chu_khong_gui_thieu(monkeypatch):
+    """── CA NÀY TỪNG KHẲNG ĐỊNH NGƯỢC LẠI ──
+    Bản đầu cho rằng tệp hết hạn thì "thư vẫn phải gửi được, chỉ là không có tệp".
+    Đã đo được hậu quả thật của lựa chọn đó: người dùng báo "mail thì qua mà không có
+    phần đính kèm", không lỗi, không dấu vết nào để lần ra.
+
+    Lý do sâu hơn khiến nó sai: thẻ xác nhận CÓ LIỆT KÊ TÊN TỆP. Bấm Duyệt nghĩa là
+    duyệt "gửi thư này KÈM tệp này". Gửi đi một bức thiếu tệp là gửi thứ khác với thứ
+    đã duyệt — cổng xác nhận mất sạch ý nghĩa. Một lỗi rõ ràng luôn tốt hơn một thành
+    công giả, vì thư đã đi rồi thì không thu lại được."""
     ghi = _bat_gui(monkeypatch)
     out = asyncio.run(T.send_email(
         SendEmailInput(to=["a@b.com"], subject="x", body="y"),
         _ctx(["id-khong-ton-tai"]),
     ))
-    assert out.success and ghi["attachments"] is None
+    assert out.success is False
+    assert not ghi, "KHÔNG được gọi tới lớp gửi khi tệp còn thiếu"
+    assert "đính lại" in out.message
 
 
-def test_dem_dung_so_tep_thuc_su_dinh_duoc(monkeypatch):
-    """Một trong hai tệp hết hạn → phải báo 1, không phải 2. Báo thừa thì người dùng
-    tưởng đã gửi đủ."""
-    _bat_gui(monkeypatch)
+def test_thieu_MOT_trong_hai_tep_cung_KHONG_GUI(monkeypatch):
+    """Thiếu một phần cũng là thiếu. Gửi 1/2 tệp rồi báo "đã gửi 1 tệp" thì người dùng
+    phải tự đọc con số mới biết mình vừa gửi một bức thư không đầy đủ — và phần lớn sẽ
+    không đọc."""
+    ghi = _bat_gui(monkeypatch)
     con = upload_store.save("con-han.txt", b"a", "text/plain")
     out = asyncio.run(T.send_email(
         SendEmailInput(to=["a@b.com"], subject="x", body="y"),
         _ctx([con["id"], "da-het-han"]),
     ))
-    assert out.data["so_tep"] == "1"
+    assert out.success is False
+    assert out.data["so_tep_thieu"] == "1"
+    assert not ghi
+
+
+def test_du_tep_thi_bao_dung_so_luong(monkeypatch):
+    """Đường bình thường không được vì bản sửa này mà đổi hành vi."""
+    _bat_gui(monkeypatch)
+    a = upload_store.save("a.txt", b"a", "text/plain")
+    b = upload_store.save("b.txt", b"b", "text/plain")
+    out = asyncio.run(T.send_email(
+        SendEmailInput(to=["a@b.com"], subject="x", body="y"),
+        _ctx([a["id"], b["id"]]),
+    ))
+    assert out.success is True
+    assert out.data["so_tep"] == "2"
 
 
 def test_gui_thu_VAN_phai_qua_cong_xac_nhan():

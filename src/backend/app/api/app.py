@@ -888,12 +888,25 @@ def send_email_route(req: SendReq, bg: BackgroundTasks, token: str = Depends(get
                      provider: str = Depends(get_provider),
                      session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
     """Soạn & gửi thư mới (kèm tệp — Gmail). Body khớp `SendEmailInput` + attachmentIds."""
-    # Đổi danh sách id tệp → nội dung thật (bytes) đã cất ở /uploads. Id không tồn tại → bỏ qua.
+    # Đổi danh sách id tệp → nội dung thật (bytes) đã cất ở /uploads.
+    _xin = list(req.attachmentIds or [])
     attachments = [
         {"name": f["name"], "content": f["content"], "mime": f["mime"]}
-        for fid in (req.attachmentIds or [])
+        for fid in _xin
         if (f := upload_store.get(fid))
     ]
+    # THIẾU TỆP THÌ TỪ CHỐI, KHÔNG GỬI IM LẶNG.
+    # Bản trước bỏ qua id tra không ra rồi vẫn gửi — và người dùng báo đúng triệu chứng
+    # sinh ra từ đó: "mail thì qua mà không có phần đính kèm", không lỗi, không dấu vết.
+    # Một bức thư gửi thành công NHƯNG THIẾU thứ chính cần gửi thì tệ hơn một lỗi rõ
+    # ràng: người gửi tin là xong và chỉ biết sự thật từ phía người nhận.
+    if len(attachments) < len(_xin):
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{len(_xin) - len(attachments)} tệp đính kèm không còn trong kho "
+                    "tạm (kho giữ 30 phút và mất khi máy chủ khởi động lại). Thư CHƯA "
+                    "được gửi — bạn đính lại tệp rồi gửi giúp mình nhé."),
+        )
     res = _guard(lambda: mail.send_email(
         provider, token, req.to, req.subject, req.body, cc=req.cc, bcc=req.bcc, attachments=attachments,
     ))
