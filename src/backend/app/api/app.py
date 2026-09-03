@@ -1879,8 +1879,24 @@ async def agent_chat(
         # Digest / Triage / Lịch trình: cùng khuôn — thẻ dựng TẤT ĐỊNH từ số liệu tool.
         for _dung in (_digest_card, _triage_card, _lich_trinh_card):
             _c = _dung(result["messages"])
-            if _c:
-                out = _c
+            if not _c:
+                continue
+            # ── THẺ LÀ BẰNG CHỨNG, CÂU TRẢ LỜI VẪN LÀ CÂU TRẢ LỜI ──
+            # Thẻ dựng tất định thì đè lên `out`, và như thế là ĐÈ MẤT câu mô hình vừa
+            # viết. Đo được 03/09/2026: hỏi "buổi bảo vệ đồ án mấy giờ?" thì agent tra
+            # đúng chuỗi thư rồi trả về… một danh sách 18 việc kèm dòng dẫn chung chung
+            # "Đây là những việc bạn đang mắc". Người hỏi một cái GIỜ mà nhận một cái
+            # DANH SÁCH — và bên dưới danh sách đó thì câu trả lời thật đã bị vứt đi.
+            #
+            # Giữ cả hai: câu của mô hình lên làm phần dẫn, bảng số liệu nằm dưới làm
+            # chỗ đối chiếu. Đó mới đúng vai của từng thứ.
+            #
+            # Ngưỡng 20 ký tự để bỏ qua mấy câu lấp chỗ ("Đã xong.", "Đây rồi:") — chúng
+            # tệ hơn dòng dẫn mặc định vốn ít ra còn nói thẻ này là thẻ gì.
+            _cau = str(out.get("text") or out.get("intro") or "").strip()
+            if _cau and len(_cau) > 20:
+                _c = {**_c, "intro": _cau}
+            out = _c
 
         # HUMAN-IN-THE-LOOP: lượt này có tool không-hoàn-tác bị CHẶN chờ duyệt →
         # thẻ draft/plan CÓ NÚT thắng mọi thẻ khác (người dùng phải thấy nút duyệt,

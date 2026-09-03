@@ -150,10 +150,20 @@ def _the(result: dict) -> dict:
     # và đã trôi thật một lần: bản vá đầu chỉ nằm trong endpoint nên bộ kiểm vẫn báo
     # lệch sau khi mã đã sửa xong.
     out = ha_the_bia(out, result["messages"])
-    for dung in (_categorize_card, _di_lai_card, _digest_card, _triage_card, _lich_trinh_card):
+    for dung in (_categorize_card, _di_lai_card):
         c = dung(result["messages"])
         if c:
             out = c
+    # Giữ câu trả lời của mô hình làm phần dẫn — GIỐNG HỆT endpoint. Xem chú thích ở
+    # app.py: thẻ là bằng chứng, câu trả lời vẫn phải là câu trả lời.
+    for dung in (_digest_card, _triage_card, _lich_trinh_card):
+        c = dung(result["messages"])
+        if not c:
+            continue
+        cau = str(out.get("text") or out.get("intro") or "").strip()
+        if cau and len(cau) > 20:
+            c = {**c, "intro": cau}
+        out = c
     c = _confirm_card(result["messages"])
     if c:
         out = c
