@@ -218,10 +218,16 @@ def bo_thu(moc: datetime | None = None) -> list[tuple[str, str, str]]:
         (
             "EduMax Academy",
             "🔥 Khoá học lập trình MIỄN PHÍ 100% — chỉ còn 2 ngày!",
+            # ── KHÔNG ĐƯỢC CHỨA ĐỘNG TỪ CAM KẾT KÈM MỐC THỜI GIAN ──
+            # Bản đầu viết "Đăng ký ngay hôm nay…" nên bộ trích nhận nó thành một VIỆC
+            # PHẢI LÀM và nó chen vào giữa danh sách lịch trình. Đã thấy tận mắt khi chạy
+            # thật: "🔥 Khoá học lập trình MIỄN PHÍ 100%" nằm ngay dòng thứ hai của thẻ
+            # Lịch trình. Trên máy quay thì đó là lỗi rất khó chống chế.
+            # Thư này chỉ cần làm bẫy cho phép TÌM KIẾM, không cần giục ai làm gì.
             "Đừng bỏ lỡ!\n\n"
-            "Đăng ký ngay hôm nay để nhận trọn bộ khoá học lập trình MIỄN PHÍ, không mất "
-            "một đồng học phí nào. Ưu đãi áp dụng cho 100 người đăng ký sớm nhất.\n\n"
-            "Nhấn vào đây để nhận ưu đãi.",
+            "Trọn bộ khoá học lập trình MIỄN PHÍ, không mất một đồng học phí nào. Ưu đãi "
+            "dành cho 100 người sớm nhất.\n\n"
+            "Nhấn vào đây để xem chi tiết.",
         ),
         # ══════════════════════════════════════════════════════════════════
         # NHÓM E — QUẢNG CÁO  → Q8 "xoá hết thư quảng cáo" (demo cổng xác nhận)

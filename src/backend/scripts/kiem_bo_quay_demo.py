@@ -45,7 +45,16 @@ def _thu_gia(moc: datetime) -> list[dict]:
             "senderEmail": "demo@example.com",
             "subject": tieu_de,
             "preview": than[:120],
-            "body": than.split("\n\n"),
+            # ── PHẢI LÀ ĐOẠN TRÍCH, KHÔNG PHẢI THÂN THƯ ĐẦY ĐỦ ──
+            # `gmail_service.list_messages` trả `body=[snippet]` (xem dòng 184 ở đó):
+            # khi LIỆT KÊ thư, Gmail chỉ đưa ~200 ký tự đầu, thân đầy đủ phải gọi riêng
+            # từng thư. Bộ trích cam kết chạy trên danh sách nên nó CHỈ THẤY đoạn trích.
+            #
+            # Bản đầu của kịch bản này nạp thân thư đầy đủ, nên nó tính ra 390 phút và
+            # báo "có ngày quá tải" — trong khi chạy thật chỉ ra 180 phút và không ngày
+            # nào quá tải. Một bộ kiểm nói dối đúng ở chỗ nó sinh ra để nói thật thì tệ
+            # hơn không có bộ kiểm, vì nó tạo ra sự yên tâm sai.
+            "body": [than[:200]],
             "date": moc.strftime("%d/%m/%Y %H:%M"),
             "folder": "inbox",
             "unread": True,
@@ -83,8 +92,20 @@ def main() -> int:
     for b in bang:
         cho = " ← QUÁ TẢI" if b["qua_tai"] else ""
         print(f"     {b['ngay']}  {b['so_viec']:>2} việc  {b['phut']:>4} phút{cho}")
-    if not qua_tai:
-        loi.append("Q4: KHÔNG ngày nào quá tải — thẻ sẽ không có cột đỏ nào để chỉ.")
+    nang_nhat = max(bang, key=lambda b: b["phut"], default=None)
+    if nang_nhat and nang_nhat["so_viec"]:
+        print(f"     → ngày nặng nhất: {nang_nhat['ngay']} ({nang_nhat['so_viec']} việc)")
+    # KHÔNG đòi phải có ngày quá tải nữa.
+    #
+    # Trần là 360 phút/ngày, mà bộ trích chỉ nhìn thấy ĐOẠN TRÍCH ~200 ký tự của mỗi
+    # thư (Gmail không trả thân đầy đủ khi liệt kê), nên mọi việc đều rơi vào bậc 30
+    # phút. Muốn vượt trần phải có 13 việc trong CÙNG một ngày — một hộp thư như thế
+    # trông giả tạo hơn là ấn tượng.
+    #
+    # Điều kiện đúng cần khẳng định là: ngày nặng nhất phải NỔI HẲN so với ngày khác,
+    # để cột trên thẻ có hình dạng đáng nhìn và câu trả lời có chỗ để chỉ vào.
+    if not nang_nhat or nang_nhat["so_viec"] < 4:
+        loi.append("Q4: không ngày nào có từ 4 việc — dải cột sẽ phẳng, không có gì để chỉ.")
 
     # ── Q5: "tôi đang nợ ai cái gì?" ───────────────────────────────────────
     co_nguoi_cho = [c for c in ck if c.nguoi_cho]
@@ -119,7 +140,10 @@ def main() -> int:
 
     # ── Q9: thư mới nhất phải là thư CUỐI danh sách ────────────────────────
     print(f"\nQ9 · thư gửi cuối (= mới nhất): {thu[-1]['subject'][:60]}")
-    if len(" ".join(thu[-1]["body"]).split()) < 150:
+    # Đo THÂN THƯ GỐC chứ không phải đoạn trích. Tóm tắt MỘT lá thư đi qua `get_email`
+    # (lấy thân đầy đủ), khác hẳn đường liệt kê vốn chỉ có snippet — nên đo trên
+    # snippet ở đây là đo sai thứ mà câu hỏi Q9 thật sự dùng.
+    if len(bo_thu(moc)[-1][2].split()) < 150:
         loi.append("Q9: thư cuối quá ngắn, tóm tắt sẽ không có gì đáng nói.")
 
     print("\n" + "─" * 68)
