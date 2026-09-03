@@ -157,7 +157,19 @@ Bộ thư cố ý cài bẫy. **Chọn 2 câu**, mỗi câu 2–3 lượt.
 | 24 | `thứ Sáu này mình phải làm gì?` | **hai người trùng tên** Nguyễn Văn Sơn — GVHD và lớp trưởng | hai việc khác hẳn nhau |
 | 25 | `mình có cần đi đâu trong tuần tới không?` | chuỗi 3 thư: đặt vé 06:00 → **đổi sang 09:45** → khách sạn | phải lấy giờ **mới** |
 
-*(Kết quả chạy thật của nhóm này được cập nhật ở cuối tài liệu.)*
+### Kết quả chạy thật — nhóm này KHÔNG đều, đọc kỹ trước khi chọn
+
+| # | Tool gọi thật | Ra gì | Dùng được không |
+|---|---|---|---|
+| **22** | `semantic_search` | *"Bạn đã hoàn tất thanh toán học phí học kỳ 1 với số tiền **8.500.000đ** vào ngày 18/9 (theo xác nhận từ **Vietcombank**). Hiện tại, bạn **không còn khoản nợ học phí nào**."* | ⭐ **Xuất sắc — chọn câu này** |
+| 24 | `liet_ke_cam_ket` | *"**Thứ Sáu này (04/09) bạn có 6 đầu việc cần xử lý**, chủ yếu tập trung…"* + danh sách | ✅ Tốt |
+| 23 | `liet_ke_cam_ket` | *"Dưới đây là các đầu việc quan trọng bạn cần hoàn tất trước ngày…"* + 20 việc | ⚠️ Được, nhưng không chỉ đích danh hạn 23/9 |
+| 25 | `de_xuat_di_lai` | 1 việc — chung kết Hackathon | ⚠️ Không nhắc chuyện đổi giờ bay |
+| 21 | `search_emails` | *"Em đã tổng hợp các thông báo mới nhất về lịch bảo vệ và hạn nộp slide…"* | ❌ **Tránh dùng** — tóm tắt chứ không nói ra giờ |
+
+> **Câu 22 là câu đáng để dành cho lúc thầy nghi ngờ nhất.** Nó tự ghép **hai lá thư khác nhau** (hoá đơn và biên lai) rồi rút ra kết luận — chứng minh agent **suy luận**, không chỉ tìm kiếm.
+>
+> **Câu 21 thì đừng quay.** Đã chạy lại sau bản vá và nó vẫn tóm tắt thay vì trả lời "mấy giờ". Đây là giới hạn hành vi của mô hình, không phải lỗi thẻ. Đưa ra một câu mà mình biết nó trả lời lệch là tự tạo rủi ro không cần thiết.
 
 ---
 
@@ -191,7 +203,7 @@ Phân loại giúp tôi 20 thư gần nhất rồi gắn nhãn cho nhóm Tài ch
 | 3 | 5 → 26 (nối tiếp) | ~5 | Giữ mạch hội thoại — bấm ngay sau câu 5 |
 | 4 | 7 → 11 | ~13 | Chiều sâu lịch trình |
 | 5 | 15, 17 (bấm Từ chối) | ~5 | Từ chối đúng + cổng duyệt |
-| 6 | Hai câu "làm khó" thầy chọn | ~6 | Để dành khi bị hỏi xoáy |
+| 6 | **Câu 22** (còn nợ học phí) — và chỉ câu 22 | ~3 | Để dành khi bị hỏi xoáy. **Đừng quay câu 21** |
 
 **Mở màn và kết thúc bằng câu 0 lượt.** Hết quota giữa chừng thì đầu và cuối vẫn nguyên vẹn.
 
