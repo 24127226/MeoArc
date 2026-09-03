@@ -1,0 +1,119 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ docker.yml — CHUNG MINH bo Docker that su chay duoc               ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ VI SAO CAN WORKFLOW NAY:                                          ║
+# ║ Repo co Dockerfile va docker-compose tu lau, nhung ban trien khai  ║
+# ║ dung Azure App Service + Oryx — KHONG he dung Docker. Nghia la bo  ║
+# ║ Docker do chua bao gio duoc build hay chay thu. No co the da hong  ║
+# ║ tu nhieu thang truoc ma khong ai biet, vi khong co gi cham vao no. ║
+# ║                                                                    ║
+# ║ Cau hoi "sao biet Docker cua nhom dung duoc?" chi co MOT cau tra   ║
+# ║ loi chac chan: mot dau tick xanh chay lai sau moi lan sua ma.      ║
+# ║                                                                    ║
+# ║ Workflow nay lam ba viec, tang dan do chac chan:                   ║
+# ║   1. Build ca hai image  → chung minh Dockerfile khong hong        ║
+# ║   2. `docker compose up` → chung minh chung noi duoc voi nhau      ║
+# ║   3. Goi /health         → chung minh app THAT SU phuc vu duoc     ║
+# ║                                                                    ║
+# ║ Buoc 3 moi la buoc dat gia. Build xong ma app khong khoi dong noi  ║
+# ║ thi image van "build thanh cong" — dung kieu xanh gia.             ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: Docker build va chay thu
+
+on:
+  push:
+    branches: [integration]
+    paths:
+      - 'src/backend/**'
+      - 'src/frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dung-va-chay:
+    name: Build image roi dung ca he
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Lay ma nguon
+        uses: actions/checkout@v4
+
+      # Buildx cho phep dung cache layer giua cac lan chay — khong co no thi moi lan
+      # deu cai lai tu dau ~124 goi Python va toan bo node_modules.
+      - name: Bat Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 1. BUILD RIENG TUNG IMAGE ────────────────────────────────────────
+      # Build rieng truoc khi compose de neu hong thi biet NGAY image nao hong.
+      # `compose build` gop log hai image lam mot, rat kho doc khi that bai.
+      - name: Build image backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/backend
+          push: false
+          load: true
+          tags: meoarc-backend:ci
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/frontend
+          push: false
+          load: true
+          tags: meoarc-frontend:ci
+          build-args: VITE_API_BASE_URL=http://localhost:8000
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      # ── 2. DUNG CA HE ────────────────────────────────────────────────────
+      # `.env` bi .gitignore nen CI khong co. Sinh mot ban TOI THIEU voi gia tri
+      # gia: du de app khoi dong, KHONG du de goi ra ngoai — dung y do, vi CI
+      # khong duoc phep cham vao Gmail hay Gemini that.
+      #
+      # Compose da khai `required: false` cho env_file nen thieu cung khong sao;
+      # sinh o day de chung minh luon duong "co .env" cung chay.
+      - name: Sinh .env toi thieu cho CI
+        run: |
+          cat > src/backend/.env <<'EOF'
+          APP_ENV=ci
+          GOOGLE_CLIENT_ID=ci-khong-dung-that
+          GOOGLE_CLIENT_SECRET=ci-khong-dung-that
+          AI_API_KEY=
+          EOF
+          echo "TOKEN_ENCRYPTION_KEY=$(python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')" >> src/backend/.env
+
+      - name: Dung ca he bang compose
+        run: docker compose up -d --wait --wait-timeout 180
+
+      # ── 3. CHUNG MINH APP THAT SU PHUC VU DUOC ───────────────────────────
+      # `--wait` o tren da doi healthcheck cua compose, nhung goi lai o day de
+      # khang dinh bang mot lenh doc duoc trong log: image build xong ma app
+      # khong tra loi noi /health thi van la hong.
+      - name: Goi /health cua backend
+        run: |
+          echo "── /health ──"
+          curl -fsS --retry 5 --retry-delay 3 http://localhost:8000/health | tee /tmp/health.json
+          echo
+          grep -q '"status":"ok"' /tmp/health.json
+
+      - name: Goi trang frontend
+        run: |
+          ma=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 3 http://localhost:5173/)
+          echo "frontend HTTP $ma"
+          test "$ma" = "200"
+
+      # Log cua ca he khi HONG — khong co buoc nay thi mot lan do o CI chi hien
+      # "unhealthy" ma khong noi vi sao, va nguoi sua phai doan.
+      - name: In log khi that bai
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Don dep
+        if: always()
+        run: docker compose down -v

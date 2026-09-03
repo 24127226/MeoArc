@@ -32,7 +32,18 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./src/backend/.env                 # bí mật ở NGOÀI image (đúng NFR-Security)
+      # Bí mật ở NGOÀI image (đúng NFR-Security).
+      #
+      # `required: false` — VÌ SAO: `.env` bị .gitignore (đúng), nên người mới clone
+      # repo về KHÔNG có tệp này. Để mặc định (bắt buộc) thì `docker compose up` hỏng
+      # NGAY, trước cả khi build gì — và thông báo lỗi chỉ nói "env file not found",
+      # không nói rằng đó là chuyện bình thường và chỉ cần tạo từ .env.example.
+      #
+      # Thiếu tệp thì hệ vẫn dựng lên được: app chạy, hộp thư chưa đăng nhập được,
+      # agent trả lời câu mẫu. Đủ để người xem thấy kiến trúc, và lỗi hiện ra ở chỗ
+      # đúng nghĩa (màn đăng nhập) thay vì ở một dòng lỗi compose khó hiểu.
+      - path: ./src/backend/.env
+        required: false
     environment:
       # Ghi đè: trong mạng compose, Postgres tên là `db` (không phải localhost)
       DATABASE_URL: postgresql+psycopg://postgres:meoarc_local@db:5432/meoarc
