@@ -54,6 +54,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # để import bo_quay_demo
 
 from app.core.db import SessionLocal              # noqa: E402
 from app.models.user import User                  # noqa: E402
@@ -613,6 +614,12 @@ def main() -> int:
                     help="Gửi THÊM bộ thư ĐA DẠNG bám theo docs/kich-ban-kiem-thu-agent.md "
                          "(quảng cáo để thử xoá hàng loạt, thư chờ mình trả lời, luồng "
                          "họp, chuyến công tác). Bật sẵn khi dùng --bo-day.")
+    ap.add_argument("--quay-demo", action="store_true",
+                    help="Bộ thư DÀNH RIÊNG cho buổi quay demo: mọi mốc thời gian tính "
+                         "theo NGÀY CHẠY (không phải ngày cứng), và mỗi thư bám đúng một "
+                         "câu hỏi trong docs/kich-ban-quay-demo.md. Dùng RIÊNG, không "
+                         "cộng thêm bộ nào khác. Kiểm trước bằng "
+                         "scripts/kiem_bo_quay_demo.py.")
     ap.add_argument("--bo-day", action="store_true",
                     help="Gửi THÊM ~50 thư dồn cục để xem màn Lịch trình dưới tải "
                          "thật (xếp làn, chip +N, bảng ngày). Hộp thư sẽ rất lộn xộn "
@@ -678,15 +685,24 @@ def main() -> int:
         if bo_qua:
             print(f"(Bỏ qua {len(bo_qua)} tài khoản không dùng được: {', '.join(bo_qua)})\n")
 
-        bo = list(THU_DEMO)
-        thanh_phan = [f"{len(THU_DEMO)} gốc"]
+        if args.quay_demo:
+            # DÙNG RIÊNG, không trộn. Bộ quay demo được cân đúng để mỗi câu hỏi trong
+            # kịch bản có dữ liệu đỡ; trộn thêm thư khác vào là phá mất cân đó — nhất
+            # là ngày quá tải, chỉ cần thêm vài việc nữa là các ngày khác cũng đỏ và
+            # câu "ngày nào bận nhất" hết còn chỉ được vào đâu.
+            from bo_quay_demo import bo_thu as _bo_quay
+            bo = list(_bo_quay())
+            thanh_phan = [f"{len(bo)} thư quay demo"]
+        else:
+            bo = list(THU_DEMO)
+            thanh_phan = [f"{len(THU_DEMO)} gốc"]
         # Bộ kịch bản đi kèm --bo-day, và cũng bật riêng được bằng --kich-ban: có lúc
         # chỉ cần dữ liệu ĐA DẠNG để thử agent, không cần hộp thư quá tải.
-        if args.kich_ban or args.bo_day:
+        if (args.kich_ban or args.bo_day) and not args.quay_demo:
             bo += _THU_KICH_BAN + _THU_KHO
             thanh_phan.append(f"{len(_THU_KICH_BAN)} kịch bản")
             thanh_phan.append(f"{len(_THU_KHO)} khó")
-        if args.bo_day:
+        if args.bo_day and not args.quay_demo:
             day = _dung_bo_day()
             bo += day
             thanh_phan.append(f"{len(day)} dày")
