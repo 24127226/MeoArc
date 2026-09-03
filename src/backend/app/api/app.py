@@ -1401,7 +1401,9 @@ def _digest_card(messages: list) -> dict | None:
     return {
         "kind": "digest",
         "intro": "Đây là báo cáo nhanh hộp thư của bạn:",
-        "title": "Daily Digest — hôm nay",
+        # Tiêu đề thuần Việt. Giao diện lẫn Anh–Việt bắt người đọc chuyển ngữ giữa
+        # chừng, và với bài bảo vệ thì đó là chi tiết người chấm nhìn ra ngay.
+        "title": f"Tóm tắt hộp thư — {d.get('pham_vi') or 'hôm nay'}",
         "stats": [
             {"label": "Tổng thư", "value": d.get("tong", 0)},
             {"label": "Chưa đọc", "value": d.get("chua_doc", 0)},
@@ -1423,8 +1425,99 @@ def _triage_card(messages: list) -> dict | None:
     return {
         "kind": "triage",
         "intro": "Mình đã phân loại theo độ ưu tiên kèm gợi ý hành động:",
-        "title": f"Triage {d.get('tong', 0)} thư cần theo dõi",
+        "title": f"Phân loại {d.get('tong', 0)} thư cần theo dõi",
         "groups": d["nhom"],
+    }
+
+
+def _lich_trinh_card(messages: list) -> dict | None:
+    """Thẻ 'lichtrinh' — MỘT khuôn dùng chung cho ba tool lịch trình.
+
+    ── VÌ SAO PHẢI CÓ ──
+    `liet_ke_cam_ket`, `ap_luc_lich_trinh` và `de_xuat_di_lai` trước đây không có thẻ
+    nào nên rơi hết vào nhánh `kind:"text"` — mô hình tự kể lại bằng lời. Hậu quả đo
+    được trên bản triển khai:
+      • "tuần này lịch trình tôi thế nào?" → trả về mỗi một câu hỏi ngược
+        ("Bạn có muốn mình xem chi tiết thư nào không?"), KHÔNG có việc nào được liệt kê.
+      • "tuần này tôi có bị quá tải không?" → một đoạn văn dài bốn dòng, người đọc phải
+        tự dò ra ngày nào bận.
+      • "cần đi công tác việc nào không?" → cũng một đoạn văn xuôi.
+    Cả ba đều là DỮ LIỆU CÓ CẤU TRÚC bị ép thành văn xuôi, và văn xuôi thì mỗi lần một
+    khác, không bấm được, không mở được thư.
+
+    ── VÌ SAO MỘT THẺ CHỨ KHÔNG BA ──
+    Ba tool khác nhau nhưng người dùng nhìn thấy cùng một thứ: "những việc tôi phải
+    làm, khi nào, vì lá thư nào". Ba thẻ ba kiểu vẽ thì họ phải học ba lần, và mình
+    phải bảo trì ba bộ. Thẻ này bật/tắt phần theo dữ liệu có mặt:
+      `ngay` có → vẽ dải áp lực · `viec` có → vẽ danh sách việc.
+    """
+    ck = _tim_tool(messages, "liet_ke_cam_ket")
+    ap = _tim_tool(messages, "ap_luc_lich_trinh")
+    dl = _tim_tool(messages, "de_xuat_di_lai")
+    if not (ck or ap or dl):
+        return None
+
+    viec: list[dict] = []
+    if ck:
+        viec = [
+            {"noi_dung": c.get("noi_dung", ""), "han": c.get("han"),
+             "nguoi_cho": c.get("nguoi_cho", ""), "email_id": c.get("email_id", ""),
+             "tieu_de": c.get("tieu_de", ""), "nguoi_gui": c.get("nguoi_gui", ""),
+             "muc_uu_tien": c.get("muc_uu_tien", 1),
+             "uoc_luong_phut": c.get("uoc_luong_phut", 0)}
+            for c in ck
+        ]
+    elif dl:
+        # Ý ĐỊNH ĐI LẠI: cùng khuôn "việc", thêm nơi đến. `noi` có mặt thì giao diện
+        # hiện thêm nút tra vé — đúng việc tiếp theo người dùng sẽ muốn làm.
+        viec = [
+            {"noi_dung": y.get("noi_dung", ""), "han": y.get("han"),
+             "email_id": y.get("email_id", ""), "nguoi_cho": "",
+             "tieu_de": "", "nguoi_gui": "",
+             "noi": y.get("thanh_pho", ""), "ma_san_bay": y.get("ma_san_bay", ""),
+             "tu_san_bay": y.get("tu_san_bay", ""),
+             "muc_uu_tien": 2, "uoc_luong_phut": 0}
+            for y in dl
+        ]
+
+    ngay = ap or []
+    if not viec and ngay:
+        # Chỉ hỏi áp lực: gom việc từ chính bảng ngày để danh sách không rỗng.
+        _thay: dict[str, dict] = {}
+        for d in ngay:
+            for v in (d.get("viec") or []):
+                _thay.setdefault(v.get("noi_dung", ""), {
+                    "noi_dung": v.get("noi_dung", ""), "han": v.get("han"),
+                    "email_id": v.get("email_id", ""), "nguoi_cho": "",
+                    "tieu_de": "", "nguoi_gui": "",
+                    "muc_uu_tien": v.get("muc_uu_tien", 1), "uoc_luong_phut": 0,
+                })
+        viec = list(_thay.values())
+
+    if not viec and not ngay:
+        return None
+
+    if dl and not ck:
+        tieu_de = f"{len(viec)} việc cần đi xa"
+        intro = "Mình rà trong hộp thư và thấy những việc phải đi xa:"
+    elif ngay:
+        _nang = max(ngay, key=lambda d: d.get("phut", 0), default=None)
+        _qt = sum(1 for d in ngay if d.get("qua_tai"))
+        tieu_de = f"Áp lực {len(ngay)} ngày tới"
+        intro = ("Không ngày nào quá tải." if not _qt
+                 else f"Có {_qt} ngày quá tải.")
+        if _nang and _nang.get("so_viec"):
+            intro += f" Nặng nhất là {_nang['ngay']} với {_nang['so_viec']} việc."
+    else:
+        tieu_de = f"{len(viec)} việc sắp tới"
+        intro = "Đây là những việc bạn đang mắc:"
+
+    return {
+        "kind": "lichtrinh",
+        "intro": intro,
+        "title": tieu_de,
+        "ngay": ngay,
+        "viec": viec[:20],
     }
 
 
@@ -1746,8 +1839,8 @@ async def agent_chat(
         if dl_card:
             out = dl_card
 
-        # Digest / Triage: cùng khuôn — thẻ dựng TẤT ĐỊNH từ số liệu tool.
-        for _dung in (_digest_card, _triage_card):
+        # Digest / Triage / Lịch trình: cùng khuôn — thẻ dựng TẤT ĐỊNH từ số liệu tool.
+        for _dung in (_digest_card, _triage_card, _lich_trinh_card):
             _c = _dung(result["messages"])
             if _c:
                 out = _c

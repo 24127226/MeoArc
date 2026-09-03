@@ -437,6 +437,15 @@ def ap_luc_theo_ngay(ds: list[CamKet], so_ngay: int = 7,
             "phut": round(sum(phut_moi_ngay(c) for c in trong)),
             "so_viec": len(trong),
             "qua_tai": sum(phut_moi_ngay(c) for c in trong) > TRAN_MOI_NGAY,
+            # VIỆC CỦA NGÀY ĐÓ, không chỉ con số. Một bảng chỉ có "4 việc / 120 phút"
+            # buộc người dùng phải hỏi thêm một câu nữa mới biết là việc gì — mà mỗi
+            # câu hỏi thêm là một lượt gọi mô hình.
+            "viec": [
+                {"noi_dung": c.noi_dung, "email_id": c.email_id,
+                 "muc_uu_tien": c.muc_uu_tien,
+                 "han": c.han.strftime("%d/%m %H:%M") if c.han else None}
+                for c in sorted(trong, key=lambda x: -x.muc_uu_tien)
+            ],
         })
     return ra
 

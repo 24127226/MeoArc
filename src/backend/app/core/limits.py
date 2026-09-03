@@ -27,6 +27,16 @@ logger = logging.getLogger("app.limits")
 # Một người dùng nghịch (hoặc script lỗi) đủ sức làm nghẽn cả hệ thống và đốt
 # sạch hạn ngạch API của mọi người. Trần này là tuyến phòng thủ đầu tiên.
 MAX_PAGE_SIZE = 50          # số thư tối đa cho một trang
+
+# Số thư mà TRANG LỊCH và các tool lịch trình cùng quét.
+#
+# PHẢI ≤ MAX_PAGE_SIZE. Đã vấp: trang lịch xin 60 trong khi API chặn ở 50 → FastAPI
+# trả 422 → `.catch()` ở frontend nuốt lỗi → cuốn lịch TRỐNG TRƠN, không một dấu hiệu
+# nào. Và vì trợ lý gọi tool trong tiến trình (không qua HTTP) nên nó vẫn thấy đủ thư
+# → "AI bảo có việc mà lịch trống", đúng thứ bản sửa trước định chữa.
+#
+# Một hằng số cho cả hai bên là cách duy nhất khiến chúng không thể lệch nữa.
+QUET_LICH_TRINH = 50
 MAX_QUERY_LEN = 200         # độ dài từ khoá tìm kiếm
 MAX_MESSAGE_LEN = 4_000     # độ dài một tin nhắn gửi cho trợ lý
 MAX_BODY_BYTES = 2 * 1024 * 1024  # 2 MB — chặn upload/payload khổng lồ

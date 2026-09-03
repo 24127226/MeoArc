@@ -576,6 +576,10 @@ class CamKetItem(BaseModel):
     han_suy_ra: bool = False
     nguoi_cho: str = ""
     email_id: str = ""
+    # Tiêu đề + người gửi của LÁ THƯ SINH RA việc này. Chỉ có `email_id` thì giao diện
+    # vẽ được một cái nút không có chữ — người dùng phải bấm mới biết mình sắp mở gì.
+    tieu_de: str = ""
+    nguoi_gui: str = ""
     uoc_luong_phut: int = 0
     muc_uu_tien: int = 1
     do_tin_cay: float = 0.9

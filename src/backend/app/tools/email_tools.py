@@ -11,6 +11,7 @@
 
 import asyncio
 from datetime import datetime, timezone, timedelta, date
+from zoneinfo import ZoneInfo
 
 from app.services import gmail_service, gmail_actions, gmail_send, mail  # noqa: F401 (gmail_* giữ cho test monkeypatch)
 from app.schemas.email import Email
@@ -35,6 +36,7 @@ from app.tools.schemas import (
     DatChoMoPhongInput, DatChoMoPhongOutput,
 )
 from app.core import labeling
+from app.core import limits
 from app.core import cam_ket as _cam_ket
 from app.services import dat_cho as _dat_cho
 from app.services import dat_cho_gia_lap as _gia_lap
@@ -50,6 +52,22 @@ def _parse_dt(s: str) -> datetime:
         return datetime.strptime(s, "%d/%m/%Y %H:%M")
     except Exception:
         return datetime.now(timezone.utc)
+
+
+_TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _ngay_vn(e: Email) -> date | None:
+    """Ngày (giờ Việt Nam) của một thư.
+
+    `Email.date` do gmail_service/outlook_service dựng và ĐÃ đổi sang giờ Việt Nam
+    (xem `_TZ_VN` ở hai file đó), nên chỉ cần đọc phần ngày. Nhưng "hôm nay" thì phải
+    lấy theo giờ VN chứ KHÔNG phải `datetime.now()`: máy chủ Azure chạy giờ UTC, nên
+    từ 00:00 đến 07:00 giờ Việt Nam nó vẫn đang ở ngày hôm trước."""
+    try:
+        return datetime.strptime(e.date, "%d/%m/%Y %H:%M").date()
+    except Exception:
+        return None
 
 
 def _to_summary(e: Email) -> EmailSummary:
@@ -91,6 +109,16 @@ async def search_emails(inp: SearchEmailsInput, ctx: RequestContext) -> SearchEm
         mail.list_messages, ctx.email_provider, ctx.access_token, q=(q or None), max_results=inp.limit,
     )
     items = [_to_summary(e) for e in emails]
+    # MỚI NHẤT LÊN ĐẦU, LUÔN LUÔN.
+    #
+    # Gmail vốn trả theo thứ tự thời gian, nhưng kho thư nội bộ (MAILBOX_STORE_ENABLED)
+    # và Outlook thì không đảm bảo — nên "lá thư mới nhất" có thể ra một thư nằm giữa
+    # danh sách. Người dùng đối chiếu với hộp thư là thấy sai ngay, và mất niềm tin vào
+    # cả những câu trả lời đúng. Sắp ở đây là tất định và không tốn gì.
+    #
+    # CHỈ ở `search_emails`. `semantic_search` xếp theo ĐỘ GẦN NGHĨA — sắp lại theo ngày
+    # ở đó là vứt bỏ đúng thứ nó vừa tính ra.
+    items.sort(key=lambda x: x.date, reverse=True)
     return SearchEmailsOutput(
         success=True, message=f"Tìm thấy {len(items)} thư.", data=items, total_found=len(items),
     )
@@ -342,7 +370,7 @@ async def liet_ke_cam_ket(inp: LietKeCamKetInput, ctx: RequestContext) -> LietKe
     # hàm bọc, sai kiểu im lặng. Quét rộng hơn mặc định vì lịch trình cần nhìn cả
     # tháng, không chỉ vài thư mới nhất.
     thu, _ = await asyncio.to_thread(
-        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=limits.QUET_LICH_TRINH)
     )
     moc = datetime.now()
     ds = _cam_ket.trich_cam_ket(thu, moc)
@@ -360,6 +388,9 @@ async def liet_ke_cam_ket(inp: LietKeCamKetInput, ctx: RequestContext) -> LietKe
         loc.append(c)
 
     loc.sort(key=lambda c: (-c.muc_uu_tien, c.han or datetime.max))
+    # Tra ngược id thư → tiêu đề/người gửi, để thẻ ở chat hiện được tên thư và MỞ được
+    # đúng lá đó. Danh sách `ds` vừa lấy ở trên nên không tốn thêm lời gọi nào.
+    _theo_id = {getattr(e, "id", ""): e for e in ds}
     return LietKeCamKetOutput(
         success=True,
         message=f"Có {len(loc)} việc trong {inp.so_ngay_toi} ngày tới.",
@@ -371,6 +402,8 @@ async def liet_ke_cam_ket(inp: LietKeCamKetInput, ctx: RequestContext) -> LietKe
                 han_suy_ra=c.han_suy_ra,
                 nguoi_cho=c.nguoi_cho,
                 email_id=c.email_id,
+                tieu_de=getattr(_theo_id.get(c.email_id), "subject", "") or "",
+                nguoi_gui=getattr(_theo_id.get(c.email_id), "sender", "") or "",
                 uoc_luong_phut=c.uoc_luong_phut,
                 muc_uu_tien=c.muc_uu_tien,
                 do_tin_cay=c.do_tin_cay,
@@ -393,7 +426,7 @@ async def ap_luc_lich_trinh(inp: ApLucLichTrinhInput, ctx: RequestContext) -> Ap
     # hàm bọc, sai kiểu im lặng. Quét rộng hơn mặc định vì lịch trình cần nhìn cả
     # tháng, không chỉ vài thư mới nhất.
     thu, _ = await asyncio.to_thread(
-        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=limits.QUET_LICH_TRINH)
     )
     moc = datetime.now()
 
@@ -435,7 +468,7 @@ async def de_xuat_di_lai(inp: DeXuatDiLaiInput, ctx: RequestContext) -> DeXuatDi
     CHỈ ĐỀ XUẤT — tool này KHÔNG đặt vé, KHÔNG đặt phòng, không gọi ra ngoài. Người
     dùng hỏi thẳng "đặt vé giúp mình" thì vẫn phải gọi `tu_choi_ngoai_pham_vi`."""
     thu, _ = await asyncio.to_thread(
-        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=60)
+        lambda: mail.list_messages(ctx.email_provider, ctx.access_token, max_results=limits.QUET_LICH_TRINH)
     )
     moc = datetime.now()
     ds = _cam_ket.trich_cam_ket(thu, moc)
@@ -625,13 +658,39 @@ async def tom_tat_ngay(inp: TomTatNgayInput, ctx: RequestContext) -> TomTatNgayO
     """BÁO CÁO NHANH hộp thư: tổng thư, chưa đọc, cần xử lý, phân bổ theo nhãn, và
     vài thư nổi bật. Dùng khi người dùng hỏi "tóm tắt hộp thư hôm nay", "digest",
     "tuần này có gì". KHÔNG gọi mô hình — số liệu đếm trực tiếp nên luôn nhất quán."""
-    ds, _ = await asyncio.to_thread(
+    tat_ca, _ = await asyncio.to_thread(
         # `mail.list_messages(provider, token, **kw)` chỉ nhận THAM SỐ THEO TÊN sau
         # hai cái đầu. Gọi bằng vị trí thì ném TypeError ngay — và agent dịch nó thành
         # "em đang gặp sự cố kỹ thuật", nên nhìn từ ngoài không thể đoán ra nguyên nhân.
         mail.list_messages, ctx.email_provider, ctx.access_token,
         folder="inbox", max_results=inp.limit,
     )
+
+    # ── THẬT SỰ LỌC THEO NGÀY ───────────────────────────────────────────────
+    # `so_ngay` đã nằm trong schema từ đầu (mặc định 1 = hôm nay) và mô hình vẫn
+    # truyền nó vào — nhưng thân hàm KHÔNG HỀ DÙNG. Nên "tóm tắt hộp thư hôm nay"
+    # thực chất là "N thư mới nhất", và khi thư mới nhất là của hôm qua thì nó điềm
+    # nhiên báo thư hôm qua. Người dùng không có cách nào biết mình đang xem cái gì.
+    hom_nay = datetime.now(_TZ_VN).date()
+    tu_ngay = hom_nay - timedelta(days=max(0, inp.so_ngay - 1))
+    ds = [e for e in tat_ca if (_d := _ngay_vn(e)) is not None and tu_ngay <= _d <= hom_nay]
+
+    # KHÔNG có thư trong khoảng thì NÓI THẲNG, đừng lặng lẽ đưa thư cũ ra thay.
+    # Kèm ngày gần nhất CÓ thư để người dùng biết hỏi lại thế nào.
+    if not ds:
+        _co = sorted({d for e in tat_ca if (d := _ngay_vn(e))}, reverse=True)
+        _goi_y = (f" Ngày gần nhất có thư là {_co[0].strftime('%d/%m/%Y')}."
+                  if _co else "")
+        _nhan = "hôm nay" if inp.so_ngay <= 1 else f"{inp.so_ngay} ngày gần đây"
+        return TomTatNgayOutput(
+            success=True,
+            message=f"Không có thư nào {_nhan}.{_goi_y}",
+            data={"tong": 0, "chua_doc": 0, "can_xu_ly": 0, "quan_trong": 0,
+                  "theo_nhan": [], "noi_bat": [], "thu": [],
+                  "pham_vi": _nhan,
+                  "ngay_gan_nhat_co_thu": (_co[0].strftime("%d/%m/%Y") if _co else "")},
+        )
+
     chua_doc = [e for e in ds if e.unread]
     theo_nhan: dict[str, int] = {}
     can_xu_ly, noi_bat = 0, []
@@ -647,11 +706,15 @@ async def tom_tat_ngay(inp: TomTatNgayInput, ctx: RequestContext) -> TomTatNgayO
     if not noi_bat:
         noi_bat = [f"{e.sender}: {e.subject}" for e in chua_doc[:3]]
 
+    _pham_vi = "hôm nay" if inp.so_ngay <= 1 else f"{inp.so_ngay} ngày gần đây"
     return TomTatNgayOutput(
         success=True,
-        message=(f"Hộp thư có {len(ds)} thư, {len(chua_doc)} chưa đọc, "
+        # NÓI RÕ PHẠM VI trong chính câu tóm tắt. Con số không kèm phạm vi thì người
+        # đọc tự gán phạm vi họ đang nghĩ trong đầu, và đó là chỗ hiểu nhầm bắt đầu.
+        message=(f"{_pham_vi.capitalize()}: {len(ds)} thư, {len(chua_doc)} chưa đọc, "
                  f"{can_xu_ly} thư cần xử lý."),
         data={
+            "pham_vi": _pham_vi,
             "tong": len(ds), "chua_doc": len(chua_doc), "can_xu_ly": can_xu_ly,
             "quan_trong": sum(1 for e in ds if e.starred),
             "theo_nhan": [{"label": k, "count": v}

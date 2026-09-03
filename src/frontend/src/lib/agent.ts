@@ -82,7 +82,9 @@ export type AgentReply =
       groups: {
         level: 'high' | 'normal'
         label: string
-        items: { sender: string; initial: string; subject: string; suggest: string }[]
+        /** `id` để mở được đúng lá thư và đánh dấu đã đọc. Backend vẫn luôn gửi
+         *  kèm; FE trước đây không khai nên cả hai việc đó đều không làm được. */
+        items: { id?: string; sender: string; initial: string; subject: string; suggest: string }[]
       }[]
     }
   | {
@@ -95,6 +97,36 @@ export type AgentReply =
       /** Thư kèm ID để MỞ ĐƯỢC từ trong thẻ. Liệt kê tên thư mà không mở được thì
        *  người dùng vẫn phải tự đi tìm lại trong hộp thư — báo cáo đọc xong rồi bỏ đó. */
       emails?: { id: string; sender: string; subject: string }[]
+    }
+  /** LỊCH TRÌNH — một khuôn dùng chung cho ba câu hỏi: "tuần này tôi có gì",
+   *  "tôi có quá tải không", "cần đi công tác việc nào".
+   *
+   *  Trước đây cả ba đều rơi vào `kind: 'text'` nên mô hình kể lại bằng lời — và
+   *  "tuần này lịch trình tôi thế nào?" từng trả về ĐÚNG MỘT câu hỏi ngược, không
+   *  liệt kê được việc nào. Dữ liệu có cấu trúc bị ép thành văn xuôi thì vừa không
+   *  bấm được, vừa mỗi lần một khác.
+   *
+   *  Hai phần bật/tắt theo dữ liệu: `ngay` có → vẽ dải áp lực; `viec` có → danh sách. */
+  | {
+      kind: 'lichtrinh'
+      intro: string
+      title: string
+      ngay?: { ngay: string; phut: number; so_viec: number; qua_tai: boolean }[]
+      viec?: {
+        noi_dung: string
+        han?: string | null
+        nguoi_cho?: string
+        /** Có id thì cả dòng MỞ ĐƯỢC lá thư sinh ra việc này. */
+        email_id?: string
+        tieu_de?: string
+        nguoi_gui?: string
+        /** Ý định đi lại mới có: nơi đến + mã sân bay. */
+        noi?: string
+        ma_san_bay?: string
+        tu_san_bay?: string
+        muc_uu_tien?: number
+        uoc_luong_phut?: number
+      }[]
     }
   | {
       kind: 'categorize'

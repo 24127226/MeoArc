@@ -63,14 +63,27 @@ export function SchedulePage() {
   const [ngayMo, setNgayMo] = useState<{ ngay: Date; hcn: DOMRect } | null>(null)
   /** Khung tra cứu chỗ đi lại — gọi thẳng backend, không qua trợ lý (xem TraCuuPanel). */
   const [traCuuMo, setTraCuuMo] = useState(false)
+  /** Tải thư hỏng — phải NÓI RA. Lịch rỗng vì lỗi và lịch rỗng vì rảnh trông
+   *  giống hệt nhau, và đó chính là thứ làm lần gỡ lỗi trước mất nhiều giờ. */
+  const [loiTai, setLoiTai] = useState(false)
 
   useEffect(() => {
     if (!apiBaseUrlDaCauHinh) return
-    // XIN ĐÚNG SỐ THƯ AGENT QUÉT (60). Mặc định của API là 30, còn `ap_luc_lich_trinh`
-    // và `liet_ke_cam_ket` quét 60 — nên trợ lý tìm ra cam kết trong lá thứ 45 mà cuốn
-    // lịch chưa bao giờ tải về. Người dùng thấy AI nhắc một việc rồi mở lịch không có nó,
-    // và kết luận là một trong hai đang bịa.
-    api.listEmails({ folder: 'inbox', limit: 60 }).then((r) => setEmails(r.items)).catch(() => {})
+    // XIN ĐÚNG SỐ THƯ AGENT QUÉT. Mặc định của API là 30, còn các tool lịch trình quét
+    // nhiều hơn — nên trợ lý tìm ra cam kết trong lá thứ 45 mà cuốn lịch chưa bao giờ
+    // tải về. Người dùng thấy AI nhắc một việc rồi mở lịch không có nó.
+    //
+    // ⚠️ 50 chứ KHÔNG PHẢI 60: API chặn `limit` ở MAX_PAGE_SIZE=50. Xin 60 thì FastAPI
+    // trả 422, `.catch` bên dưới nuốt lỗi, và cuốn lịch TRỐNG TRƠN — im lặng hoàn toàn.
+    // Đã vấp đúng lỗi đó. Hằng số dùng chung nằm ở backend: limits.QUET_LICH_TRINH.
+    api.listEmails({ folder: 'inbox', limit: 50 })
+      .then((r) => setEmails(r.items))
+      // KHÔNG nuốt lỗi trong im lặng nữa: lịch rỗng vì hỏng và lịch rỗng vì không có
+      // việc trông y hệt nhau, nên lần trước mất rất lâu mới lần ra.
+      .catch((e) => {
+        console.error('[lịch] không tải được thư:', e)
+        setLoiTai(true)
+      })
   }, [])
 
   const camKet = useMemo(() => trichCamKet(emails), [emails])
@@ -242,7 +255,13 @@ export function SchedulePage() {
               · 6 việc gần hạn nhất
             </span>
           </p>
-          {sapToi.length === 0 ? (
+          {loiTai ? (
+            /* NÓI RA khi hỏng. "Chưa có việc nào" cho một lần tải thất bại là nói dối
+               người dùng, và họ sẽ đi tìm lỗi ở chỗ khác — hoặc tin là mình rảnh. */
+            <p className="rounded-lg bg-destructive/12 px-2 py-2 text-[12.5px] text-foreground ring-1 ring-destructive/40">
+              Không tải được thư nên chưa dựng được lịch. Bạn thử tải lại trang giúp mình nhé.
+            </p>
+          ) : sapToi.length === 0 ? (
             <p className="px-1 text-[12.5px] text-muted-foreground">Chưa có việc nào.</p>
           ) : (
             sapToi.map((c) => (

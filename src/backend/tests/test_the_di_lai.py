@@ -133,7 +133,7 @@ def test_du_lieu_tool_hong_thi_tra_None_chu_khong_no():
 
 # ── DIGEST & TRIAGE: gọi ĐÚNG chữ ký `mail.list_messages` ───────────────────
 
-def _mail_gia_dung_chu_ky(monkeypatch, so_thu=3):
+def _mail_gia_dung_chu_ky(monkeypatch, so_thu=3, ngay=None):
     """Giả lập mang ĐÚNG chữ ký thật: `(provider, token, **kw)`.
 
     Đây là điểm mấu chốt. `mail.list_messages` chỉ nhận tham số THEO TÊN sau hai cái
@@ -142,16 +142,25 @@ def _mail_gia_dung_chu_ky(monkeypatch, so_thu=3):
     kỹ thuật" — nhìn từ giao diện không có cách nào đoán ra nguyên nhân.
 
     Giả lập nhận `*args` thì test sẽ XANH trên một lời gọi hỏng. Nên nó phải giống
-    hàm thật tới mức từ chối đúng những gì hàm thật từ chối."""
+    hàm thật tới mức từ chối đúng những gì hàm thật từ chối.
+
+    `ngay` mặc định là HÔM NAY (giờ Việt Nam). `tom_tat_ngay` nay lọc thật theo ngày —
+    trước đó nó bỏ qua `so_ngay` nên "tóm tắt hộp thư hôm nay" thực chất là "N thư mới
+    nhất", và khi thư mới nhất là của hôm qua thì nó điềm nhiên báo thư hôm qua."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
     from app.schemas.email import Email
     from app.tools import email_tools as T
+
+    _ngay = ngay or datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%d/%m/%Y")
 
     def gia(provider, token, **kw):
         ds = [Email(id=f"m{i}", sender="Giáo vụ HCMUS", senderEmail="gv@hcmus.edu.vn",
                     senderInitial="G", to="me@x.com",
                     subject=f"Nộp báo cáo {i} trước 18/9",
                     preview="Vui lòng nộp trước 23:59 ngày 18/9.",
-                    body=["x"], time="10:00", date="02/09/2026 10:00",
+                    body=["x"], time="10:00", date=f"{_ngay} 10:00",
                     unread=True, starred=False, category="moss", label="Học tập",
                     folder="inbox")
              for i in range(so_thu)]
@@ -263,3 +272,48 @@ def test_cum_tu_duoc_boc_ngoac_kep(monkeypatch, vao, ra):
     asyncio.run(T.search_emails(SearchEmailsInput(query=vao),
                                 RequestContext(user_id="1", access_token="t")))
     assert ghi["q"] == ra, f"{vao!r} → {ghi['q']!r}, mong đợi {ra!r}"
+
+
+# ── tom_tat_ngay PHẢI LỌC THEO NGÀY THẬT ─────────────────────────────────────
+# `so_ngay` nằm trong schema từ đầu (mặc định 1 = hôm nay) và mô hình vẫn truyền vào,
+# nhưng thân hàm KHÔNG HỀ DÙNG. Nên "tóm tắt hộp thư hôm nay" thực chất là "N thư mới
+# nhất" — và người dùng báo đúng triệu chứng đó: hỏi hôm nay, nhận về thư hôm qua.
+
+def test_digest_KHONG_lay_thu_ngoai_ngay_duoc_hoi(monkeypatch):
+    """Thư của hôm qua KHÔNG được tính vào 'hôm nay'."""
+    import asyncio
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import TomTatNgayInput
+
+    hom_qua = (datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")) - timedelta(days=1)).strftime("%d/%m/%Y")
+    _mail_gia_dung_chu_ky(monkeypatch, so_thu=3, ngay=hom_qua)
+    out = asyncio.run(T.tom_tat_ngay(TomTatNgayInput(),
+                                     RequestContext(user_id="1", access_token="t")))
+    assert out.success
+    assert out.data["tong"] == 0
+    # Và phải NÓI RA là hôm nay không có gì, kèm ngày gần nhất có thư — im lặng đưa
+    # thư cũ ra thay chính là lỗi cũ.
+    assert "Không có thư nào hôm nay" in out.message
+    assert out.data["ngay_gan_nhat_co_thu"] == hom_qua
+
+
+def test_digest_so_ngay_2_thi_LAY_ca_hom_qua(monkeypatch):
+    """`so_ngay` phải thật sự nới cửa sổ, không phải một tham số trang trí."""
+    import asyncio
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.tools import email_tools as T
+    from app.tools.registry import RequestContext
+    from app.tools.schemas import TomTatNgayInput
+
+    hom_qua = (datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")) - timedelta(days=1)).strftime("%d/%m/%Y")
+    _mail_gia_dung_chu_ky(monkeypatch, so_thu=3, ngay=hom_qua)
+    out = asyncio.run(T.tom_tat_ngay(TomTatNgayInput(so_ngay=2),
+                                     RequestContext(user_id="1", access_token="t")))
+    assert out.data["tong"] == 3
+    assert out.data["pham_vi"] == "2 ngày gần đây"

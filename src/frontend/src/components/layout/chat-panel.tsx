@@ -147,11 +147,15 @@ function initSessions(): Session[] {
    `suggestions` trong ChatPanel (web "tư duy" đúng thời điểm). */
 
 /** Kỹ năng AI (UC014/015/016/009) — gợi ý nổi bật trên canvas. */
+// NHÃN thuần Việt, PROMPT giữ nguyên từ khoá cũ.
+// Hai thứ này phục vụ hai đối tượng khác nhau: nhãn là cho người đọc, prompt là cho
+// mô hình. Dịch luôn cả prompt thì phải chỉnh lại phần nhận diện ý định ở backend —
+// một thay đổi không ai yêu cầu, và là đúng kiểu "sửa cái này hỏng cái kia".
 const SKILLS = [
   { label: 'Hộp thư tự lái', prompt: 'tự lái hộp thư' },
-  { label: 'Digest hôm nay', prompt: 'digest hôm nay' },
-  { label: 'Triage hộp thư', prompt: 'triage hộp thư' },
-  { label: 'Brief cuộc họp', prompt: 'brief cuộc họp' },
+  { label: 'Tóm tắt hôm nay', prompt: 'digest hôm nay' },
+  { label: 'Phân loại ưu tiên', prompt: 'triage hộp thư' },
+  { label: 'Tóm lược cuộc họp', prompt: 'brief cuộc họp' },
   { label: 'Phân loại tự động', prompt: 'phân loại tự động toàn bộ' },
 ]
 
@@ -450,7 +454,7 @@ function EmailRefList({ emails, onOpen }: { emails: EmailRef[]; onOpen?: (id: st
   )
 }
 
-/** Meeting Brief — bento: thời gian/deadline · người tham gia · checklist · điểm chính. */
+/** Tóm lược cuộc họp — bento: thời gian/deadline · người tham gia · checklist · điểm chính. */
 /** Kết quả tra cứu đi lại, hiện NGAY TRONG CHAT.
  *
  *  Dùng lại đúng `DongBay`/`DongPhong` của khung "Tra cứu đi lại" — không vẽ lại một
@@ -600,14 +604,32 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
   )
 }
 
-/** Triage — nhóm theo ưu tiên, mỗi thư có gợi ý hành động + tick "đã xử lý". */
-function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }> }) {
+/** Phân loại hộp thư — nhóm theo ưu tiên, mỗi thư có gợi ý hành động + nút "đã xử lý".
+ *
+ *  ── Ô TICK PHẢI LÀM MỘT VIỆC THẬT ──
+ *  Bản trước nó chỉ làm mờ dòng đó, và trạng thái mất khi đóng chat. Người dùng hỏi
+ *  thẳng: "ô tick đó có tác dụng gì?" — câu hỏi đúng, vì một nút không để lại dấu vết
+ *  nào ở đâu cả thì tệ hơn không có nút: nó hứa một việc rồi không làm.
+ *  Nay tick = ĐÁNH DẤU ĐÃ ĐỌC thật trên hộp thư (đảo lại được, rủi ro thấp nhất trong
+ *  các thao tác thư), nên lần sau mở lại vẫn đúng. */
+function TriageWidget({
+  reply, onOpenEmail, onDaXuLy,
+}: {
+  reply: Extract<AgentReply, { kind: 'triage' }>
+  onOpenEmail?: (id: string) => void
+  onDaXuLy?: (emailId: string) => void
+}) {
   const [done, setDone] = useState<Set<string>>(new Set())
-  const toggle = (k: string) =>
+  const toggle = (k: string, id?: string) =>
     setDone((prev) => {
       const next = new Set(prev)
       if (next.has(k)) next.delete(k)
-      else next.add(k)
+      else {
+        next.add(k)
+        // Chỉ đánh dấu đã đọc khi TICK VÀO. Bỏ tick không "đánh dấu chưa đọc" lại:
+        // đó là một hành động khác, và tự ý làm thay người dùng thì bất ngờ.
+        if (id) onDaXuLy?.(id)
+      }
       return next
     })
   return (
@@ -643,7 +665,16 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
                     )}
                   >
                     <MiniAvatar initial={it.initial} />
-                    <div className="min-w-0 flex-1">
+                    {/* CẢ KHỐI CHỮ LÀ NÚT MỞ THƯ. Liệt kê thư mà không mở được thì
+                        người dùng vẫn phải tự đi tìm lại trong hộp thư — bảng phân
+                        loại dừng ở "biết có gì" mà không đi tiếp được. */}
+                    <button
+                      type="button"
+                      disabled={!it.id || !onOpenEmail}
+                      onClick={() => it.id && onOpenEmail?.(it.id)}
+                      title={it.id ? 'Mở lá thư này' : undefined}
+                      className="min-w-0 flex-1 text-left disabled:cursor-default"
+                    >
                       <p
                         className={cn(
                           'truncate text-sm font-medium text-foreground',
@@ -653,13 +684,13 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
                         {it.sender}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">{it.subject}</p>
-                    </div>
+                    </button>
                     <span className="hidden shrink-0 rounded-full bg-active/15 px-2 py-0.5 text-[10px] font-semibold text-foreground sm:inline">
                       {it.suggest}
                     </span>
                     <button
-                      onClick={() => toggle(key)}
-                      title={checked ? 'Bỏ đánh dấu' : 'Đánh dấu đã xử lý'}
+                      onClick={() => toggle(key, it.id)}
+                      title={checked ? 'Bỏ đánh dấu' : 'Đánh dấu đã xử lý (thư sẽ thành đã đọc)'}
                       className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-popover-foreground/10 hover:text-foreground active:scale-90"
                     >
                       {checked ? (
@@ -679,7 +710,7 @@ function TriageWidget({ reply }: { reply: Extract<AgentReply, { kind: 'triage' }
   )
 }
 
-/** Daily Digest — bento số liệu + phân bổ theo nhãn (mini-bar) + nổi bật. */
+/** Tóm tắt hộp thư — bento số liệu + phân bổ theo nhãn (mini-bar) + nổi bật. */
 function DigestWidget({ reply, onOpenEmail }: {
   reply: Extract<AgentReply, { kind: 'digest' }>
   onOpenEmail?: (id: string) => void
@@ -760,6 +791,138 @@ function DigestWidget({ reply, onOpenEmail }: {
                 </span>
                 <ArrowUpRight className="size-3.5 shrink-0 text-[var(--spark)]" />
               </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+
+/* ── LỊCH TRÌNH ────────────────────────────────────────────────────────────────
+   Một khuôn cho ba câu hỏi: "tuần này tôi có gì", "tôi có quá tải không", "cần đi
+   công tác việc nào". Trước đây cả ba rơi vào `kind:'text'` nên mô hình kể lại bằng
+   lời — và câu "tuần này lịch trình tôi thế nào?" từng trả về ĐÚNG MỘT câu hỏi ngược,
+   không liệt kê nổi một việc.
+
+   Ba quyết định vẽ, mỗi cái sửa một lỗi đo được:
+   1. DẢI ÁP LỰC vẽ CỘT, không viết số. "4 việc, 120 phút" bắt người đọc tự so sánh
+      bảy con số trong đầu; bảy cái cột thì mắt so xong trong một nhịp.
+   2. MỖI VIỆC LÀ MỘT NÚT mở thẳng lá thư sinh ra nó. Liệt kê tên việc rồi bỏ đó thì
+      người dùng vẫn phải tự đi tìm lại trong hộp thư.
+   3. NÚT "TRẢ LỜI" ngay tại chỗ. Đọc xong "tôi đang nợ ai cái gì" thì việc kế tiếp
+      luôn là trả lời — không nên bắt đi vòng. */
+function LichTrinhWidget({
+  reply, onOpenEmail, onTraLoiThu,
+}: {
+  reply: Extract<AgentReply, { kind: 'lichtrinh' }>
+  onOpenEmail?: (id: string) => void
+  onTraLoiThu?: (emailId: string, tieuDe: string) => void
+}) {
+  const ngay = reply.ngay ?? []
+  const viec = reply.viec ?? []
+  // Thang TUYỆT ĐỐI theo ngày nặng nhất, tối thiểu 240 phút. Co thang theo dữ liệu thì
+  // một tuần rảnh trông y hệt một tuần kín — cột nào cũng cao gần bằng nhau.
+  const tran = Math.max(240, ...ngay.map((d) => d.phut))
+  const thuVN = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+
+  return (
+    <Card className="mt-2 overflow-hidden">
+      <CardContent className="space-y-3 p-3.5">
+        <p className="text-[13px] font-semibold text-foreground">{reply.title}</p>
+
+        {ngay.length > 0 && (
+          <div className="flex items-end gap-1.5 border-b border-border/40 pb-3">
+            {ngay.map((d) => {
+              const cao = Math.max(4, Math.round((d.phut / tran) * 52))
+              const dt = new Date(d.ngay)
+              return (
+                <div key={d.ngay} className="flex flex-1 flex-col items-center gap-1">
+                  <span className="text-[9px] tabular-nums text-muted-foreground/70">
+                    {d.so_viec > 0 ? d.so_viec : ''}
+                  </span>
+                  <div
+                    style={{ height: `${cao}px` }}
+                    title={`${d.so_viec} việc · ${d.phut} phút`}
+                    className={cn(
+                      'w-full rounded-sm transition-colors',
+                      d.qua_tai ? 'bg-destructive/70' : d.phut > 0 ? 'bg-[var(--spark)]/60' : 'bg-foreground/10',
+                    )}
+                  />
+                  <span className="text-[9px] text-muted-foreground/70">
+                    {thuVN[dt.getDay()]}
+                  </span>
+                  <span className="text-[9px] tabular-nums text-muted-foreground/50">
+                    {dt.getDate()}/{dt.getMonth() + 1}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {viec.length === 0 ? (
+          <p className="text-[12.5px] text-muted-foreground">Không có việc nào trong khoảng này.</p>
+        ) : (
+          <div className="space-y-1">
+            {viec.map((v, i) => (
+              <div
+                key={`${v.email_id || 'x'}-${i}`}
+                className="group flex items-start gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-foreground/5"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'mt-1.5 size-1.5 shrink-0 rounded-full',
+                    (v.muc_uu_tien ?? 1) >= 3
+                      ? 'bg-destructive'
+                      : (v.muc_uu_tien ?? 1) === 2
+                        ? 'bg-[var(--accent)]'
+                        : 'bg-foreground/30',
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    disabled={!v.email_id || !onOpenEmail}
+                    onClick={() => v.email_id && onOpenEmail?.(v.email_id)}
+                    className="block w-full text-left text-[13px] leading-snug text-foreground/90 disabled:cursor-default hover:enabled:underline"
+                  >
+                    {v.noi_dung}
+                  </button>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                    {v.han && <span className="tabular-nums">Hạn {v.han}</span>}
+                    {v.noi && <span>Đi {v.noi}{v.ma_san_bay ? ` (${v.ma_san_bay})` : ''}</span>}
+                    {v.nguoi_cho && <span>Đang chờ {v.nguoi_cho}</span>}
+                    {v.tieu_de && <span className="truncate">Từ thư: {v.tieu_de}</span>}
+                  </p>
+                </div>
+                {v.email_id && (
+                  <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    {onTraLoiThu && (
+                      <button
+                        type="button"
+                        title="Soạn trả lời thư này"
+                        onClick={() => onTraLoiThu(v.email_id!, v.tieu_de || v.noi_dung)}
+                        className="rounded-md px-1.5 py-0.5 text-[11px] text-[var(--spark)] hover:bg-foreground/10"
+                      >
+                        Trả lời
+                      </button>
+                    )}
+                    {onOpenEmail && (
+                      <button
+                        type="button"
+                        title="Mở lá thư này"
+                        onClick={() => onOpenEmail(v.email_id!)}
+                        className="rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                      >
+                        <ArrowUpRight className="size-3.5" />
+                      </button>
+                    )}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -1619,6 +1782,15 @@ export function ChatPanel({
   }
 
   // UC009 — áp dụng nhãn sau khi user chỉnh checklist
+  /** Soạn trả lời cho một lá thư ngay từ thẻ lịch trình.
+   *
+   *  Gửi thẳng một câu vào chính khung chat thay vì mở hộp thoại riêng: nó đi qua
+   *  đúng luồng agent (có cổng xác nhận trước khi gửi thật), và người dùng THẤY được
+   *  yêu cầu mình vừa đặt nằm trong dòng hội thoại — không có gì xảy ra sau lưng. */
+  const traLoiThu = (emailId: string, tieuDe: string) => {
+    send(`soạn trả lời cho thư ${emailId}${tieuDe ? ` ("${tieuDe}")` : ''}`)
+  }
+
   const applyCategorize = (
     id: string,
     items: { id: string; category: Category; label: string }[],
@@ -1863,6 +2035,8 @@ export function ChatPanel({
                   onApplyCategorize={applyCategorize}
                   onAutopilotApply={applyAutopilot}
                   onOpenEmail={onOpenEmail}
+                  onTraLoiThu={traLoiThu}
+                  onDanhDauDaDoc={(id) => actions.markRead([id], true)}
                   duyetDuDinhId={dangDuyetId}
                   onDuyetDuDinh={onDuyetDuDinh}
                   onBoQuaDuDinh={onBoQuaDuDinh}
@@ -2632,6 +2806,8 @@ function AgentMessage({
   onApplyCategorize,
   onAutopilotApply,
   onOpenEmail,
+  onTraLoiThu,
+  onDanhDauDaDoc,
   duyetDuDinhId,
   onDuyetDuDinh,
   onBoQuaDuDinh,
@@ -2649,6 +2825,15 @@ function AgentMessage({
   onRewrite: (draft: { to: string; subject: string; body: string; replyToId?: string }, instruction: string) => void
   onResolve: (id: string) => void
   onApplyCategorize: (id: string, items: { id: string; category: Category; label: string }[]) => void
+  /** Soạn trả lời cho một lá thư ngay từ trong thẻ. Người dùng đọc "tôi đang nợ ai"
+   *  xong thì việc kế tiếp LUÔN là trả lời — bắt họ đi tìm lại lá thư đó trong hộp
+   *  thư là chèn thêm một đoạn đường không cần thiết. */
+  onTraLoiThu?: (emailId: string, tieuDe: string) => void
+  /** Tick "đã xử lý" ở bảng phân loại → đánh dấu ĐÃ ĐỌC thật trên hộp thư.
+   *  Trước đây ô tick chỉ làm mờ dòng rồi mất khi đóng chat: người dùng tick xong
+   *  không biết mình vừa làm gì, và lần sau mở lại thấy y như cũ. Một nút không để
+   *  lại dấu vết nào thì tệ hơn không có nút. */
+  onDanhDauDaDoc?: (emailId: string) => void
   onAutopilotApply: (id: string, result: AutopilotResult) => void
   onOpenEmail?: (id: string) => void
   /* THẺ DỰ ĐỊNH. Ba prop này TỪNG THIẾU: `AgentMessage` gọi thẳng `dangDuyetId`,
@@ -2740,7 +2925,7 @@ function AgentMessage({
     return (
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
-        <TriageWidget reply={reply} />
+        <TriageWidget reply={reply} onOpenEmail={onOpenEmail} onDaXuLy={onDanhDauDaDoc} />
       </AgentRow>
     )
   }
@@ -2750,6 +2935,15 @@ function AgentMessage({
       <AgentRow>
         <AgentText>{reply.intro}</AgentText>
         <DigestWidget reply={reply} onOpenEmail={onOpenEmail} />
+      </AgentRow>
+    )
+  }
+
+  if (reply.kind === 'lichtrinh') {
+    return (
+      <AgentRow>
+        <AgentText>{reply.intro}</AgentText>
+        <LichTrinhWidget reply={reply} onOpenEmail={onOpenEmail} onTraLoiThu={onTraLoiThu} />
       </AgentRow>
     )
   }
