@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.core import cam_ket as CK          # noqa: E402
 from app.core import labeling               # noqa: E402
-from bo_quay_demo import bo_thu             # noqa: E402
+from bo_quay_demo import bo_day_du, bo_thu  # noqa: E402
 
 _TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
@@ -34,7 +34,7 @@ def _thu_gia(moc: datetime) -> list[dict]:
     """Đổi bộ thư thành khuôn mà `trich_cam_ket` đọc. Ngày nhận = LÚC GỬI (hôm nay),
     đúng như khi chạy thật."""
     ra = []
-    for i, (nguoi, tieu_de, than) in enumerate(bo_thu(moc)):
+    for i, (nguoi, tieu_de, than) in enumerate(bo_day_du(moc)):
         # `priority` để None ĐÚNG NHƯ THẬT: `gmail_service` không gán trường này — chỉ
         # dữ liệu mock trong `email_service` mới có. Gán bừa ở đây thì bộ kiểm sẽ báo
         # "có ngày quá tải" trong khi lúc quay thật thì không, tức là nó nói dối đúng
@@ -143,8 +143,26 @@ def main() -> int:
     # Đo THÂN THƯ GỐC chứ không phải đoạn trích. Tóm tắt MỘT lá thư đi qua `get_email`
     # (lấy thân đầy đủ), khác hẳn đường liệt kê vốn chỉ có snippet — nên đo trên
     # snippet ở đây là đo sai thứ mà câu hỏi Q9 thật sự dùng.
-    if len(bo_thu(moc)[-1][2].split()) < 150:
+    if len(bo_day_du(moc)[-1][2].split()) < 150:
         loi.append("Q9: thư cuối quá ngắn, tóm tắt sẽ không có gì đáng nói.")
+
+    # ── BẪY DÙNG NGÀY CỨNG — phải kiểm chúng CÒN Ở TƯƠNG LAI ───────────────
+    # 26 thư bẫy lấy từ bộ khó cũ ghi cứng 15/9, 16/9, 20/9, 22/9, 24/9… Chúng còn ở
+    # tương lai thì "sáu câu làm khó" còn đúng; chạy muộn quá là mọi mốc đã qua, câu
+    # hỏi trả lời sai hoặc rỗng — mà KHÔNG có dấu hiệu nào báo, vì hộp thư vẫn đầy thư.
+    import re as _re
+    moc_bay: set[tuple[int, int]] = set()
+    for _, _td, _tb in bo_day_du(moc)[len(bo_thu(moc)) - 1:]:
+        for _d, _m in _re.findall(r"(\d{1,2})/(\d{1,2})", f"{_td} {_tb}"):
+            if 1 <= int(_d) <= 31 and 1 <= int(_m) <= 12:
+                moc_bay.add((int(_m), int(_d)))
+    da_qua = sorted(x for x in moc_bay if x < (moc.month, moc.day))
+    print(f"\nBẫy · mốc ngày CỨNG trong bộ khó: {len(moc_bay)} mốc, {len(da_qua)} đã qua")
+    if da_qua:
+        loi.append(
+            "Bộ thư bẫy có mốc ĐÃ QUA (" + ", ".join(f"{d}/{m}" for m, d in da_qua[:8])
+            + ") — sáu câu làm khó sẽ trả lời sai hoặc rỗng. Sửa ngày trong _THU_KHO "
+              "của scripts/gui_thu_demo.py.")
 
     print("\n" + "─" * 68)
     if loi:

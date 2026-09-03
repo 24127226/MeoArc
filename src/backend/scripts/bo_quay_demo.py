@@ -33,6 +33,30 @@ def _moc() -> datetime:
     return datetime.now(_TZ_VN)
 
 
+def bo_day_du(moc: datetime | None = None) -> list[tuple[str, str, str]]:
+    """Bộ ĐẦY ĐỦ = 20 thư nền (tính ngày động) + 26 thư BẪY của bộ khó cũ.
+
+    Bộ khó cũ chứa sáu chuỗi bẫy mà `docs/prompt-demo.md` dựa vào — lịch bảo vệ đổi
+    ba lần, hoá đơn và biên lai nằm ở hai thư, hạn chôn giữa bản tin, hai người trùng
+    tên, quảng cáo giả dạng cam kết, chuyến bay đổi giờ. Không có chúng thì "sáu câu
+    làm khó" hỏi ra rỗng.
+
+    ⚠️ MỐC THỜI GIAN CỦA BỘ KHÓ LÀ NGÀY CỨNG (15/9, 16/9, 20/9…). Chúng còn ở tương
+    lai thì các bẫy còn đúng; chạy muộn quá là hỏng. `kiem_bo_quay_demo.py` có phép
+    kiểm riêng cho chuyện này — đừng bỏ qua nó."""
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "_gtd", str(Path(__file__).resolve().parent / "gui_thu_demo.py"))
+    g = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g)
+    # Bộ nền TRƯỚC, bộ bẫy SAU, rồi thư "biên bản họp" đẩy xuống cuối cùng:
+    # câu "tóm tắt lá thư mới nhất" bám vào việc nó là thư gửi sau chót.
+    nen = bo_thu(moc)
+    return [*nen[:-1], *list(g._THU_KHO), nen[-1]]
+
+
 def bo_thu(moc: datetime | None = None) -> list[tuple[str, str, str]]:
     """Trả (tên người gửi, tiêu đề, thân thư). Thứ tự = thứ tự GỬI.
 

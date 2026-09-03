@@ -690,7 +690,7 @@ def main() -> int:
             # kịch bản có dữ liệu đỡ; trộn thêm thư khác vào là phá mất cân đó — nhất
             # là ngày quá tải, chỉ cần thêm vài việc nữa là các ngày khác cũng đỏ và
             # câu "ngày nào bận nhất" hết còn chỉ được vào đâu.
-            from bo_quay_demo import bo_thu as _bo_quay
+            from bo_quay_demo import bo_day_du as _bo_quay
             bo = list(_bo_quay())
             thanh_phan = [f"{len(bo)} thư quay demo"]
         else:

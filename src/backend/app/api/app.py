@@ -1826,6 +1826,28 @@ async def agent_chat(
             last_text = coerce_text(last_ai.content).strip() if last_ai else ""
             out = {"kind": "text", "text": last_text or "Mình đã xử lý xong."}
 
+        # ── MÔ HÌNH KHÔNG ĐƯỢC TỰ BỊA MỘT LOẠI THẺ CÓ NGUỒN TẤT ĐỊNH ────────
+        # `PresentReply.kind` cho phép mô hình chọn 'digest' và 'triage'. Nhưng hai
+        # kiểu đó có bộ dựng riêng lấy số liệu THẲNG từ tool (`_digest_card`,
+        # `_triage_card`). Mô hình chọn chúng khi tool tương ứng KHÔNG hề chạy nghĩa là
+        # nó đang vẽ một cái vỏ không có ruột.
+        #
+        # ĐÃ ĐO ĐƯỢC: câu "tìm giúp mình các thư về học phí" chỉ gọi `search_emails`,
+        # nhưng bộ trình bày trả về kind='triage' → người dùng nhận một widget "xếp
+        # theo ưu tiên" cho một câu hỏi TÌM KIẾM. Nhìn thì có vẻ chỉn chu, nên còn khó
+        # phát hiện hơn là một lỗi lộ liễu.
+        #
+        # Hạ về 'result' chứ không phải 'text': nội dung vẫn là một danh sách, chỉ là
+        # nó không phải bảng phân loại ưu tiên.
+        _nguon_that = {"digest": "tom_tat_ngay", "triage": "phan_loai_uu_tien"}
+        _ten_tool = _nguon_that.get(out.get("kind"))
+        if _ten_tool and not _tim_tool(result["messages"], _ten_tool):
+            logging.getLogger("app.agent").info(
+                "Bộ trình bày chọn kind=%s nhưng %s không chạy → hạ về 'result'",
+                out.get("kind"), _ten_tool,
+            )
+            out = {**out, "kind": "result"}
+
         # UC009: nếu lượt này có gọi categorize_emails → ÉP thành thẻ 'categorize' (widget FE cho
         # sửa nhãn từng thư rồi Áp dụng). Xây TẤT ĐỊNH từ dữ liệu tool (id + nhãn), KHÔNG nhờ LLM
         # → nhãn/ id luôn chuẩn. Đặt TRƯỚC phần đính emails để không lẫn 2 loại thẻ.
