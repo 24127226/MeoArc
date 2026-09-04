@@ -72,7 +72,15 @@ class Settings(BaseSettings):
     #     hai việc trông chẳng liên quan gì nhau. Tên thay thế do CHÍNH Google chỉ ra
     #     trong thông báo lỗi. Đây là lần thứ hai bị gỡ giữa chừng (gemini-2.5-flash,
     #     29/08) — danh sách model phải được kiểm định kỳ, không đặt một lần rồi quên.
-    model_name: str = "gemini-3.5-flash-lite"
+    #     ĐỔI 03/09/2026: flash-lite → 3.7-flash. `-lite` là bậc NHỎ NHẤT họ Gemini, và
+    #     chênh lệch năng lực so với model tuyến đầu chính là lý do lớn nhất khiến trợ lý
+    #     trong app trông kém thông minh hơn hẳn Claude gọi qua MCP.
+    #
+    #     ĐỔI SANG MODEL TO HƠN KHÔNG MẤT LƯỢT NÀO: hạn mức free tính RIÊNG từng model của
+    #     từng project (quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier), nên
+    #     3.7-flash vẫn có đủ 20 lượt/ngày/project của riêng nó.
+    #     Đã chạy thử cả 6 câu nhóm widget trên model này — đúng thẻ 6/6.
+    model_name: str = "gemini-3.7-flash"
     model_provider: str = "google_genai"
     local_model_base_url: str = ""
     #   • ai_base_url ← AI_BASE_URL : ĐỔI NƠI GỬI lời gọi Gemini (mặc định trống = gọi
@@ -103,7 +111,9 @@ class Settings(BaseSettings):
     #     20 lượt/ngày, trong khi gemini-2.5-flash còn nguyên hạn mức riêng. Xâu chuỗi thì
     #     tổng hạn mức cộng dồn, và buổi trình bày không chết giữa chừng vì hết lượt.
     #     Để trống = không dự phòng.
-    model_fallbacks: str = "gemini-3.6-flash"
+    #     BA model chứ không phải một: tổng hạn mức = 3 model × số project × 20 lượt.
+    #     Với 10 khoá là ~600 lượt/ngày — thoải mái cho cả buổi bảo vệ lẫn tập dượt.
+    model_fallbacks: str = "gemini-3.8-flash,gemini-3.5-flash"
     #   • quota_cooldown_min ← QUOTA_COOLDOWN_MIN : bậc vừa hết hạn mức thì NGHỈ bao lâu.
     #
     #     Không nhớ bậc nào đã cạn thì mỗi câu hỏi sau đó lại đi lại từ đầu chuỗi và
