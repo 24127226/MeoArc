@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { Button } from '@/components/ui/button'
 import { MeoMascot } from '@/components/meo-mascot'
 import { CATEGORY } from '@/data/categories'
@@ -211,8 +212,8 @@ export function AutopilotWidget({
         ) : (
           <button
             onClick={restart}
-            title="Chạy lại"
-            aria-label="Chạy lại"
+            title={t('act.rerun')}
+            aria-label={t('act.rerun')}
             className="flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
           >
             <RotateCcw className="size-4" />
@@ -398,16 +399,16 @@ export function AutopilotWidget({
                         </span>
                         <button
                           onClick={() => approve(s.id)}
-                          title="Duyệt & gửi"
-                          aria-label="Duyệt và gửi"
+                          title={t('act.approveSend')}
+                          aria-label={t('act.approveSend')}
                           className="flex size-7 items-center justify-center rounded-lg text-success transition-colors hover:bg-success/15 active:scale-90"
                         >
                           <Check className="size-4" />
                         </button>
                         <button
                           onClick={() => undoStep(s.id)}
-                          title="Bỏ qua"
-                          aria-label="Bỏ qua"
+                          title={t('act.skip')}
+                          aria-label={t('act.skip')}
                           className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-popover-foreground/10 hover:text-foreground active:scale-90"
                         >
                           <X className="size-4" />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Send, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { MeoMascot } from '@/components/meo-mascot'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -176,8 +177,8 @@ export function VoiceMode({
     <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-8 bg-popover/85 p-6 backdrop-blur-md duration-200 animate-in fade-in">
       <button
         onClick={onClose}
-        title="Đóng"
-        aria-label="Đóng voice mode"
+        title={t('act.close')}
+        aria-label={t('voice.off')}
         className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-xl text-popover-foreground/60 transition-colors hover:bg-popover-foreground/10 hover:text-popover-foreground active:scale-95"
       >
         <X className="size-4" />

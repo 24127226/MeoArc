@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { api, apiBaseUrlDaCauHinh, duongDanApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -130,7 +131,7 @@ export function EmailDetail({
       <header className="flex items-center gap-1 border-b border-border/50 px-4 py-3">
         <button
           onClick={onClose}
-          title="Quay lại trợ lý"
+          title={t('nav.backAssistant')}
           className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
@@ -586,7 +587,7 @@ function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
   return (
     <iframe
       ref={ref}
-      title="Nội dung email"
+      title={t('mail.body')}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       srcDoc={srcDoc}
       scrolling="no"

@@ -9,6 +9,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 
 // Biểu tượng + tông màu theo loại (dùng token/utility, KHÔNG hardcode hex).
 const META: Record<string, { icon: React.ElementType; ring: string; dot: string }> = {
@@ -186,7 +187,7 @@ export function NotificationBell() {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <button
-          title="Thông báo"
+          title={t('nav.notifications')}
           aria-label={unread ? `Thông báo (${unread} chưa đọc)` : 'Thông báo'}
           className="relative flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95"
         >
@@ -208,7 +209,7 @@ export function NotificationBell() {
                 <Bell className="size-[18px]" />
               </span>
               <div>
-                <DialogTitle className="font-serif text-lg">Thông báo</DialogTitle>
+                <DialogTitle className="font-serif text-lg">{t('nav.notifications')}</DialogTitle>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                   {unread ? `${unread} chưa đọc` : 'Đã xem hết'}
                 </p>
@@ -229,14 +230,14 @@ export function NotificationBell() {
         {/* Danh sách */}
         <div className="fade-y max-h-[56vh] overflow-y-auto px-2.5 py-2">
           {loading && items.length === 0 ? (
-            <p className="px-3 py-10 text-center text-sm text-muted-foreground">Đang tải…</p>
+            <p className="px-3 py-10 text-center text-sm text-muted-foreground">{t('st.loading')}</p>
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-3 py-12 text-center">
               <span className="bokeh flex size-14 items-center justify-center rounded-full bg-secondary/40">
                 <Bell className="size-6 text-muted-foreground/50" />
               </span>
               <div>
-                <p className="text-sm font-medium text-foreground">Chưa có thông báo</p>
+                <p className="text-sm font-medium text-foreground">{t('st.noNotif')}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Gửi thư, gắn nhãn hay dọn hộp thư — hoạt động sẽ hiện ở đây.
                 </p>
@@ -270,7 +271,7 @@ export function NotificationBell() {
             <MonitorSmartphone className="size-4 shrink-0 text-muted-foreground" />
             {perm === 'granted' ? (
               <p className="text-[11px] text-muted-foreground">
-                Thông báo màn hình <span className="font-medium text-active">đang bật</span> — hiện cả khi bạn ở tab khác.
+                Thông báo màn hình <span className="font-medium text-active">{t('st.on')}</span> — hiện cả khi bạn ở tab khác.
               </p>
             ) : perm === 'denied' ? (
               <p className="text-[11px] text-muted-foreground">

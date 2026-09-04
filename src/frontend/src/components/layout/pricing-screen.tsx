@@ -4,6 +4,7 @@ import { Check, Loader2, X, Sparkles, Zap, Crown } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Plan, SubscriptionStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { useToast } from '@/components/ui/toast'
 import { TOKENS_PER_TURN } from '@/lib/subscription'
 
@@ -272,7 +273,7 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
 
       <button
         onClick={onClose}
-        aria-label="Đóng trang nâng cấp"
+        aria-label={t('plan.close')}
         className="absolute right-5 top-5 z-30 flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white/70 backdrop-blur-md transition-all hover:border-white/40 hover:text-white active:scale-95"
       >
         <X className="size-4.5" />
@@ -331,7 +332,7 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
                   </span>
                   {featured && !current && (
                     <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black"
-                      style={{ background: NEON }}>Được chọn nhiều</span>
+                      style={{ background: NEON }}>{t('st.multiSelect')}</span>
                   )}
                   {current && (
                     <span className="rounded-full border border-white/30 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
@@ -345,17 +346,17 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
 
                 <p className="mt-2.5 font-serif text-2xl font-bold">
                   {formatVnd(p.priceVnd)}
-                  {p.priceVnd > 0 && <span className="ml-1 text-[12px] font-normal text-white/45">/tháng</span>}
+                  {p.priceVnd > 0 && <span className="ml-1 text-[12px] font-normal text-white/45">{t('plan.perMonth')}</span>}
                 </p>
 
                 {/* hạn mức — điểm chính để demo */}
                 <div className="mt-2.5 rounded-xl border border-white/10 bg-black/45 p-2.5 font-mono text-[10.5px] tabular-nums">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-white/40">NGÀY</span>
+                    <span className="text-white/40">{t('cal.day')}</span>
                     <span className="font-semibold" style={{ color: NEON }}>{shortNum(p.dailyTokens)}</span>
                   </div>
                   <div className="mt-1 flex items-baseline justify-between">
-                    <span className="text-white/40">THÁNG</span>
+                    <span className="text-white/40">{t('cal.month')}</span>
                     <span className="font-semibold text-white/85">{shortNum(p.monthlyTokens)}</span>
                   </div>
                   <div className="mt-1.5 border-t border-white/10 pt-1.5 text-center text-[11px]">

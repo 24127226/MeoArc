@@ -13,6 +13,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { normalize } from '@/lib/search'
 
 type Cmd = { id: string; label: string; hint: string; icon: React.ElementType; run: () => void }
@@ -129,7 +130,7 @@ export function CommandPalette({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Bảng lệnh"
+        aria-label={t('nav.palette')}
         className="fixed left-1/2 top-[18%] z-[61] w-[min(560px,92vw)] -translate-x-1/2 overflow-hidden rounded-2xl border border-accent/30 bg-popover text-popover-foreground shadow-float duration-200 animate-in fade-in zoom-in-95"
       >
         {/* Ô nhập */}
@@ -197,9 +198,9 @@ export function CommandPalette({
 
         {/* Chân */}
         <div className="flex items-center gap-3 border-t border-border/40 px-4 py-2 text-[11px] text-popover-foreground/45">
-          <span>↑↓ chọn</span>
-          <span>↵ chạy</span>
-          <span>esc đóng</span>
+          <span>{t('st.arrowSelect')}</span>
+          <span>{t('st.enterRun')}</span>
+          <span>{t('st.escClose')}</span>
           <span className="ml-auto flex items-center gap-1">
             <Sparkles className="size-3 text-active" />
             MeoArc

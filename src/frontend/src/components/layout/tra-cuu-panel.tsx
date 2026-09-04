@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plane, Hotel, X, Loader2, ShieldCheck, FlaskConical, Code2, ExternalLink } from 'lucide-react'
 import { duongDanApi, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 
 /**
  * TraCuuPanel — tra cứu chuyến bay & phòng, gọi THẲNG backend.
@@ -168,7 +169,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Tra cứu chuyến bay và phòng"
+        aria-label={t('nav.travelLong')}
         // RỘNG HƠN vì giờ có cột bộ lọc bên trái. Khung 680px cũ vừa đủ cho một bảng
         // trơn; nhét thêm bộ lọc vào đó thì cả hai phần đều chật và bảng bị cắt chữ.
         className="goc-cat den-vien-chon mt-8 flex max-h-[calc(100dvh-4.5rem)] w-[min(1040px,97vw)]
@@ -180,7 +181,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             {loai === 'bay' ? <Plane className="size-4" /> : <Hotel className="size-4" />}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight">Tra cứu chỗ đi lại</p>
+            <p className="text-[14px] font-semibold leading-tight">{t('nav.travel')}</p>
             <p className="truncate text-[11px] text-muted-foreground">
               Chỉ tra cứu — không đặt, không thanh toán
             </p>
@@ -198,7 +199,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             {that ? <ShieldCheck className="size-3" /> : <FlaskConical className="size-3" />}
             {nguon?.nhan ?? 'đang hỏi máy chủ…'}
           </span>
-          <button onClick={onDong} className="o-icon size-8 shrink-0" aria-label="Đóng">
+          <button onClick={onDong} className="o-icon size-8 shrink-0" aria-label={t('act.close')}>
             <X className="size-3.5" />
           </button>
         </div>
@@ -292,7 +293,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
                     <p className="py-8 text-center text-[12.5px] text-muted-foreground">
                       Không chuyến nào khớp bộ lọc.{' '}
                       <button onClick={() => setDangLoc({})}
-                              className="text-[var(--spark)] underline">Bỏ lọc</button>
+                              className="text-[var(--spark)] underline">{t('travel.clearFilter')}</button>
                     </p>
                   )}
                 </div>
@@ -319,7 +320,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
 
         <div className="shrink-0 border-t border-border/15 px-4 py-2 text-[11px] text-muted-foreground">
           <p>
-            Khung này <strong className="text-foreground">không đặt chỗ</strong>. Muốn đặt thì phải qua
+            Khung này <strong className="text-foreground">{t('st.noBooking')}</strong>. Muốn đặt thì phải qua
             thẻ dự định có nút duyệt — và khâu chuyển tiền hiện là mô phỏng.
           </p>
           {/* KHI ĐANG MÔ PHỎNG, NÓI RÕ CHỖ NÀO VẪN LÀ THẬT.
@@ -330,8 +331,8 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
           {!that && ketQua && (
             <p className="mt-1 text-foreground/70">
               Giá trên là số mô phỏng, nhưng nút{' '}
-              <strong className="text-[var(--spark)]">Xem chuyến bay</strong> mở ra
-              chuyến bay <strong className="text-foreground">thật</strong> của đúng chặng và
+              <strong className="text-[var(--spark)]">{t('travel.viewFlight')}</strong> mở ra
+              chuyến bay <strong className="text-foreground">{t('travel.real')}</strong> của đúng chặng và
               ngày này — bấm để đối chiếu.
             </p>
           )}
@@ -537,7 +538,7 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
           href={chiTiet}
           target="_blank"
           rel="noreferrer noopener"
-          title="Xem chi tiết chuyến bay này trên Google"
+          title={t('travel.googleDetail')}
           className="group flex shrink-0 items-center gap-0.5 font-mono text-[12px] font-semibold text-[var(--spark)] hover:underline"
         >
           {String(k.ma)}
@@ -572,7 +573,7 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
           // có thể — người dùng tin ngay. "—" là thú nhận không biết. Cùng lý do với
           // "—" ở cột số sao khách sạn.
           <span
-            title="Nguồn này cung cấp lịch bay, không bán vé nên không có giá"
+            title={t('travel.noPrice')}
             className="block cursor-help font-mono text-[12.5px] font-semibold text-muted-foreground"
           >
             —
@@ -615,7 +616,7 @@ export function DongPhong({ k }: { k: Record<string, unknown> }) {
                 là nói quá về chính con số người dùng ra quyết định dựa vào. */}
             {k.ten_that === true && (
               <span
-                title="Tên, hạng sao và vị trí là thật — giá phòng là số mô phỏng"
+                title={t('travel.hotelNote')}
                 className="shrink-0 cursor-help rounded-full bg-[var(--rr-hoan,#0E8F63)]/15 px-1.5 py-px font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--rr-hoan,#0E8F63)]"
               >
                 thật

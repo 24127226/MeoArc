@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Inbox, Sparkles, Mic, Command } from 'lucide-react'
 import { MeoMascot } from '@/components/meo-mascot'
+import { t } from '@/lib/ngon-ngu'
 
 const KEY = 'meoarc:onboarded'
 
@@ -43,7 +44,7 @@ export function Onboarding() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Chào mừng đến MeoArc"
+        aria-label={t('onb.welcome')}
         className="glass edge-light relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-accent/30 p-7 shadow-float duration-300 animate-in fade-in zoom-in-95"
       >
         {/* Mèo chào */}

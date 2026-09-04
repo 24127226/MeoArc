@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -206,9 +207,9 @@ function EmailCard({
 
       {!selectionActive && (
         <span className="absolute right-2 top-2 z-10 hidden items-center gap-0.5 rounded-lg bg-popover/85 p-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
-          <CardAction icon={Archive} title="Lưu trữ" onClick={onArchive} />
-          <CardAction icon={Star} title="Quan trọng" onClick={onStar} />
-          <CardAction icon={Trash2} title="Xoá" danger onClick={onDelete} />
+          <CardAction icon={Archive} title={t('act.archive')} onClick={onArchive} />
+          <CardAction icon={Star} title={t('act.important')} onClick={onStar} />
+          <CardAction icon={Trash2} title={t('act.delete')} danger onClick={onDelete} />
         </span>
       )}
 
@@ -599,7 +600,7 @@ export function EmailList({
       <div className="flex items-center gap-0.5">
         <button
           title={searchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'}
-          aria-label="Bật/tắt ô tìm kiếm"
+          aria-label={t('mail.toggleSearch')}
           onClick={toggleSearch}
           className={cn(base, searchOpen || query ? on : off)}
         >
@@ -607,15 +608,15 @@ export function EmailList({
         </button>
         <ComposeDialog />
         <button
-          title="Làm mới"
-          aria-label="Làm mới hộp thư"
+          title={t('act.refresh')}
+          aria-label={t('mail.refreshBox')}
           onClick={refresh}
           className={cn(base, off)}
         >
           <RefreshCw className={cn('size-3.5', (loading || refreshing) && 'animate-spin')} />
         </button>
         <button
-          title="Bộ lọc theo tiêu chí"
+          title={t('act.filter')}
           onClick={() => setShowFilters((v) => !v)}
           className={cn(base, showFilters ? on : off)}
         >
@@ -812,12 +813,12 @@ export function EmailList({
           </button>
           <span className="text-sm font-semibold text-foreground">{selected.size} đã chọn</span>
           <div className="ml-auto flex items-center gap-0.5">
-            <IconBtn icon={MailOpen} title="Đánh dấu đã đọc" onClick={() => doMarkRead(true)} />
-            <IconBtn icon={Mail} title="Đánh dấu chưa đọc" onClick={() => doMarkRead(false)} />
-            <IconBtn icon={Star} title="Đánh dấu quan trọng" onClick={doImportant} />
-            <IconBtn icon={Tag} title="Gắn nhãn" onClick={() => setLabelOpen(true)} />
-            <IconBtn icon={Trash2} title="Xoá" onClick={() => setDeleteIds(ids)} danger />
-            <IconBtn icon={X} title="Bỏ chọn" onClick={clearSel} />
+            <IconBtn icon={MailOpen} title={t('act.markRead')} onClick={() => doMarkRead(true)} />
+            <IconBtn icon={Mail} title={t('act.markUnread')} onClick={() => doMarkRead(false)} />
+            <IconBtn icon={Star} title={t('act.markImportant')} onClick={doImportant} />
+            <IconBtn icon={Tag} title={t('act.label')} onClick={() => setLabelOpen(true)} />
+            <IconBtn icon={Trash2} title={t('act.delete')} onClick={() => setDeleteIds(ids)} danger />
+            <IconBtn icon={X} title={t('act.clear')} onClick={clearSel} />
           </div>
         </div>
       )}
@@ -962,7 +963,7 @@ export function EmailList({
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Kéo để chỉnh độ rộng dải hộp thư"
+        aria-label={t('mail.dragWidth')}
         aria-valuenow={width}
         aria-valuemin={MIN_W}
         aria-valuemax={MAX_W}
@@ -979,7 +980,7 @@ export function EmailList({
             e.preventDefault()
           }
         }}
-        title="Kéo để chỉnh độ rộng · double-click để khôi phục"
+        title={t('mail.dragWidthLong')}
         className="group absolute inset-y-0 -right-2 z-30 flex w-4 cursor-col-resize touch-none items-center justify-center"
       >
         <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/20 transition-colors group-hover:bg-active group-focus-visible:bg-active" />

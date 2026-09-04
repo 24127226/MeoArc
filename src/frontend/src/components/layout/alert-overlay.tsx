@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Email } from '@/data/emails'
 import { trichCamKet } from '@/lib/cam-ket'
 import { cn } from '@/lib/utils'
+import { t as dich } from '@/lib/ngon-ngu'
 
 /**
  * AlertOverlay — báo hiệu nổi trên cùng màn hình.
@@ -227,7 +228,7 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
           <button
             onClick={() => setHien((cu) => cu.filter((x) => x.id !== t.id))}
             className="o-icon size-7 shrink-0"
-            aria-label="Đóng thông báo"
+            aria-label={dich('notif.close')}
           >
             <X className="size-3.5" />
           </button>

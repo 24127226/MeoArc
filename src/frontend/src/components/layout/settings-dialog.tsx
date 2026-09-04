@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import { api, type Preferences, type PreferenceFields } from '@/lib/api'
 import { useTheme } from '@/components/theme-provider'
-import { useNgonNgu, useT } from '@/lib/ngon-ngu'
+import { t, useNgonNgu } from '@/lib/ngon-ngu'
 import {
   Dialog,
   DialogContent,
@@ -93,7 +93,7 @@ function PersonalTab() {
 
       {/* Tên xưng hô */}
       <div>
-        <label className="mb-1.5 block text-sm font-semibold">Trợ lý gọi bạn là</label>
+        <label className="mb-1.5 block text-sm font-semibold">{t('pref.callYou')}</label>
         <input
           defaultValue={pref.displayName ?? ''}
           onBlur={(e) => {
@@ -107,7 +107,7 @@ function PersonalTab() {
 
       {/* Giọng văn */}
       <div>
-        <p className="mb-2 text-sm font-semibold">Giọng văn khi soạn thư</p>
+        <p className="mb-2 text-sm font-semibold">{t('pref.tone')}</p>
         <div className="grid grid-cols-2 gap-2">
           {Object.entries(pref.availableTones).map(([key, desc]) => {
             const active = pref.tonePreference === key
@@ -135,7 +135,7 @@ function PersonalTab() {
 
       {/* Chữ ký */}
       <div>
-        <label className="mb-1.5 block text-sm font-semibold">Chữ ký cuối thư</label>
+        <label className="mb-1.5 block text-sm font-semibold">{t('pref.signature')}</label>
         <textarea
           defaultValue={pref.signatureNote ?? ''}
           onBlur={(e) => {
@@ -151,7 +151,7 @@ function PersonalTab() {
 
       {/* Dặn dò tự do */}
       <div>
-        <label className="mb-1.5 block text-sm font-semibold">Dặn riêng cho trợ lý</label>
+        <label className="mb-1.5 block text-sm font-semibold">{t('pref.instruction')}</label>
         <textarea
           defaultValue={pref.customInstruction ?? ''}
           onBlur={(e) => {
@@ -205,7 +205,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         <button
           onClick={copy}
           className="flex size-7 shrink-0 items-center justify-center rounded-lg text-popover-foreground/60 transition-colors hover:bg-popover-foreground/10 hover:text-popover-foreground"
-          title="Sao chép"
+          title={t('act.copy')}
         >
           {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
         </button>
@@ -221,13 +221,12 @@ export function SettingsDialog() {
   // riêng của hộp thoại này — nếu không thì đổi xong đóng hộp thoại là mất, và thanh
   // điều hướng bên ngoài cũng không biết gì để mà đổi theo.
   const { ngon: lang, datNgon: setLang } = useNgonNgu()
-  const t = useT()
 
   return (
     <Dialog>
       <DialogTrigger asChild>
         <button
-          title="Cài đặt"
+          title={t('nav.settings')}
           className="flex size-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <Settings className="size-5" />
@@ -236,7 +235,7 @@ export function SettingsDialog() {
 
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Cài đặt</DialogTitle>
+          <DialogTitle>{t('nav.settings')}</DialogTitle>
         </DialogHeader>
 
         {/* Tabs */}
@@ -270,7 +269,7 @@ export function SettingsDialog() {
           <div className="space-y-5 text-popover-foreground">
             {/* Giao diện */}
             <div>
-              <p className="mb-2 text-sm font-semibold">Giao diện</p>
+              <p className="mb-2 text-sm font-semibold">{t('settings.appearance')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { key: 'light', label: 'Sáng', icon: Sun },

@@ -35,6 +35,7 @@ import {
   FlaskConical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -903,7 +904,7 @@ function LichTrinhWidget({
         )}
 
         {viec.length === 0 ? (
-          <p className="text-[12.5px] text-muted-foreground">Không có việc nào trong khoảng này.</p>
+          <p className="text-[12.5px] text-muted-foreground">{t('st.noTasksRange')}</p>
         ) : (
           <div className="space-y-1">
             {viec.map((v, i) => (
@@ -943,7 +944,7 @@ function LichTrinhWidget({
                     {onTraLoiThu && (
                       <button
                         type="button"
-                        title="Soạn trả lời thư này"
+                        title={t('mail.replyThis')}
                         onClick={() => onTraLoiThu(v.email_id!, v.tieu_de || v.noi_dung)}
                         className="rounded-md px-1.5 py-0.5 text-[11px] text-[var(--spark)] hover:bg-foreground/10"
                       >
@@ -953,7 +954,7 @@ function LichTrinhWidget({
                     {onOpenEmail && (
                       <button
                         type="button"
-                        title="Mở lá thư này"
+                        title={t('mail.openThis')}
                         onClick={() => onOpenEmail(v.email_id!)}
                         className="rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                       >
@@ -1969,13 +1970,13 @@ export function ChatPanel({
                 đèn đang rọi — cùng một nguồn sáng thì mọi vật trong khối phải
                 nhận cùng một màu, nếu không khối mất tính nhất quán. */}
             <LogoMark className="relative size-6 text-foreground drop-shadow-[0_0_10px_var(--den)]" />
-            <span className="sr-only">Trợ lý MeoArc</span>
+            <span className="sr-only">{t('chat.title')}</span>
           </KinhKhucXa>
 
           <div className="flex items-center gap-1 shrink-0 mr-12">
             <button
               onClick={() => setHistoryOpen((v) => !v)}
-              title="Kích hoạt dải phím thao tác"
+              title={t('mail.enableKeys')}
               className={cn(
                 "o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90",
                 historyOpen && "bg-foreground text-background border-transparent scale-95 rotate-90"
@@ -1986,8 +1987,8 @@ export function ChatPanel({
             {onClose && (
               <button
                 onClick={onClose}
-                title="Đóng trợ lý — về Hộp thư"
-                aria-label="Đóng trợ lý AI"
+                title={t('nav.closeToInbox')}
+                aria-label={t('nav.closeAssistant')}
                 className="o-icon size-9 bg-background/50 backdrop-blur-md transition-all duration-300 active:scale-90 [--tint:var(--destructive)]"
               >
                 <X className="size-4" />
@@ -2030,7 +2031,7 @@ export function ChatPanel({
 
             <button
               onClick={newChat}
-              title="Cuộc trò chuyện mới"
+              title={t('chat.new')}
               className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background/40 hover:text-foreground"
             >
               <SquarePen className="size-3.5" />
@@ -2195,7 +2196,7 @@ export function ChatPanel({
                 </span>
                 <button
                   onClick={onBoBoiCanh}
-                  aria-label="Bỏ bối cảnh"
+                  aria-label={t('chat.clearCtx')}
                   className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                 >
                   <X className="size-3.5" />
@@ -2213,16 +2214,16 @@ export function ChatPanel({
               <button
                 onClick={() => oChonTep.current?.click()}
                 disabled={dangTaiTep}
-                title="Đính kèm tệp để trợ lý gửi đi"
-                aria-label="Đính kèm tệp"
+                title={t('chat.attachHint')}
+                aria-label={t('act.attach')}
                 className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
               >
                 {dangTaiTep ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
               </button>
               <button
                 onClick={() => setVoiceOpen(true)}
-                title="Nói với trợ lý (voice mode)"
-                aria-label="Bật voice mode"
+                title={t('voice.speak')}
+                aria-label={t('voice.on')}
                 className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
               >
                 <Mic className="size-4" />
@@ -2293,7 +2294,7 @@ export function ChatPanel({
       />
       <div
         role="dialog"
-        aria-label="Lịch sử trò chuyện"
+        aria-label={t('nav.history')}
         aria-modal={historyOpen || undefined}
         aria-hidden={!historyOpen}
         className={cn(
@@ -2315,8 +2316,8 @@ export function ChatPanel({
           </div>
           <button
             onClick={() => setHistoryOpen(false)}
-            title="Đóng"
-            aria-label="Đóng"
+            title={t('act.close')}
+            aria-label={t('act.close')}
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-popover-foreground/60 transition-colors hover:bg-popover-foreground/10 hover:text-popover-foreground active:scale-95"
           >
             <X className="size-4" />
@@ -2354,7 +2355,7 @@ export function ChatPanel({
               <p className="text-sm font-medium text-popover-foreground/80">
                 Không có cuộc trò chuyện nào khớp
               </p>
-              <p className="text-xs text-popover-foreground/50">Thử từ khoá khác nhé.</p>
+              <p className="text-xs text-popover-foreground/50">{t('st.tryOtherKeyword')}</p>
             </div>
           ) : (
             historyGroups.map((g) => (
@@ -2464,10 +2465,10 @@ export function ChatPanel({
                               title={s.pinned ? 'Bỏ ghim' : 'Ghim'}
                               onClick={() => togglePin(s.id)}
                             />
-                            <HistAction icon={Pencil} title="Đổi tên" onClick={() => startRename(s)} />
+                            <HistAction icon={Pencil} title={t('act.rename')} onClick={() => startRename(s)} />
                             <HistAction
                               icon={Trash2}
-                              title="Xoá"
+                              title={t('act.delete')}
                               danger
                               onClick={() => setDeletingId(s.id)}
                             />
@@ -2606,7 +2607,7 @@ function DraftCard({
               <span className="text-foreground font-medium">Tới:</span> {to}
             </p>
             <p className="text-muted-foreground text-xs">
-              <span className="text-foreground font-medium">Chủ đề:</span> {subject}
+              <span className="text-foreground font-medium">{t('mail.subjectLabel')}</span> {subject}
             </p>
             {rewriting ? (
               <div className="mt-2 space-y-2 rounded-xl bg-popover px-3.5 py-3 shadow-subtle">
@@ -2784,7 +2785,7 @@ function CategorizeWidget({
               <button
                 onClick={() => cycleLabel(r.id)}
                 disabled={resolved || off}
-                title="Bấm để đổi nhãn"
+                title={t('mail.tapChangeLabel')}
                 className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#1b1b2c] dark:text-[#E6E8F5] ring-1 ring-inset transition-transform active:scale-95 disabled:opacity-60"
                 style={
                   {
@@ -2803,7 +2804,7 @@ function CategorizeWidget({
       </CardContent>
       <CardFooter>
         {resolved ? (
-          <span className="text-xs font-medium text-muted-foreground">Đã xử lý ✓</span>
+          <span className="text-xs font-medium text-muted-foreground">{t('st.handled')}</span>
         ) : (
           <>
             <Button
@@ -3160,7 +3161,7 @@ function AgentMessage({
                 Agent đang xử lý từng bước…
               </span>
             ) : resolved ? (
-              <span className="text-xs font-medium text-muted-foreground">Đã xử lý ✓</span>
+              <span className="text-xs font-medium text-muted-foreground">{t('st.handled')}</span>
             ) : (
               <>
                 <Button

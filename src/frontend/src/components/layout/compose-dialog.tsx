@@ -17,6 +17,7 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
@@ -286,7 +287,7 @@ export function ComposeDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button
-          title="Soạn thư mới"
+          title={t('act.compose')}
           className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <PenSquare className="size-4" />
@@ -297,7 +298,7 @@ export function ComposeDialog() {
         {step === 'compose' && (
           <>
             <DialogHeader>
-              <DialogTitle>Soạn thư mới</DialogTitle>
+              <DialogTitle>{t('act.compose')}</DialogTitle>
             </DialogHeader>
 
             {/* Vùng form (chặn trình duyệt tự mở file nếu lỡ thả trượt ra ngoài khung) */}
@@ -539,7 +540,7 @@ export function ComposeDialog() {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  title="Đính kèm tệp"
+                  title={t('act.attach')}
                   className="flex size-9 items-center justify-center rounded-xl text-popover-foreground/60 transition-colors hover:bg-popover-foreground/10 hover:text-popover-foreground"
                 >
                   <Paperclip className="size-4" />
@@ -553,7 +554,7 @@ export function ComposeDialog() {
                 <button
                   type="button"
                   onClick={reset}
-                  title="Bỏ bản nháp"
+                  title={t('act.discardDraft')}
                   className="flex size-9 items-center justify-center rounded-xl text-popover-foreground/60 transition-colors hover:bg-popover-foreground/10 hover:text-popover-foreground"
                 >
                   <Trash2 className="size-4" />
@@ -570,7 +571,7 @@ export function ComposeDialog() {
         {step === 'confirm' && (
           <>
             <DialogHeader>
-              <DialogTitle>Xác nhận gửi?</DialogTitle>
+              <DialogTitle>{t('mail.confirmSend')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-2 rounded-xl bg-popover-foreground/5 p-3.5 text-sm text-popover-foreground">
               <p>
@@ -582,7 +583,7 @@ export function ComposeDialog() {
                 </p>
               )}
               <p>
-                <span className="text-popover-foreground/60">Chủ đề:</span> {subject}
+                <span className="text-popover-foreground/60">{t('mail.subjectLabel')}</span> {subject}
               </p>
               <p className="flex items-center gap-1.5 text-popover-foreground/70">
                 <Paperclip className="size-3.5" />

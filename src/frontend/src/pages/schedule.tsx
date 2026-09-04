@@ -16,6 +16,7 @@ import type { EmailActions } from '@/lib/email-actions'
 import { AlertOverlay } from '@/components/layout/alert-overlay'
 import { LogoMark } from '@/components/logo'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { chuyenCanh } from '@/lib/chuyen-canh'
 import { TraCuuPanel } from '@/components/layout/tra-cuu-panel'
 
@@ -226,11 +227,11 @@ export function SchedulePage() {
               chuyenCanh(() => dieuHuong('/app'))
             }}
             className="o-icon size-8 shrink-0"
-            aria-label="Về hộp thư"
+            aria-label={t('nav.backInbox')}
           >
             <ArrowLeft className="size-4" />
           </Link>
-          <span className="text-[15px] font-semibold tracking-tight">Lịch trình</span>
+          <span className="text-[15px] font-semibold tracking-tight">{t('nav.schedule')}</span>
           <LogoMark className="ml-auto size-5 text-foreground/35" />
         </div>
 
@@ -262,7 +263,7 @@ export function SchedulePage() {
               Không tải được thư nên chưa dựng được lịch. Bạn thử tải lại trang giúp mình nhé.
             </p>
           ) : sapToi.length === 0 ? (
-            <p className="px-1 text-[12.5px] text-muted-foreground">Chưa có việc nào.</p>
+            <p className="px-1 text-[12.5px] text-muted-foreground">{t('st.noTasks')}</p>
           ) : (
             sapToi.map((c) => (
               <button
@@ -303,9 +304,9 @@ export function SchedulePage() {
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => setThang((t) => new Date(t.getFullYear(), t.getMonth() - 1, 1))}
-              className="o-icon size-8" aria-label="Tháng trước"><ChevronLeft className="size-4" /></button>
+              className="o-icon size-8" aria-label={t('cal.prev')}><ChevronLeft className="size-4" /></button>
             <button onClick={() => setThang(new Date(homNay.getFullYear(), homNay.getMonth(), 1))}
-              className="nut-ky-thuat px-3 py-1.5 text-[11.5px] font-medium">Hôm nay</button>
+              className="nut-ky-thuat px-3 py-1.5 text-[11.5px] font-medium">{t('cal.today')}</button>
             {/* Đặt cạnh điều hướng tháng vì nó thuộc cùng câu chuyện: nhìn lịch thấy
                 phải đi đâu đó, rồi tra ngay chỗ đi lại. */}
             <button onClick={() => setTraCuuMo(true)}
@@ -313,7 +314,7 @@ export function SchedulePage() {
               <Plane className="size-3.5" /> Tra cứu đi lại
             </button>
             <button onClick={() => setThang((t) => new Date(t.getFullYear(), t.getMonth() + 1, 1))}
-              className="o-icon size-8" aria-label="Tháng sau"><ChevronRight className="size-4" /></button>
+              className="o-icon size-8" aria-label={t('cal.next')}><ChevronRight className="size-4" /></button>
           </div>
         </header>
 
@@ -341,7 +342,7 @@ export function SchedulePage() {
       ) : (
         <button
           onClick={() => setChatMo(true)}
-          aria-label="Mở trợ lý MeoArc"
+          aria-label={t('nav.openAssistant')}
           // `position` ghi NỘI TUYẾN: `.goc-cat` đặt position:relative và nó thắng
           // tiện ích `fixed` của Tailwind (CSS tự viết nằm ngoài @layer). Dùng class
           // thì nút rơi lên góc trên phải — đã dính đúng vậy.
@@ -486,14 +487,14 @@ function BangNgay({
                 <div className="flex shrink-0 gap-0.5">
                   <button
                     onClick={() => onXemThu(c)}
-                    title="Xem thư gốc"
+                    title={t('mail.viewOriginal')}
                     className="o-icon size-6"
                   >
                     <Mail className="size-3" />
                   </button>
                   <button
                     onClick={() => onHoiAI(c)}
-                    title="Hỏi trợ lý về việc này"
+                    title={t('mail.askAssistant')}
                     className="o-icon size-6"
                   >
                     <MessageSquare className="size-3" />
@@ -534,9 +535,9 @@ function LichNho({
         </span>
         <span className="flex gap-0.5">
           <button onClick={() => onDoiThang(new Date(thang.getFullYear(), thang.getMonth() - 1, 1))}
-            className="o-icon size-6" aria-label="Tháng trước"><ChevronLeft className="size-3" /></button>
+            className="o-icon size-6" aria-label={t('cal.prev')}><ChevronLeft className="size-3" /></button>
           <button onClick={() => onDoiThang(new Date(thang.getFullYear(), thang.getMonth() + 1, 1))}
-            className="o-icon size-6" aria-label="Tháng sau"><ChevronRight className="size-3" /></button>
+            className="o-icon size-6" aria-label={t('cal.next')}><ChevronRight className="size-3" /></button>
         </span>
       </div>
       <div className="grid grid-cols-7 gap-px">
@@ -1054,7 +1055,7 @@ function ThanhViec({
       <div className="flex items-center gap-1 border-t border-border/15 pt-2">
         <button
           onClick={onXemThu}
-          title="Xem thư gốc"
+          title={t('mail.viewOriginal')}
           className="nut-ky-thuat flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5
                      text-[11px] font-medium text-foreground"
         >

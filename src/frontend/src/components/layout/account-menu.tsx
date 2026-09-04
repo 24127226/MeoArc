@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { t } from '@/lib/ngon-ngu'
 
 type TaiKhoan = {
   user_id: number; email: string; name: string; provider: string; dang_dung: boolean
@@ -84,8 +85,8 @@ export function AccountMenu() {
         {step === 'menu' ? (
           <>
             <DialogHeader>
-              <DialogTitle>Tài khoản</DialogTitle>
-              <DialogDescription>Phiên đăng nhập Google hiện tại của bạn.</DialogDescription>
+              <DialogTitle>{t('nav.account')}</DialogTitle>
+              <DialogDescription>{t('pref.session')}</DialogDescription>
             </DialogHeader>
 
             {/* Thẻ tài khoản */}

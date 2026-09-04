@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { CATEGORY, CATEGORY_OPTIONS } from '@/data/categories'
 import type { Category } from '@/data/emails'
+import { t } from '@/lib/ngon-ngu'
 
 /** Dialog chọn nhãn để gán cho email (UC006). Controlled. */
 export function LabelDialog({
@@ -24,7 +25,7 @@ export function LabelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Gắn nhãn</DialogTitle>
+          <DialogTitle>{t('act.label')}</DialogTitle>
           <DialogDescription>
             Chọn nhãn áp dụng cho {count} thư đã chọn.
           </DialogDescription>

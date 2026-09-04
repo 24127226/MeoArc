@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, ArrowLeft, AlertTriangle, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/auth/auth-context'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 import { LogoMark } from '@/components/logo'
 import { MeoMascot } from '@/components/meo-mascot'
 
@@ -231,7 +232,7 @@ export function LoginPage() {
                       <MeoMascot mood="happy" className="size-11" />
                     </div>
                   </div>
-                  <h2 className="font-serif text-2xl font-semibold">Đăng nhập MeoArc</h2>
+                  <h2 className="font-serif text-2xl font-semibold">{t('auth.login')}</h2>
                   <p className="mt-1.5 text-[13.5px] text-white/60">
                     Kết nối hộp thư để chú mèo bắt đầu dọn giúp bạn.
                   </p>
@@ -246,7 +247,7 @@ export function LoginPage() {
                     {errorDetail && (
                       <p className="mt-1.5 break-words text-[12px] leading-relaxed text-white/65">{errorDetail}</p>
                     )}
-                    <p className="mt-2 text-[11px] text-white/40">Thử lại, hoặc dùng tài khoản Google.</p>
+                    <p className="mt-2 text-[11px] text-white/40">{t('auth.retry')}</p>
                   </div>
                 )}
 
@@ -283,7 +284,7 @@ export function LoginPage() {
                 </button>
 
                 <p className="mt-5 text-center text-[11px] leading-relaxed text-white/45">
-                  MeoArc sẽ xin quyền <span className="text-white/70">đọc &amp; quản lý thư</span> (gắn nhãn,
+                  MeoArc sẽ xin quyền <span className="text-white/70">{t('auth.scope')}</span> (gắn nhãn,
                   lưu trữ, soạn/gửi). Bạn có thể thu hồi bất cứ lúc nào trong phần Cài đặt.
                 </p>
               </div>

@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, Clock, Inbox } from 'lucide-react'
 import type { Email } from '@/data/emails'
 import { trichCamKet, apLucTheoNgay, TRAN_MOI_NGAY, type CamKet } from '@/lib/cam-ket'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 
 /**
  * CommitmentsView — "Việc của tôi": dòng thời gian cam kết trích từ hộp thư.
@@ -143,7 +144,7 @@ function DongCamKet({ ck, onOpen }: { ck: CamKet; onOpen: () => void }) {
               <span className="text-muted-foreground/40">·</span>
               {/* Hạn SUY RA phải nói rõ là suy ra. Người dùng cần biết con số này
                   do MeoArc tính chứ không có sẵn trong thư — để họ kiểm được. */}
-              <span className="text-[var(--rr-can)]">hạn tự tính</span>
+              <span className="text-[var(--rr-can)]">{t('st.inferredDue')}</span>
             </>
           )}
         </span>
