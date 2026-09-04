@@ -191,3 +191,58 @@ def test_khong_ro_thi_confidence_THAP_chu_khong_doan_bua():
     from app.core.labeling import classify
     c = classify("meoarc.hcmus@outlook.com.vn", "", "Xác nhận đặt chỗ — SGN đi HAN", "")
     assert c.confidence == "low"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TÊN HIỂN THỊ NGƯỜI GỬI LÀ TÍN HIỆU, KHÔNG CHỈ ĐỂ DÒ BOT
+#
+# Đo trên bộ 46 thư demo: 28 thư (61%) rơi vào "Cá nhân / low" chỉ vì thư được TỰ GỬI
+# cho chính mình nên địa chỉ luôn giống nhau và không nói lên gì. Toàn bộ thông tin
+# nằm ở tên hiển thị, mà tên trước đây chỉ dùng để dò xem có phải bot không.
+# Sau khi đọc tên: còn 15, và 10 trong số đó là người thật — tức đúng.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_ten_hien_thi_phan_loai_duoc_khi_dia_chi_KHONG_noi_gi():
+    """Hộp thư tự gửi cho chính mình — địa chỉ giống hệt nhau ở mọi thư."""
+    from app.core.labeling import classify
+    tu_minh = "quanpta.meoarc@gmail.com"
+    for ten, mong_doi in [("Giáo vụ HCMUS", "Học tập"),
+                          ("Phòng Đào tạo HCMUS", "Học tập"),
+                          ("CLB Học thuật", "Học tập"),
+                          ("Ban tổ chức Hackathon", "Học tập"),
+                          ("GitHub", "Cập nhật & Hệ thống"),
+                          ("Azure", "Cập nhật & Hệ thống"),
+                          ("Shopee", "Mua sắm & Ưu đãi")]:
+        c = classify(tu_minh, ten, "Một tiêu đề trung tính", "")
+        assert c.category.label == mong_doi, f"{ten} → {c.category.label}"
+
+
+def test_ten_nguoi_THAT_van_la_ca_nhan():
+    """Ranh giới quan trọng: đọc tên không được biến bạn bè thành thông báo hệ thống."""
+    from app.core.labeling import classify
+    for ten in ["Phạm Thu Trang", "Mẹ", "Lê Anh Đức", "Nguyễn Văn Sơn (GVHD)"]:
+        assert classify("quanpta.meoarc@gmail.com", ten, "hihi", "").category.label == "Cá nhân"
+
+
+def test_ten_hien_thi_chi_dat_MEDIUM_khong_phai_HIGH():
+    """Tên hiển thị ai đặt cũng được, không như tên miền đã qua xác thực. Một phân
+    loại sai mà mang 'high' thì không ai nghi ngờ nó."""
+    from app.core.labeling import classify
+    assert classify("quanpta.meoarc@gmail.com", "GitHub", "", "").confidence == "medium"
+    assert classify("noreply@github.com", "GitHub", "", "").confidence == "high"
+
+
+def test_manh_NGAN_khong_duoc_khop_ten_hien_thi():
+    """`edu` (3 ký tự) mà khớp tên thì 'EduMax Academy' — một thư quảng cáo — thành
+    thư nhà trường. Mảnh ngắn chỉ đáng tin khi nằm trong TÊN MIỀN, nơi có ranh giới."""
+    from app.core.labeling import classify
+    c = classify("quanpta.meoarc@gmail.com", "EduMax Academy",
+                 "Khoá học lập trình MIỄN PHÍ 100% — chỉ còn 2 ngày!", "")
+    assert c.category.label != "Học tập"
+
+
+def test_TEN_MIEN_van_thang_TEN_HIEN_THI():
+    """Thứ tự tín hiệu phải giữ nguyên: tên miền đã xác thực > tên tự xưng."""
+    from app.core.labeling import classify
+    c = classify("noreply@github.com", "Giáo vụ HCMUS", "", "")
+    assert c.category.label == "Cập nhật & Hệ thống" and c.confidence == "high"

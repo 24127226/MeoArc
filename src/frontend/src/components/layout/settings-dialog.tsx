@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Settings,
+  Sparkles,
   Sun,
   Moon,
   Languages,
@@ -14,7 +15,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, type Preferences, type PreferenceFields } from '@/lib/api'
+import { api, duongDanApi, type Preferences, type PreferenceFields } from '@/lib/api'
 import { useTheme } from '@/components/theme-provider'
 import { t, useNgonNgu } from '@/lib/ngon-ngu'
 import {
@@ -37,15 +38,29 @@ const nhanGiongVan = (): Record<string, string> => ({
   warm: t('tone.warm'),
 })
 
-const MCP_TOOLS = [
-  'search_emails',
-  'summarize',
-  'draft_reply',
-  'send_email',
-  'reply_email',
-  'bulk_manage',
-  'extract_tasks',
-]
+/** Khai báo MCP — LẤY TỪ MÁY CHỦ, không ghi cứng.
+ *
+ *  Bản trước ghi cứng bảy tên tool, trong đó BỐN cái không tồn tại (`summarize`,
+ *  `draft_reply`, `bulk_manage`, `extract_tasks`), kèm một endpoint không có thật và
+ *  dòng "đã kết nối · 1 client đang hoạt động" luôn hiện bất kể có ai kết nối hay
+ *  không. Server thật mở 14 tool + 3 prompt + 1 resource, và chạy qua stdio.
+ *
+ *  Đây đúng là màn được mở ra để CHỨNG MINH tích hợp MCP. Sai ở đây không phải thiếu
+ *  sót — nó là một lời khẳng định sai về thứ hệ thống làm được, và người xem chỉ cần
+ *  gõ một tên tool là thấy. Thà không có màn này còn hơn.
+ *
+ *  Nay đọc `/mcp/thong-tin`, nên thêm/bớt tool ở server là màn hình đổi theo. */
+type KhaiBaoMcp = {
+  san_sang: boolean
+  ly_do?: string
+  transport?: string
+  lenh_chay?: string
+  cau_hinh_mau?: string
+  tools: string[]
+  prompts: string[]
+  resources: string[]
+  khong_mo?: Record<string, string>
+}
 
 const dsScopes = () => [
   { label: t('scope.read'), on: true },
@@ -224,6 +239,26 @@ export function SettingsDialog() {
   // điều hướng bên ngoài cũng không biết gì để mà đổi theo.
   const { ngon: lang, datNgon: setLang } = useNgonNgu()
 
+  // Khai báo MCP đọc từ máy chủ. Nạp khi MỞ tab MCP chứ không nạp sẵn: người vào
+  // hộp thoại Cài đặt phần lớn là để đổi theme, không phải để xem tích hợp.
+  const [mcp, setMcp] = useState<KhaiBaoMcp | null>(null)
+  useEffect(() => {
+    if (tab !== 'mcp' || mcp) return
+    let song = true
+    fetch(duongDanApi('/mcp/thong-tin'), { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => song && setMcp(d))
+      .catch(() =>
+        song &&
+        setMcp({
+          san_sang: false,
+          ly_do: 'Không đọc được khai báo MCP từ máy chủ. Kiểm tra backend rồi mở lại.',
+          tools: [], prompts: [], resources: [],
+        }),
+      )
+    return () => { song = false }
+  }, [tab, mcp])
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -357,8 +392,20 @@ export function SettingsDialog() {
               trực tiếp các tool trong phạm vi quyền đã cấp.
             </p>
 
-            <CopyRow label="MCP Server endpoint" value="https://mcp.meoarc.dev/sse" />
-            <CopyRow label="Access token" value="mcp_sk_••••••••••••3f9a" />
+            {mcp?.san_sang ? (
+              <>
+                {/* stdio, KHÔNG phải HTTP. Vẽ ra một URL cho gọn màn hình là hứa một
+                    thứ không có — và nếu bật transport từ xa mà chưa xác thực thì bất
+                    kỳ ai có đường dẫn cũng đọc và gửi được thư. */}
+                <CopyRow label="Transport" value={mcp.transport ?? 'stdio'} />
+                <CopyRow label="Lệnh chạy server" value={mcp.lenh_chay ?? ''} />
+                <CopyRow label="Cấu hình mẫu cho Claude Desktop" value={mcp.cau_hinh_mau ?? ''} />
+              </>
+            ) : (
+              <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-popover-foreground">
+                {mcp?.ly_do ?? 'Đang đọc khai báo từ máy chủ…'}
+              </p>
+            )}
 
             {/* Scopes */}
             <div>
@@ -383,7 +430,7 @@ export function SettingsDialog() {
                 Tool khả dụng
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {MCP_TOOLS.map((t) => (
+                {(mcp?.tools ?? []).map((t) => (
                   <code
                     key={t}
                     className="rounded-lg bg-popover-foreground/10 px-2 py-1 text-[11px] text-popover-foreground"
@@ -394,10 +441,37 @@ export function SettingsDialog() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 rounded-xl bg-success/15 px-3 py-2 text-xs text-popover-foreground">
-              <span className="size-2 rounded-full bg-success" />
-              Trạng thái: đã kết nối · 1 client đang hoạt động
-            </div>
+            {/* Prompt = kỹ năng 1-bấm hiện trên menu Claude Desktop. Đây mới là
+                phần cho thấy MeoArc không chỉ phơi tool ra, mà còn GIAO cả quy trình. */}
+            {(mcp?.prompts?.length ?? 0) > 0 && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
+                  <Sparkles className="size-4" />
+                  Kỹ năng 1-bấm (MCP prompts)
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(mcp?.prompts ?? []).concat(mcp?.resources ?? []).map((p) => (
+                    <code key={p} className="rounded-lg bg-active/15 px-2 py-1 text-[11px] text-popover-foreground">
+                      {p}
+                    </code>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Nói thẳng cái KHÔNG mở, để người xem biết đó là lựa chọn chứ không phải sót. */}
+            {mcp?.khong_mo && Object.keys(mcp.khong_mo).length > 0 && (
+              <div className="rounded-xl bg-popover-foreground/5 px-3 py-2">
+                <p className="mb-1 text-xs font-semibold text-popover-foreground/80">
+                  Cố ý KHÔNG mở qua MCP
+                </p>
+                {Object.entries(mcp.khong_mo).map(([ten, vi]) => (
+                  <p key={ten} className="text-[11.5px] leading-relaxed text-popover-foreground/65">
+                    <code className="text-popover-foreground/85">{ten}</code> — {vi}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </DialogContent>

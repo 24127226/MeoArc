@@ -161,3 +161,55 @@ def test_MCP_mo_du_BA_nguyen_the_cua_giao_thuc():
     src = inspect.getsource(server)
     assert "@mcp.prompt()" in src and "@mcp.resource(" in src
     assert src.count("@mcp.prompt()") >= 3, "cần đủ bộ kỹ năng 1-click"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MÀN "MCP" PHẢI NÓI ĐÚNG NHỮNG GÌ SERVER THẬT SỰ MỞ RA
+#
+# Màn Cài đặt → MCP trước đây ghi cứng bảy tên tool, trong đó BỐN cái không tồn tại
+# (`summarize`, `draft_reply`, `bulk_manage`, `extract_tasks`), một endpoint không có
+# thật (`https://mcp.meoarc.dev/sse`), và dòng "đã kết nối · 1 client đang hoạt động"
+# luôn hiện bất kể có ai kết nối hay không.
+#
+# Với một màn trang trí thì đó là chuyện nhỏ. Nhưng đây đúng là màn được mở ra để
+# CHỨNG MINH tích hợp MCP — người xem chỉ cần gõ thử một tên tool là thấy. Sai ở đây
+# không phải thiếu sót, nó là một lời khẳng định sai về thứ hệ thống làm được.
+#
+# Test này khoá đúng ranh giới đó: danh sách trên endpoint phải TRÙNG KHỚP tập tool
+# đã đăng ký thật, không thừa không thiếu.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_khai_bao_mcp_khop_dung_tool_da_dang_ky():
+    from fastapi.testclient import TestClient
+    from app.api.app import app
+    from app.mcp import server as S
+
+    d = TestClient(app).get("/mcp/thong-tin").json()
+    assert d["san_sang"] is True
+
+    that = {f.__name__ for f in (
+        S.search_emails, S.semantic_search, S.categorize_emails, S.get_email,
+        S.list_labels, S.send_email, S.reply_email, S.apply_labels, S.bulk_action,
+        S.liet_ke_cam_ket, S.ap_luc_lich_trinh, S.de_xuat_di_lai,
+        S.tim_chuyen_bay, S.tim_khach_san,
+    )}
+    assert set(d["tools"]) == that, f"lệch: {set(d['tools']) ^ that}"
+
+
+def test_khong_hua_mot_endpoint_HTTP_khong_ton_tai():
+    """Transport là stdio. Vẽ ra một URL cho gọn màn hình là hứa thứ không có — và bật
+    transport từ xa khi chưa có xác thực thì ai có đường dẫn cũng đọc và gửi được thư."""
+    from fastapi.testclient import TestClient
+    from app.api.app import app
+    d = TestClient(app).get("/mcp/thong-tin").json()
+    assert d["transport"] == "stdio"
+    assert not any(str(v).startswith("http") for v in d.values() if isinstance(v, str))
+
+
+def test_noi_ro_hai_tool_CO_Y_khong_mo():
+    """Người xem phải phân biệt được 'đã cân nhắc rồi không mở' với 'quên mất'."""
+    from fastapi.testclient import TestClient
+    from app.api.app import app
+    d = TestClient(app).get("/mcp/thong-tin").json()
+    assert set(d["khong_mo"]) == {"dat_cho_mo_phong", "tu_choi_ngoai_pham_vi"}
+    assert all(name not in d["tools"] for name in d["khong_mo"])

@@ -197,6 +197,56 @@ def health(db: Session = Depends(get_db)):
     return body if db_ok else JSONResponse(status_code=503, content=body)
 
 
+# ── UC012: màn MCP phải NÓI ĐÚNG những gì server MCP thật sự mở ra ───────────
+# Màn Cài đặt → MCP trước đây ghi cứng một endpoint không có thật
+# (`https://mcp.meoarc.dev/sse`), một token giả, dòng "đã kết nối · 1 client đang hoạt
+# động", và bảy tên tool trong đó BỐN cái không tồn tại (`summarize`, `draft_reply`,
+# `bulk_manage`, `extract_tasks`). Server thật mở 14 tool + 3 prompt + 1 resource, và
+# chạy qua stdio chứ không qua HTTP.
+#
+# Với một màn hình chỉ để trang trí thì đó là chuyện nhỏ. Nhưng đây đúng là màn được
+# mở ra để CHỨNG MINH tích hợp MCP — nên sai ở đây không phải "thiếu sót", nó là một
+# lời khẳng định sai về thứ hệ thống làm được. Thà không có màn này còn hơn.
+#
+# Nay endpoint đọc THẲNG từ `app.mcp.server`, nên danh sách không thể lệch: thêm/bớt
+# tool ở đó là màn hình đổi theo.
+@app.get("/mcp/thong-tin")
+def mcp_thong_tin():
+    """Khai báo THẬT của MCP server: transport, cách kết nối, tool/prompt đang mở."""
+    try:
+        from app.mcp import server as _mcp
+    except Exception as exc:      # noqa: BLE001 — thiếu gói mcp thì nói thẳng, đừng 500
+        return {"san_sang": False, "ly_do": f"Không nạp được MCP server: {exc}"[:200],
+                "tools": [], "prompts": [], "resources": []}
+
+    def _ten(x) -> str:
+        return getattr(x, "__name__", "") or str(x)
+
+    tools = sorted(_ten(f) for f in (
+        _mcp.search_emails, _mcp.semantic_search, _mcp.categorize_emails, _mcp.get_email,
+        _mcp.list_labels, _mcp.send_email, _mcp.reply_email, _mcp.apply_labels,
+        _mcp.bulk_action, _mcp.liet_ke_cam_ket, _mcp.ap_luc_lich_trinh,
+        _mcp.de_xuat_di_lai, _mcp.tim_chuyen_bay, _mcp.tim_khach_san,
+    ))
+    return {
+        "san_sang": True,
+        # stdio, KHÔNG phải HTTP. Bật transport từ xa mà chưa có xác thực thì bất kỳ ai
+        # có đường dẫn cũng đọc và gửi được thư — nên nó cố ý chưa bật, và màn hình
+        # phải nói đúng như vậy thay vì vẽ ra một URL.
+        "transport": "stdio",
+        "lenh_chay": "uv run python -m app.mcp.server",
+        "cau_hinh_mau": "_claude_config_READY.json (ở gốc repo)",
+        "tools": tools,
+        "prompts": ["daily_digest", "triage_inbox", "meeting_brief"],
+        "resources": ["meoarc://whoami"],
+        # Hai tool CỐ Ý không mở — nói ra để người xem biết đây là lựa chọn, không phải sót.
+        "khong_mo": {
+            "dat_cho_mo_phong": "không hoàn tác + liên quan tiền → phải bấm duyệt trên web",
+            "tu_choi_ngoai_pham_vi": "chỉ có nghĩa với agent trong app",
+        },
+    }
+
+
 # ── NFR-Scalability: /metrics — nhìn được hệ thống đang thở thế nào ──────────
 # Không đo thì không biết lúc nào sắp quá tải, và khi sập cũng không biết vì sao.
 # Ba con số đáng nhìn nhất: độ trễ p95 (người dùng CẢM nhận được), số suất gọi ra

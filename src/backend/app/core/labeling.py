@@ -108,9 +108,24 @@ _DOMAIN_RULES: list[tuple[list[str], Category, str]] = [
     # Cập nhật & Hệ thống — thông báo tự động, dev-ops, bảo mật
     (["github.com", "gitlab", "vercel", "netlify", "atlassian", "jira", "notion.so", "slack.com",
       "accounts.google", "no-reply@google", "security@", "microsoft", "office365",
-      "cloudflare", "aws.amazon", "digitalocean", "render.com", "railway", "supabase", "firebase",
+      "cloudflare", "aws.amazon", "azure", "digitalocean", "render.com", "railway",
+      "supabase", "firebase",
       "openai.com", "anthropic", "figma.com"],
      HE_THONG, "thông báo tự động từ dịch vụ/hệ thống"),
+]
+
+# ── Mảnh CHỈ dùng cho TÊN HIỂN THỊ ────────────────────────────────────────
+# Thư đại học Việt Nam hiếm khi gửi từ một tên miền nhận ra được — rất nhiều thư đi
+# qua hộp cá nhân của cán bộ, hoặc qua chính hộp thư của sinh viên. Thứ duy nhất còn
+# lại là cách người gửi TỰ XƯNG: "Giáo vụ", "Phòng CTSV", "CLB Học thuật", "Ban tổ
+# chức". Đó là cụm nhiều chữ nên không nhét vào danh sách tên miền được (tên miền
+# không có dấu cách), và cũng không nên: chúng chỉ đáng tin ở tên hiển thị.
+_TEN_RULES: list[tuple[list[str], Category, str]] = [
+    (["giáo vụ", "giao vu", "phòng đào tạo", "phong dao tao", "phòng ctsv", "phong ctsv",
+      "thư ký khoa", "thu ky khoa", "khoa cntt", "câu lạc bộ", "cau lac bo", "clb ",
+      "ban tổ chức", "ban to chuc", "ban truyền thông", "học vụ", "hoc vu",
+      "trường đh", "đại học", "dai hoc", "ieee", "springer", "elsevier", "acm"],
+     HOC_TAP, "tên người gửi cho thấy là đơn vị trong trường/học thuật"),
 ]
 
 # ── TÍN HIỆU 2: TỪ KHOÁ tiêu đề + nội dung (phụ trợ → confidence medium) ──
@@ -161,6 +176,22 @@ def _khop_dia_chi(needle: str, email_l: str) -> bool:
     return needle in domain
 
 
+# Tên hiển thị không có đuôi tên miền: người ta ký "GitHub", không ký "github.com".
+# Nên so bằng NHÃN ĐẦU của mảnh (`linkedin.com` → `linkedin`, `@momo` → `momo`).
+_DAI_TOI_THIEU_TEN = 4
+
+
+def _khop_ten(needle: str, ten_l: str) -> bool:
+    """Mảnh có khớp TÊN HIỂN THỊ người gửi không.
+
+    Chặn dưới 4 ký tự: `edu`, `lms`, `hr` quá ngắn nên khớp bừa vào giữa từ khác —
+    `edu` sẽ nuốt "EduMax Academy" (một thư quảng cáo) thành thư nhà trường. Mảnh
+    ngắn chỉ đáng tin khi nằm trong TÊN MIỀN, nơi chúng có ranh giới thật.
+    """
+    goc = needle.strip("@").split(".")[0]
+    return len(goc) >= _DAI_TOI_THIEU_TEN and goc in ten_l
+
+
 def classify(sender_email: str, sender_name: str = "",
              subject: str = "", snippet: str = "") -> Classification:
     """Đoán nhãn cho MỘT email. Ưu tiên: tên miền (high) → từ khoá (medium) →
@@ -173,7 +204,30 @@ def classify(sender_email: str, sender_name: str = "",
         if any(_khop_dia_chi(n, email_l) for n in needles):
             return Classification(cat, "high", why)
 
-    # 2) Từ khoá tiêu đề/nội dung
+    # 2) TÊN HIỂN THỊ người gửi — thường mang nhiều thông tin hơn cả địa chỉ.
+    #
+    # Đo trên bộ 46 thư demo: 28 thư (61%) rơi vào "Cá nhân / low" chỉ vì thư được
+    # TỰ GỬI CHO CHÍNH MÌNH, nên địa chỉ luôn giống nhau và không nói lên điều gì.
+    # Toàn bộ thông tin nằm ở tên hiển thị — "Giáo vụ HCMUS", "GitHub", "LinkedIn",
+    # "Vietnam Airlines" — mà trước đây tên chỉ được dùng để dò xem có phải bot không.
+    #
+    # Không riêng bản demo: bản tin thật cũng ký tên "Shopee", thông báo CI ký tên
+    # "GitHub". Bỏ qua tên là bỏ qua thứ người dùng NHÌN THẤY đầu tiên trên mỗi thẻ thư.
+    #
+    # "medium" chứ không "high": tên hiển thị ai đặt cũng được, không như tên miền đã
+    # qua xác thực. Đặt TRƯỚC luật từ khoá vì "ai gửi" nói đúng hơn "trong thư có chữ
+    # gì" — một thư của giáo vụ vẫn là việc học kể cả khi nó nhắc chuyện đóng tiền.
+    ten_l = (sender_name or "").lower()
+    if ten_l:
+        for needles, cat, why in _TEN_RULES:
+            if any(n.strip("\b") in ten_l for n in needles):
+                return Classification(cat, "medium", why)
+        for needles, cat, why in _DOMAIN_RULES:
+            if any(_khop_ten(n, ten_l) for n in needles):
+                return Classification(cat, "medium", f"tên người gửi cho thấy {why[8:]}"
+                                      if why.startswith("gửi từ ") else why)
+
+    # 3) Từ khoá tiêu đề/nội dung
     for pat, cat, why in _KEYWORD_RULES:
         if re.search(pat, hay):
             return Classification(cat, "medium", why)
