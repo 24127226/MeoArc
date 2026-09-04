@@ -349,6 +349,45 @@ function AgentText({ children }: { children: React.ReactNode }) {
   )
 }
 
+/* ── DÒNG TRẠNG THÁI KHI ĐANG CHỜ ─────────────────────────────────────────────
+   Đo được: p99 của /agent/chat là 115 GIÂY. Suốt chừng đó chỉ có ba chấm nhấp nháy,
+   nên người dùng không phân biệt được "đang chạy" với "đã treo" — và phần lớn sẽ bấm
+   lại, tốn thêm một lượt gọi mô hình cho đúng câu vừa hỏi.
+
+   ⚠️ ĐÂY LÀ ƯỚC LƯỢNG THEO THỜI GIAN, KHÔNG PHẢI TRẠNG THÁI THẬT.
+   Backend chưa phát sự kiện từng bước (xem kế hoạch Giai đoạn B), nên frontend không
+   biết agent đang gọi tool nào. Vì thế câu chữ ở đây cố ý viết theo kiểu MÔ TẢ CHUNG
+   ("đang tra hộp thư") chứ không khẳng định cụ thể ("đang gọi search_emails") — nói
+   một điều mình không biết là sai, kể cả khi đoán đúng phần lớn lần.
+
+   Mốc thời gian lấy từ số đo thật: p50 ≈ 2–5s, câu có tool ≈ 10–25s, và trên 45s thì
+   gần như chắc chắn chuỗi dự phòng đang xoay model. Nên mốc cuối nói thẳng là bất
+   thường thay vì trấn an — trấn an sai chỗ làm người dùng chờ lâu hơn mức đáng chờ. */
+const GIAI_DOAN: { tu: number; chu: string }[] = [
+  { tu: 0, chu: 'Đang đọc yêu cầu…' },
+  { tu: 3, chu: 'Đang tra hộp thư…' },
+  { tu: 9, chu: 'Đang tổng hợp kết quả…' },
+  { tu: 20, chu: 'Câu này cần nhiều bước — vẫn đang chạy…' },
+  { tu: 45, chu: 'Lâu hơn thường lệ. Có thể mô hình đang bận, chờ thêm chút nhé.' },
+]
+
+function DongTrangThai() {
+  const [giay, setGiay] = useState(0)
+  useEffect(() => {
+    const t = window.setInterval(() => setGiay((g) => g + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+  const chu = [...GIAI_DOAN].reverse().find((g) => giay >= g.tu)?.chu ?? GIAI_DOAN[0].chu
+  return (
+    <p className="mt-1.5 flex items-center gap-2 px-1 text-[11.5px] text-muted-foreground">
+      <span>{chu}</span>
+      {/* Số giây là số ĐO ĐƯỢC, khác với câu chữ ở trên vốn chỉ là ước lượng. Chỉ hiện
+          từ giây thứ 10 — hiện sớm quá thì mọi câu trả lời nhanh cũng trông như chậm. */}
+      {giay >= 10 && <span className="tabular-nums opacity-60">{giay}s</span>}
+    </p>
+  )
+}
+
 function ThinkingDots() {
   return (
     <div className="flex items-start gap-2.5">
@@ -363,6 +402,7 @@ function ThinkingDots() {
             />
           ))}
         </div>
+        <DongTrangThai />
         {/* Skeleton morphing — khung kết quả đang hình thành */}
         <div className="max-w-[88%] space-y-2.5 rounded-2xl p-3.5 shadow-soft glass">
           <div className="skeleton h-3 w-1/3 rounded" />
