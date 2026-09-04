@@ -151,3 +151,4 @@ src/backend/static/
 src/frontend/public/**/*.zip
 src/frontend/public/**/*-goc.*
 src/frontend/public/**/*-raw.*
+j5.json
