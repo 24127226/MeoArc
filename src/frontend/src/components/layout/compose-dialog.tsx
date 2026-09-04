@@ -182,7 +182,7 @@ export function ComposeDialog() {
       setAiTyping(false)
       return
     }
-    const target = `Dạ em chào anh/chị,\n\nEm viết email này về việc "${subject || '...'}". Em xin trình bày ngắn gọn như sau:\n- ...\n- ...\n\nEm cảm ơn anh/chị đã dành thời gian. Mong sớm nhận phản hồi ạ.\n\nTrân trọng,\nAnh Quân`
+    const target = t('cmp.aiDraft', { cd: subject || '...' })
     stopAi()
     setBody('')
     setAiTarget(target)
@@ -276,7 +276,7 @@ export function ComposeDialog() {
       })
       setStep('sent')
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : 'Gửi thất bại, thử lại sau.')
+      setSendError(e instanceof Error ? e.message : t('cmp.sendFail'))
     } finally {
       setSending(false)
     }
@@ -401,7 +401,7 @@ export function ComposeDialog() {
                   )}
                 >
                   <Sparkles className={cn('size-3.5 text-active', aiTyping && 'animate-pulse')} />
-                  {aiTyping ? 'Đang soạn… (bấm để chốt)' : 'Soạn với AI'}
+                  {t(aiTyping ? 'cmp.aiTyping' : 'cmp.aiWrite')}
                 </button>
               </div>
 
@@ -456,7 +456,7 @@ export function ComposeDialog() {
                   {files.map((f, i) => (
                     <span
                       key={i}
-                      title={f.loi ? 'Tải tệp này lên máy chủ không thành công — gỡ ra hoặc thử lại' : undefined}
+                      title={f.loi ? t('cmp.uploadFail') : undefined}
                       className={cn(
                         'flex items-center gap-2 rounded-lg py-1 pl-2 pr-1 text-xs text-popover-foreground',
                         // Tệp hỏng phải TRÔNG KHÁC. Bản trước nó giống hệt tệp thành công,
@@ -474,7 +474,7 @@ export function ComposeDialog() {
                       </span>
                       <span className="max-w-[160px] truncate">{f.name}</span>
                       <span className="text-popover-foreground/50">
-                        {f.loi ? 'chưa tải lên được' : f.size}
+                        {f.loi ? t('cmp.notUploaded') : f.size}
                       </span>
                       <button
                         type="button"
@@ -519,7 +519,7 @@ export function ComposeDialog() {
             >
               <UploadCloud className={cn('dz-icon size-7', dragging && 'text-active')} />
               <span className="text-sm font-medium">
-                {dragging ? 'Thả ra để đính kèm ✨' : 'Kéo & thả tệp vào đây'}
+                {t(dragging ? 'cmp.dropNow' : 'cmp.dropHere')}
               </span>
               <span className="text-xs text-muted-foreground">{t('mail.orBrowse')}</span>
             </div>
@@ -602,7 +602,7 @@ export function ComposeDialog() {
               </Button>
               <Button variant="primary" onClick={doSend} disabled={sending}>
                 <Send className="size-4" />
-                {sending ? 'Đang gửi…' : 'Xác nhận gửi'}
+                {t(sending ? 'cmp.sending' : 'cmp.confirmSend')}
               </Button>
             </DialogFooter>
           </>
@@ -622,7 +622,10 @@ export function ComposeDialog() {
               <Send className="send-plane size-7 text-active" />
             </div>
             <p className={cn('text-sm text-popover-foreground/75')}>
-              Email tới {to} đã được gửi thành công{files.length ? ` kèm ${files.length} tệp` : ''}.
+              {t('cmp.sentTo', {
+                ai: to,
+                kem: files.length ? t('cmp.withFiles', { n: files.length }) : '',
+              })}
             </p>
             <DialogFooter>
               <Button variant="primary" onClick={() => setOpen(false)}>

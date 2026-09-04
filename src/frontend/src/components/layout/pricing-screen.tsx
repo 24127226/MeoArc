@@ -46,7 +46,7 @@ function shortNum(n: number): string {
   if (n >= 1_000) return `${Math.round(n / 1_000)}K`
   return String(n)
 }
-const formatVnd = (n: number) => (n === 0 ? 'Miễn phí' : `${n.toLocaleString('vi-VN')}₫`)
+const formatVnd = (n: number) => (n === 0 ? t('plan.free') : `${n.toLocaleString('vi-VN')}₫`)
 
 /** Chữ hiện từng TỪ, trượt lên khỏi mặt nạ + tan mờ dần. */
 function WordReveal({ text, delayStep = 0.1 }: { text: string; delayStep?: number }) {
@@ -173,7 +173,7 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
     try {
       const next = await api.setTier(tier)
       onChanged(next)
-      toast(`Đã chuyển sang gói ${next.tierLabel}`, 'success')
+      toast(t('plan.switched', { goi: next.tierLabel }), 'success')
     } catch {
       toast('Không đổi được gói, thử lại sau', 'destructive')
     } finally {
@@ -289,9 +289,9 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
         </div>
 
         <h1 className="mt-3 text-center font-serif text-[1.9rem] font-bold leading-[1.08] sm:text-[2.6rem]">
-          <WordReveal text="Chọn tốc độ" />
+          <WordReveal text={t('plan.pickSpeed')} />
           <br />
-          <span style={{ color: NEON }}><WordReveal text="cho chú mèo của bạn" delayStep={0.09} /></span>
+          <span style={{ color: NEON }}><WordReveal text={t('plan.forYourCat')} delayStep={0.09} /></span>
         </h1>
 
         {status && (
@@ -388,7 +388,11 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
                   style={featured && !current ? { background: NEON, boxShadow: `0 10px 40px -12px ${NEON}` } : undefined}
                 >
                   {busy === p.id && <Loader2 className="size-3.5 animate-spin" />}
-                  {current ? 'Gói hiện tại' : p.priceVnd === 0 ? 'Về Miễn phí' : `Nâng cấp ${p.label}`}
+                  {current
+                    ? t('plan.current')
+                    : p.priceVnd === 0
+                      ? t('plan.backToFree')
+                      : t('plan.upgradeTo', { goi: p.label })}
                 </button>
               </div>
             )

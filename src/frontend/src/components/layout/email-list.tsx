@@ -334,9 +334,9 @@ const FOLDER_TITLES: Record<string, string> = {
   inbox: 'fld.inbox',
   starred: 'fld.starred',
   sent: 'fld.sent',
-  drafts: 'Nháp',
-  archive: 'Lưu trữ',
-  trash: 'Thùng rác',
+  drafts: 'fld.drafts',
+  archive: 'fld.archive',
+  trash: 'fld.trash',
 }
 
 export function EmailList({

@@ -111,7 +111,7 @@ function initSessions(): Session[] {
     {
       id: 's0',
       title: 'Cuộc trò chuyện mới',
-      time: 'Bây giờ',
+      time: t('tm.now'),
       messages: [{ id: uid(), role: 'agent', reply: { kind: 'text', text: WELCOME } }],
     },
     {
@@ -173,24 +173,30 @@ const dsSkills = () => [
  *
  *  Đổi lại: gợi ý KHÔNG bám nội dung cụ thể. Chấp nhận, vì bước tiếp theo hợp lý sau
  *  một bảng chuyến bay gần như luôn là "tìm chỗ ở", bất kể chặng nào. */
-function goiYTiepTheo(reply: AgentReply): string[] {
+/** Một chip gợi ý: NHÃN là thứ người đọc, LỆNH là thứ gửi cho agent.
+ *  Hai thứ này PHẢI tách nhau. Câu lệnh bám đúng bộ đọc ý định (`lib/agent.ts`),
+ *  vốn khớp bằng từ khoá tiếng Việt — dịch nó là chip bấm vào không chạy nữa. */
+type ChipGoiY = { nhan: string; lenh: string }
+const chip = (khoa: string, lenh: string): ChipGoiY => ({ nhan: t(khoa), lenh })
+
+function goiYTiepTheo(reply: AgentReply): ChipGoiY[] {
   switch (reply.kind) {
     case 'dilai':
       return reply.loai === 'bay'
-        ? ['Tìm chỗ ở gần đó', 'Chuyến nào bay buổi sáng?', 'Đặt lịch nhắc trước ngày bay']
-        : ['Tìm chuyến bay tới đó', 'Chỗ nào gần trung tâm nhất?']
+        ? [chip('gy.stayNear', 'Tìm chỗ ở gần đó'), chip('gy.morningFlight', 'Chuyến nào bay buổi sáng?'), chip('gy.remindBefore', 'Đặt lịch nhắc trước ngày bay')]
+        : [chip('gy.flightThere', 'Tìm chuyến bay tới đó'), chip('gy.nearCentre', 'Chỗ nào gần trung tâm nhất?')]
     case 'digest':
-      return ['Thư nào cần xử lý trước?', 'Phân loại giúp mình', 'Lưu trữ hết bản tin']
+      return [chip('gy.whichFirst', 'Thư nào cần xử lý trước?'), chip('gy.categorise', 'Phân loại giúp mình'), chip('gy.archiveNews', 'Lưu trữ hết bản tin')]
     case 'triage':
-      return ['Soạn trả lời thư gấp nhất', 'Tuần này mình có quá tải không?']
+      return [chip('gy.replyUrgent', 'Soạn trả lời thư gấp nhất'), chip('gy.overloaded', 'Tuần này mình có quá tải không?')]
     case 'categorize':
-      return ['Tóm tắt hộp thư hôm nay', 'Thư nào đang chờ mình phản hồi?']
+      return [chip('gy.digestToday', 'Tóm tắt hộp thư hôm nay'), chip('gy.waitingOnMe', 'Thư nào đang chờ mình phản hồi?')]
     case 'brief':
-      return ['Soạn thư xác nhận tham dự', 'Tìm chuyến bay tới cuộc họp này']
+      return [chip('gy.confirmAttend', 'Soạn thư xác nhận tham dự'), chip('gy.flightToMeeting', 'Tìm chuyến bay tới cuộc họp này')]
     case 'draft':
-      return ['Viết ngắn gọn hơn', 'Đổi sang giọng trang trọng']
+      return [chip('gy.shorter', 'Viết ngắn gọn hơn'), chip('gy.formal', 'Đổi sang giọng trang trọng')]
     case 'done':
-      return ['Tóm tắt hộp thư hôm nay', 'Thư nào cần xử lý trước?']
+      return [chip('gy.digestToday', 'Tóm tắt hộp thư hôm nay'), chip('gy.whichFirst', 'Thư nào cần xử lý trước?')]
     default:
       // 'text' và các loại còn lại: câu trả lời tự do, không đoán được bước sau —
       // để trống còn hơn gợi ý bừa rồi người dùng bấm vào một ngõ cụt.
@@ -214,8 +220,8 @@ function relTime(iso: string): string {
   const y = new Date(now)
   y.setDate(now.getDate() - 1)
   const hhmm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-  if (d.toDateString() === now.toDateString()) return `Hôm nay ${hhmm}`
-  if (d.toDateString() === y.toDateString()) return 'Hôm qua'
+  if (d.toDateString() === now.toDateString()) return t('tm.todayAt', { gio: hhmm })
+  if (d.toDateString() === y.toDateString()) return t('tm.yesterday')
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
 }
 
@@ -224,7 +230,7 @@ function previewOf(s: Session): string {
   const last = s.messages[s.messages.length - 1]
   if (!last) return ''
   if (last.role === 'user') return last.text
-  return 'text' in last.reply ? last.reply.text : 'Kết quả…'
+  return 'text' in last.reply ? last.reply.text : t('ch.resultShort')
 }
 
 /** Gom toàn bộ chữ của 1 phiên để tìm kiếm. */
@@ -234,27 +240,33 @@ function searchTextOf(s: Session): string {
     .toLowerCase()
 }
 
-/** Nhóm phiên theo mốc thời gian (dựa trên nhãn time có sẵn). */
-const TIME_ORDER = ['Hôm nay', 'Hôm qua', 'Trước đó'] as const
-function timeBucket(t: string): (typeof TIME_ORDER)[number] {
-  const low = t.toLowerCase()
-  if (low.includes('bây giờ') || low.includes('hôm nay')) return 'Hôm nay'
-  if (low.includes('hôm qua')) return 'Hôm qua'
-  return 'Trước đó'
+/** Nhóm phiên theo mốc thời gian.
+ *
+ *  Nhóm theo KHOÁ, không theo chữ đã dịch. Trường `time` vừa là thứ hiện ra vừa là
+ *  thứ đem đi phân tích — nên khi nhãn đổi sang 'Today 13:03' thì phép so khớp
+ *  'hôm nay' trượt hết và MỌI phiên rơi vào "Trước đó". So khớp phải hỏi chính lớp
+ *  dịch xem hôm nay/hôm qua đang được viết thế nào, chứ không đoán một thứ tiếng. */
+const TIME_ORDER = ['tm.today', 'tm.yesterday', 'tm.earlier'] as const
+function timeBucket(nhan: string): (typeof TIME_ORDER)[number] {
+  const low = nhan.toLowerCase()
+  const co = (khoa: string) => low.includes(t(khoa).toLowerCase())
+  if (co('tm.now') || co('tm.today')) return 'tm.today'
+  if (co('tm.yesterday')) return 'tm.yesterday'
+  return 'tm.earlier'
 }
 
 function doneText(op: PlanOp): string {
   switch (op.type) {
     case 'archive':
-      return `Đã lưu trữ ${op.ids.length} thư. Hộp thư gọn hơn rồi ✨`
+      return t('ch.doneArchive', { n: op.ids.length })
     case 'delete':
-      return `Đã xoá ${op.ids.length} thư.`
+      return t('ch.doneDelete', { n: op.ids.length })
     case 'markRead':
-      return `Đã đánh dấu đã đọc ${op.ids.length} thư.`
+      return t('ch.doneRead', { n: op.ids.length })
     case 'label':
-      return `Đã gắn nhãn “${op.label}” cho ${op.ids.length} thư.`
+      return t('ch.doneLabel', { nhan: op.label, n: op.ids.length })
     case 'autoLabel':
-      return `Đã phân loại ${op.items.length} thư theo nội dung.`
+      return t('ch.doneAuto', { n: op.items.length })
   }
 }
 
@@ -365,11 +377,11 @@ function AgentText({ children }: { children: React.ReactNode }) {
    gần như chắc chắn chuỗi dự phòng đang xoay model. Nên mốc cuối nói thẳng là bất
    thường thay vì trấn an — trấn an sai chỗ làm người dùng chờ lâu hơn mức đáng chờ. */
 const GIAI_DOAN: { tu: number; chu: string }[] = [
-  { tu: 0, chu: 'Đang đọc yêu cầu…' },
-  { tu: 3, chu: 'Đang tra hộp thư…' },
-  { tu: 9, chu: 'Đang tổng hợp kết quả…' },
-  { tu: 20, chu: 'Câu này cần nhiều bước — vẫn đang chạy…' },
-  { tu: 45, chu: 'Lâu hơn thường lệ. Có thể mô hình đang bận, chờ thêm chút nhé.' },
+  { tu: 0, chu: t('ch.st1') },
+  { tu: 3, chu: t('ch.st2') },
+  { tu: 9, chu: t('ch.st3') },
+  { tu: 20, chu: t('ch.st4') },
+  { tu: 45, chu: t('ch.st5') },
 ]
 
 function DongTrangThai() {
@@ -731,7 +743,7 @@ function TriageWidget({
                     </span>
                     <button
                       onClick={() => toggle(key, it.id)}
-                      title={checked ? 'Bỏ đánh dấu' : 'Đánh dấu đã xử lý (thư sẽ thành đã đọc)'}
+                      title={checked ? t('ch.unmark') : t('ch.markHandled')}
                       className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-popover-foreground/10 hover:text-foreground active:scale-90"
                     >
                       {checked ? (
@@ -1055,7 +1067,7 @@ function TheDuDinh({
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em]"
           style={{ color: 'var(--rr)' }}>
-          {coTienThat ? 'Không hoàn tác · tiêu tiền thật' : 'Cần bạn duyệt'}
+          {coTienThat ? t('ch.noUndoMoney') : t('ch.needApproval')}
         </span>
         <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--rr)' }}>
           {reply.buoc.length} bước
@@ -1197,7 +1209,7 @@ export function ChatPanel({
       // không im lặng — im lặng ở đây khiến người dùng tưởng đã đính được rồi gửi đi
       // một lá thư thiếu tệp.
       push({ id: uid(), role: 'agent',
-             reply: { kind: 'text', text: 'Mình không tải được tệp đó lên. Bạn thử tệp nhỏ hơn nhé.' } })
+             reply: { kind: 'text', text: t('ch.uploadFail') } })
     } finally {
       setDangTaiTep(false)
       if (oChonTep.current) oChonTep.current.value = ''
@@ -1267,22 +1279,26 @@ export function ChatPanel({
   // là agent hiểu và chạy đúng việc. Tối đa 3 chip, ưu tiên việc gấp trước.
   const suggestions = useMemo(() => {
     const inbox = emails.filter((e) => (e.folder ?? 'inbox') === 'inbox')
-    const out: string[] = []
+    const out: ChipGoiY[] = []
     const urgent = inbox.find((e) => e.unread && e.status === 'Todo')
-    if (urgent) out.push(`Soạn trả lời ${urgent.sender}`)
+    if (urgent)
+      out.push({ nhan: t('gy.replyTo', { ai: urgent.sender }), lenh: `Soạn trả lời ${urgent.sender}` })
     const unread = inbox.filter((e) => e.unread).length
-    if (unread > 0) out.push(`Tóm tắt ${unread} thư chưa đọc`)
+    if (unread > 0)
+      out.push({ nhan: t('gy.sumUnread', { n: unread }), lenh: `Tóm tắt ${unread} thư chưa đọc` })
     const promo = inbox.filter((e) => e.category === 'terra').length
-    if (promo > 0) out.push(`Dọn ${promo} thư khuyến mãi`)
+    if (promo > 0)
+      out.push({ nhan: t('gy.cleanPromo', { n: promo }), lenh: `Dọn ${promo} thư khuyến mãi` })
     if (out.length < 3) {
       const unlabeled = inbox.filter((e) => !e.label).length
-      if (unlabeled >= 2) out.push('Phân loại tự động thư chưa nhãn')
+      if (unlabeled >= 2) out.push(chip('gy.autoLabel', 'Phân loại tự động thư chưa nhãn'))
     }
     if (out.length < 3) {
       const waiting = inbox.find((e) => e.status === 'Waiting')
-      if (waiting) out.push(`Tóm tắt thư của ${waiting.sender}`)
+      if (waiting)
+        out.push({ nhan: t('gy.sumFrom', { ai: waiting.sender }), lenh: `Tóm tắt thư của ${waiting.sender}` })
     }
-    if (out.length === 0) out.push('Tóm tắt hộp thư hôm nay')
+    if (out.length === 0) out.push(chip('gy.digestToday', 'Tóm tắt hộp thư hôm nay'))
     return out.slice(0, 3)
   }, [emails])
 
@@ -1330,7 +1346,7 @@ export function ChatPanel({
     })
     const groups: { label: string; items: Session[]; pinned?: boolean }[] = []
     if (pinned.length) groups.push({ label: t('st.pinned'), items: pinned, pinned: true })
-    TIME_ORDER.filter((o) => map.has(o)).forEach((o) => groups.push({ label: o, items: map.get(o)! }))
+    TIME_ORDER.filter((o) => map.has(o)).forEach((o) => groups.push({ label: t(o), items: map.get(o)! }))
     return groups
   }, [sessions, historyQuery])
 
@@ -1344,7 +1360,7 @@ export function ChatPanel({
   const freshSession = (): Session => ({
     id: uid(),
     title: 'Cuộc trò chuyện mới',
-    time: 'Bây giờ',
+    time: t('tm.now'),
     messages: [{ id: uid(), role: 'agent', reply: { kind: 'text', text: WELCOME } }],
   })
 
@@ -1531,7 +1547,7 @@ export function ChatPanel({
     if (dich) {
       push({ id: uid(), role: 'user', text })
       push({ id: uid(), role: 'agent',
-             reply: { kind: 'done', text: `Đang mở ${dich.ten}…` } })
+             reply: { kind: 'done', text: t('ch.opening', { ten: dich.ten }) } })
       setInput('')
       chuyenCanh(() => dieuHuong(dich.duong_dan))
       return
@@ -1554,7 +1570,7 @@ export function ChatPanel({
         const firstUser = !s.messages.some((m) => m.role === 'user')
         return {
           ...s,
-          time: 'Bây giờ',
+          time: t('tm.now'),
           title: firstUser ? (text.length > 40 ? text.slice(0, 40) + '…' : text) : s.title,
           messages: [...s.messages, { id: uid(), role: 'user', text }],
         }
@@ -1593,7 +1609,7 @@ export function ChatPanel({
         push({
           id: uid(),
           role: 'agent',
-          reply: { kind: 'text', text: 'Có lỗi khi xử lý yêu cầu. Bạn thử lại giúp mình nhé.' },
+          reply: { kind: 'text', text: t('ch.error') },
         })
       })
   }
@@ -1698,13 +1714,13 @@ export function ChatPanel({
         role: 'agent',
         reply: {
           kind: 'result',
-          title: ma ? `Đã đặt (mô phỏng) · ${ma}` : 'Đã duyệt (mô phỏng)',
-          intro: 'Xong rồi — nhưng đọc kỹ dòng cuối nhé:',
+          title: ma ? t('ch.bookedSim', { ma }) : t('ch.approvedSim'),
+          intro: t('ch.readLastLine'),
           lines: [
             reply.title,
-            tong > 0 ? `Tổng chi ghi nhận: ${tong.toLocaleString('vi-VN')} ₫` : 'Không phát sinh chi phí.',
-            'ĐÂY LÀ ĐẶT CHỖ MÔ PHỎNG — MeoArc chưa nối với hệ thống bán vé hay phòng nào. '
-            + 'Không có khoản tiền nào được thanh toán, và bạn sẽ KHÔNG nhận được vé thật.',
+            tong > 0 ? t('ch.totalSpent', { tien: tong.toLocaleString('vi-VN') }) : t('ch.noCost'),
+            t('ch.simWarn1')
+            + t('ch.simWarn2'),
           ],
         },
       })
@@ -1714,7 +1730,7 @@ export function ChatPanel({
       push({
         id: uid(),
         role: 'agent',
-        reply: { kind: 'text', text: `Chưa duyệt được: ${String(e).slice(0, 140)}. Bạn thử lại giúp mình nhé.` },
+        reply: { kind: 'text', text: t('ch.approveFail', { loi: String(e).slice(0, 140) }) },
       })
     } finally {
       setDangDuyetId(null)
@@ -1726,7 +1742,7 @@ export function ChatPanel({
     push({
       id: uid(),
       role: 'agent',
-      reply: { kind: 'text', text: 'Đã bỏ qua dự định này — mình chưa làm gì cả. Bạn muốn đổi phương án nào?' },
+      reply: { kind: 'text', text: t('ch.skipped') },
     })
   }
 
@@ -1735,7 +1751,7 @@ export function ChatPanel({
     push({
       id: uid(),
       role: 'agent',
-      reply: { kind: 'text', text: 'Đã huỷ kế hoạch. Bạn muốn điều chỉnh lại thế nào?' },
+      reply: { kind: 'text', text: t('ch.cancelled') },
     })
   }
 
@@ -1768,7 +1784,7 @@ export function ChatPanel({
         reply: {
           kind: 'done',
           text: draft.replyToId
-            ? 'Đã gửi trả lời trong đúng luồng thư ✓'
+            ? t('ch.replySent')
             : `Đã gửi email tới ${draft.to.split('<')[0].trim()}.`,
         },
       })
@@ -1780,7 +1796,7 @@ export function ChatPanel({
         role: 'agent',
         reply: {
           kind: 'text',
-          text: 'Gửi KHÔNG thành công (mạng hoặc quyền Gmail). Thư CHƯA được gửi — bạn kiểm tra lại người nhận rồi bấm gửi lần nữa nhé.',
+          text: t('ch.sendFail'),
         },
       })
       return false
@@ -1809,15 +1825,15 @@ export function ChatPanel({
     if (r.flag.length) actions.setImportant(r.flag, true)
     markResolved(id)
     const parts: string[] = []
-    if (r.counts.archive) parts.push(`lưu trữ ${r.counts.archive}`)
-    if (r.counts.markRead) parts.push(`đánh dấu đã đọc ${r.counts.markRead}`)
-    if (r.counts.flag) parts.push(`gắn sao ${r.counts.flag}`)
-    if (r.counts.replied) parts.push(`gửi ${r.counts.replied} trả lời`)
-    const summary = parts.length ? parts.join(', ') : 'không thay đổi gì'
+    if (r.counts.archive) parts.push(t('ch.autoArchive', { n: r.counts.archive }))
+    if (r.counts.markRead) parts.push(t('ch.autoRead', { n: r.counts.markRead }))
+    if (r.counts.flag) parts.push(t('ch.autoFlag', { n: r.counts.flag }))
+    if (r.counts.replied) parts.push(t('ch.autoReplied', { n: r.counts.replied }))
+    const summary = parts.length ? parts.join(', ') : t('ch.autoNothing')
     push({
       id: uid(),
       role: 'agent',
-      reply: { kind: 'done', text: `Mèo đã tự lái xong: ${summary}. Hộp thư gọn hơn rồi ✨` },
+      reply: { kind: 'done', text: t('ch.autoDone', { tt: summary }) },
     })
     triggerFlash()
   }
@@ -1841,7 +1857,7 @@ export function ChatPanel({
     push({
       id: uid(),
       role: 'agent',
-      reply: { kind: 'done', text: `Đã phân loại ${items.length} thư theo nhãn bạn chọn.` },
+      reply: { kind: 'done', text: t('ch.categorised', { n: items.length }) },
     })
     triggerFlash()
   }
@@ -2019,7 +2035,7 @@ export function ChatPanel({
                   return !v
                 })
               }}
-              title={ttsOn ? 'Tắt đọc câu trả lời' : 'Bật đọc câu trả lời'}
+              title={ttsOn ? 'ch.ttsOff' : 'ch.ttsOn'}
               className={cn(
                 'flex size-8 items-center justify-center rounded-lg transition-colors',
                 ttsOn ? 'text-active bg-background shadow-sm' : 'text-muted-foreground hover:bg-background/40 hover:text-foreground',
@@ -2136,12 +2152,12 @@ export function ChatPanel({
           <div className="mb-2 flex flex-wrap gap-2">
             {buocTiepTheo.map((g) => (
               <button
-                key={g}
-                onClick={() => send(g)}
+                key={g.nhan}
+                onClick={() => send(g.lenh)}
                 className="flex items-center gap-1.5 rounded-full border border-[var(--spark)]/35 bg-[var(--spark)]/10 px-3 py-1.5 text-xs font-medium text-foreground shadow-subtle transition-all duration-200 ease-spring hover:-translate-y-0.5 active:scale-95"
               >
                 <ArrowUpRight className="size-3.5 text-[var(--spark)]" />
-                {g}
+                {g.nhan}
               </button>
             ))}
           </div>
@@ -2150,11 +2166,11 @@ export function ChatPanel({
         <div className="mb-3 flex flex-wrap gap-2">
           {suggestions.map((s) => (
             <button
-              key={s}
-              onClick={() => send(s)}
+              key={s.nhan}
+              onClick={() => send(s.lenh)}
               className="rounded-full px-3.5 py-1.5 text-xs text-foreground/80 shadow-subtle transition-all duration-200 ease-spring glass hover:-translate-y-0.5 hover:text-foreground active:scale-95"
             >
-              {s}
+              {s.nhan}
             </button>
           ))}
         </div>
@@ -2171,14 +2187,14 @@ export function ChatPanel({
                 không thấy gì đổi trên màn hình thì không ai dám bấm gửi. */}
             {tepDinhKem.length > 0 && (
               <div className="mb-1.5 flex flex-wrap gap-1.5">
-                {tepDinhKem.map((t) => (
-                  <span key={t.id}
+                {tepDinhKem.map((tep) => (
+                  <span key={tep.id}
                         className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/60 px-2 py-1 text-[11.5px]">
                     <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="max-w-[160px] truncate">{t.name}</span>
+                    <span className="max-w-[160px] truncate">{tep.name}</span>
                     <button
-                      onClick={() => setTepDinhKem((v) => v.filter((x) => x.id !== t.id))}
-                      aria-label={`Bỏ ${t.name}`}
+                      onClick={() => setTepDinhKem((v) => v.filter((x) => x.id !== tep.id))}
+                      aria-label={t('ch.removeCtx', { ten: tep.name })}
                       className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                     >
                       <X className="size-3" />
@@ -2244,8 +2260,8 @@ export function ChatPanel({
                 }}
                 placeholder={
                   isOutOfTokens(sub)
-                    ? 'Đã hết token — nâng gói để hỏi tiếp…'
-                    : "Nhắn cho trợ lý... vd: 'lưu trữ thư bản tin'"
+                    ? t('ch.outOfTokens')
+                    : t('ch.phExample')
                 }
                 disabled={isOutOfTokens(sub)}
                 className="max-h-56 min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent py-1.5 shadow-none focus-visible:ring-0 disabled:opacity-60"
@@ -2462,7 +2478,7 @@ export function ChatPanel({
                           <div className="absolute right-2 top-1.5 hidden items-center gap-0.5 rounded-lg bg-popover/90 px-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
                             <HistAction
                               icon={s.pinned ? PinOff : Pin}
-                              title={s.pinned ? 'Bỏ ghim' : 'Ghim'}
+                              title={s.pinned ? t('ch.unpin') : 'Ghim'}
                               onClick={() => togglePin(s.id)}
                             />
                             <HistAction icon={Pencil} title={t('act.rename')} onClick={() => startRename(s)} />
@@ -2571,7 +2587,7 @@ function DraftCard({
         </CardHeader>
         <CardContent className="pt-2 pr-20">
           <span className="text-xs font-serif font-semibold uppercase tracking-wider text-foreground/80">
-            {done === 'cancelled' ? 'Đã huỷ thư' : 'Đã niêm phong mật thư ✓'}
+            {done === 'cancelled' ? t('ch.mailCancelled') : t('ch.mailSealed')}
           </span>
         </CardContent>
       </Card>
@@ -2583,7 +2599,7 @@ function DraftCard({
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Mail className="size-4 text-primary" />
-          {editing ? 'Chỉnh sửa bản nháp' : 'Bản nháp trả lời'}
+          {editing ? 'ch.editDraft' : 'ch.replyDraft'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1.5 pt-2 text-sm">
@@ -2773,7 +2789,7 @@ function CategorizeWidget({
             >
               <button
                 onClick={() => toggle(r.id)}
-                title={off ? 'Bao gồm lại' : 'Bỏ qua thư này'}
+                title={off ? 'ch.includeAgain' : 'ch.skipThis'}
                 className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-popover-foreground/10 active:scale-90"
               >
                 {off ? <Square className="size-4" /> : <CheckSquare className="size-4 text-success" />}
@@ -3050,7 +3066,7 @@ function AgentMessage({
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <ListChecks className="size-4 text-primary" />
-              {running ? 'Đang thực thi…' : 'Kế hoạch đề xuất'}
+              {running ? 'ch.executing' : 'ch.planProposed'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">

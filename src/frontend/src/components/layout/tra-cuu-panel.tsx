@@ -49,11 +49,11 @@ type KetQua = Nguon & {
  *  AeroDataBox cho: hãng, giờ khởi hành, loại máy bay, nhà ga, trạng thái. KHÔNG có
  *  giá, nên không có ô lọc giá — thêm một ô lọc không có dữ liệu đằng sau là hứa suông. */
 const NHOM_LOC = [
-  { khoa: 'khung_gio' as const, ten: 'Giờ bay', truong: null },
-  { khoa: 'hang' as const, ten: 'Hãng', truong: 'hang' },
-  { khoa: 'may_bay' as const, ten: 'Máy bay', truong: 'may_bay' },
-  { khoa: 'nha_ga' as const, ten: 'Nhà ga', truong: 'nha_ga' },
-  { khoa: 'trang_thai' as const, ten: 'Trạng thái', truong: 'trang_thai' },
+  { khoa: 'khung_gio' as const, ten: 'tv.depTime', truong: null },
+  { khoa: 'hang' as const, ten: 'tv.airline', truong: 'hang' },
+  { khoa: 'may_bay' as const, ten: 'tv.aircraft', truong: 'may_bay' },
+  { khoa: 'nha_ga' as const, ten: 'tv.terminal', truong: 'nha_ga' },
+  { khoa: 'trang_thai' as const, ten: 'tv.status', truong: 'trang_thai' },
 ]
 
 function _khungCua(khoiHanh: unknown): string {
@@ -122,13 +122,13 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
       if (!r.ok) {
         // Hiện ĐÚNG thông điệp máy chủ trả về. "Có lỗi xảy ra" thì lúc trình bày mà
         // hỏng, không ai sửa được trong ba mươi giây.
-        setLoi(j?.error?.message ?? j?.detail ?? `Máy chủ trả về ${r.status}`)
+        setLoi(j?.error?.message ?? j?.detail ?? t('tv.serverSaid', { ma: r.status }))
         return
       }
       setKetQua(j)
       setNguon(j)
     } catch (e) {
-      setLoi(`Không gọi được máy chủ: ${String(e).slice(0, 120)}`)
+      setLoi(t('tv.noServer', { loi: String(e).slice(0, 120) }))
     } finally {
       setDangChay(false)
     }
@@ -197,7 +197,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             title={nguon?.huong_dan ?? undefined}
           >
             {that ? <ShieldCheck className="size-3" /> : <FlaskConical className="size-3" />}
-            {nguon?.nhan ?? 'đang hỏi máy chủ…'}
+            {nguon?.nhan ?? t('tv.asking')}
           </span>
           <button onClick={onDong} className="o-icon size-8 shrink-0" aria-label={t('act.close')}>
             <X className="size-3.5" />
@@ -215,7 +215,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
                 className={cn('px-3 py-1.5 text-[12px] font-medium transition-colors',
                   loai === l ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/40')}
               >
-                {l === 'bay' ? 'Chuyến bay' : 'Khách sạn'}
+                {t(l === 'bay' ? 'tv.flights' : 'tv.hotels')}
               </button>
             ))}
           </div>
@@ -223,19 +223,19 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
           {loai === 'bay' ? (
             <>
               <GoiYSanBay />
-              <O nhan="Từ" giaTri={tu} datGiaTri={setTu} rong="w-[132px]"
+              <O nhan={t('tv.from')} giaTri={tu} datGiaTri={setTu} rong="w-[132px]"
                  goiY="meoarc-san-bay" chuThich="TP HCM" />
-              <O nhan="Đến" giaTri={den} datGiaTri={setDen} rong="w-[132px]"
+              <O nhan={t('tv.to')} giaTri={den} datGiaTri={setDen} rong="w-[132px]"
                  goiY="meoarc-san-bay" chuThich="Đà Nẵng" />
-              <O nhan="Ngày bay" giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
+              <O nhan={t('tv.flightDate')} giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
             </>
           ) : (
             <>
               <GoiYThanhPho />
-              <O nhan="Thành phố" giaTri={thanhPho} datGiaTri={setThanhPho} rong="w-[168px]"
+              <O nhan={t('tv.city')} giaTri={thanhPho} datGiaTri={setThanhPho} rong="w-[168px]"
                  goiY="meoarc-thanh-pho" chuThich="Đà Nẵng" />
-              <O nhan="Nhận phòng" giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
-              <O nhan="Trả phòng" giaTri={tra} datGiaTri={setTra} rong="w-[112px]" />
+              <O nhan={t('tv.checkIn')} giaTri={ngay} datGiaTri={setNgay} rong="w-[112px]" />
+              <O nhan={t('tv.checkOut')} giaTri={tra} datGiaTri={setTra} rong="w-[112px]" />
             </>
           )}
 
@@ -245,7 +245,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             className="nut-ky-thuat ml-auto flex items-center gap-1.5 px-4 py-2 text-[12.5px] font-medium disabled:opacity-50"
           >
             {dangChay && <Loader2 className="size-3.5 animate-spin" />}
-            {dangChay ? 'Đang hỏi…' : 'Tra cứu'}
+            {t(dangChay ? 'tv.searching' : 'tv.search')}
           </button>
         </div>
 
@@ -265,9 +265,9 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
             <>
               <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
                 {soDangChon > 0
-                  ? `${daLoc.length}/${ketQua.so_ket_qua} chuyến · đang lọc`
-                  : `${ketQua.so_ket_qua} kết quả`}
-                {' · truy vấn lúc '}{ketQua.thoi_diem}
+                  ? t('tv.filtered', { d: daLoc.length, n: ketQua.so_ket_qua })
+                  : t('tv.results', { n: ketQua.so_ket_qua })}
+                {t('tv.queriedAt')}{ketQua.thoi_diem}
               </p>
 
               {/* HAI CỘT: bộ lọc trái, kết quả phải. Bộ lọc nằm CẠNH bảng chứ không
@@ -306,7 +306,7 @@ export function TraCuuPanel({ onDong }: { onDong: () => void }) {
                 className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
               >
                 <Code2 className="size-3.5" />
-                {hienTho ? 'Ẩn phản hồi gốc' : 'Xem phản hồi gốc từ máy chủ'}
+                {t(hienTho ? 'tv.hideRaw' : 'tv.showRaw')}
               </button>
               {hienTho && (
                 <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-background/60 p-3
@@ -396,7 +396,7 @@ function CotBoLoc({ boLoc, dangLoc, doiLoc, soDangChon, xoaHet }: {
           return (
             <div key={nhom.khoa}>
               <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                {nhom.ten}
+                {t(nhom.ten)}
               </p>
               <div className="flex flex-col gap-0.5">
                 {muc.map((m) => {
@@ -506,10 +506,10 @@ const TP_KHAC = [
 function GoiYThanhPho() {
   return (
     <datalist id="meoarc-thanh-pho">
-      {TP_CO_KS_THAT.map((t) => (
-        <option key={t} value={t}>{`${t} · có khách sạn thật`}</option>
+      {TP_CO_KS_THAT.map((tp) => (
+        <option key={tp} value={tp}>{t('tv.hasRealHotel', { tp })}</option>
       ))}
-      {TP_KHAC.map((t) => <option key={t} value={t} />)}
+      {TP_KHAC.map((tp) => <option key={tp} value={tp} />)}
     </datalist>
   )
 }
@@ -523,7 +523,7 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
   const coGia = k.co_gia !== false
   const chiTiet = typeof k.lien_ket_chi_tiet === 'string' ? k.lien_ket_chi_tiet : null
   // Chỉ nguồn thật mới có mấy thứ này; rỗng nghĩa là KHÔNG BIẾT, không phải "không có".
-  const them = [k.may_bay, k.nha_ga ? `nhà ga ${k.nha_ga}` : '', k.trang_thai]
+  const them = [k.may_bay, k.nha_ga ? t('tv.terminalIs', { n: String(k.nha_ga) }) : '', k.trang_thai]
     .filter((x) => typeof x === 'string' && x).join(' · ')
 
   return (
@@ -553,10 +553,10 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
         <span className="block truncate text-[11px] text-muted-foreground">
           {String(k.khoi_hanh)} → {String(k.ha_canh)}
           {gioBay ? ` · ${gioBay}` : ''}
-          {' · '}{Number(k.so_diem_dung) === 0 ? 'bay thẳng' : `${k.so_diem_dung} điểm dừng`}
+          {' · '}{Number(k.so_diem_dung) === 0 ? t('tv.nonstop') : t('tv.stops', { n: String(k.so_diem_dung) })}
           {/* KHÔNG hiện "không hoàn" cho nguồn không bán vé: đó là một KHẲNG ĐỊNH về
               điều kiện vé mà nguồn đó không hề biết. Im lặng mới đúng. */}
-          {coGia ? ` · ${k.hoan_duoc ? 'hoàn được' : 'không hoàn'}` : ''}
+          {coGia ? ` · ${t(k.hoan_duoc ? 'tv.refundable' : 'tv.nonRefundable')}` : ''}
         </span>
         {them && (
           <span className="block truncate text-[10.5px] text-muted-foreground/80">{them}</span>
@@ -589,7 +589,7 @@ export function DongBay({ k }: { k: Record<string, unknown> }) {
             rel="noreferrer noopener"
             className="mt-0.5 flex items-center justify-end gap-1 text-[10.5px] text-[var(--spark)] hover:underline"
           >
-            {coGia ? 'Xem chuyến bay' : 'Xem giá'} <ExternalLink className="size-2.5" />
+            {t(coGia ? 'tv.viewFlight' : 'tv.viewPrice')} <ExternalLink className="size-2.5" />
           </a>
         )}
       </span>
@@ -625,7 +625,7 @@ export function DongPhong({ k }: { k: Record<string, unknown> }) {
           </span>
           <span className="block truncate text-[11px] text-muted-foreground">
             {String(k.so_dem)} đêm · cách trung tâm {String(k.cach_trung_tam_km)} km
-            {' · '}{k.huy_mien_phi ? 'huỷ miễn phí' : 'không huỷ được'}
+            {' · '}{t(k.huy_mien_phi ? 'tv.freeCancel' : 'tv.noCancel')}
           </span>
         </span>
         <span className="shrink-0 text-right">

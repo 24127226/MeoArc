@@ -198,7 +198,7 @@ function DaiApLuc({
     <div className={cn('mt-4 shrink-0', collapsed ? 'px-2' : 'px-3')}>
       {!collapsed && (
         <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
-          Áp lực 7 ngày
+          {t('nav.pressure7')}
         </p>
       )}
       <div className={cn('den-vien goc-cat-nho goc-cat relative px-2 pb-1.5 pt-2')}>
@@ -241,9 +241,9 @@ function DaiApLuc({
             {tongViec === 0 ? (
               t('nav.weekEmpty')
             ) : ngayQuaTai > 0 ? (
-              <span className="text-[var(--ut-gap)]">{ngayQuaTai} ngày quá tải · {soGio} giờ</span>
+              <span className="text-[var(--ut-gap)]">{t('nav.overloadDays', { n: ngayQuaTai, gio: soGio })}</span>
             ) : (
-              <>{tongViec} ngày có việc · {soGio} giờ</>
+              <>{t('nav.busyDays', { n: tongViec, gio: soGio })}</>
             )}
           </p>
         )}
@@ -274,12 +274,12 @@ function SystemStatus({ collapsed }: { collapsed: boolean }) {
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/55">
           <span className="pulse-dot" aria-hidden />
-          Trực tuyến
+          {t('nav.online')}
         </span>
         <span className="font-mono text-[11px] tabular-nums text-[var(--spark)]">{hhmm}</span>
       </div>
       <p className="mt-1.5 text-[9px] uppercase tracking-[0.16em] text-muted-foreground/35">
-        Trợ lý sẵn sàng
+        {t('nav.readyShort')}
       </p>
     </div>
   )
@@ -388,7 +388,7 @@ export function NavRail({
         <div className="mt-4 shrink-0">
           {!collapsed && (
             <p className="mb-1.5 px-1 font-mono text-[8.5px] uppercase tracking-[0.22em] text-muted-foreground/40">
-              Thư mục
+              {t('nav.folders')}
             </p>
           )}
           <div className={cn('grid gap-1.5', collapsed ? 'grid-cols-1' : 'grid-cols-3')}>

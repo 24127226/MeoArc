@@ -148,14 +148,14 @@ export function EmailDetail({
           />
           <ActionBtn
             icon={Archive}
-            label="Lưu trữ"
+            label={t('act.archive')}
             onClick={() => {
               actions.removeEmails([id], 'archive') // bỏ nhãn INBOX
               toast(t('toast.archived'), 'success')
             }}
           />
-          <ActionBtn icon={Tag} label="Gắn nhãn" onClick={() => setLabelOpen(true)} />
-          <ActionBtn icon={Trash2} label="Xoá" onClick={() => setConfirmDelete(true)} />
+          <ActionBtn icon={Tag} label={t('act.label')} onClick={() => setLabelOpen(true)} />
+          <ActionBtn icon={Trash2} label={t('act.delete')} onClick={() => setConfirmDelete(true)} />
           <button
             onClick={() => {
               actions.setImportant([id], !email.starred)

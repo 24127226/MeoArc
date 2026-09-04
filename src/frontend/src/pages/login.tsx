@@ -115,11 +115,11 @@ export function LoginPage() {
   const loginError = params.get('loi')
   const errorDetail = params.get('chi_tiet')
   const ERROR_LABEL: Record<string, string> = {
-    doi_token: 'Không đổi được mã uỷ quyền lấy token',
-    lay_ho_so: 'Không lấy được hồ sơ tài khoản Microsoft',
-    'microsoft-tu-choi': 'Microsoft từ chối yêu cầu đăng nhập',
-    'thieu-code': 'Microsoft không gửi mã uỷ quyền',
-    'khong-xac-dinh': 'Lỗi không lường trước',
+    doi_token: 'auth.errExchange',
+    lay_ho_so: 'auth.errProfile',
+    'microsoft-tu-choi': 'auth.errRefused',
+    'thieu-code': 'auth.errNoCode',
+    'khong-xac-dinh': 'auth.errUnknown',
   }
 
   useEffect(() => {
@@ -213,10 +213,10 @@ export function LoginPage() {
               </p>
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12.5px] text-white/55 lg:justify-start">
-                {['Không tự ý gửi thư', 'Thu hồi quyền bất cứ lúc nào', 'Gmail & Outlook'].map((t) => (
-                  <span key={t} className="flex items-center gap-1.5">
+                {[t('auth.noAutoSend'), t('auth.revokeAny'), 'Gmail & Outlook'].map((x) => (
+                  <span key={x} className="flex items-center gap-1.5">
                     <span className="size-1 rounded-full bg-white/50" />
-                    {t}
+                    {x}
                   </span>
                 ))}
               </div>
@@ -242,7 +242,7 @@ export function LoginPage() {
                   <div className="mt-5 rounded-2xl border border-[#FF6FB5]/35 bg-[#FF6FB5]/10 p-3.5 text-left">
                     <p className="flex items-center gap-2 text-[13px] font-semibold text-[#FF9ECF]">
                       <AlertTriangle className="size-4 shrink-0" />
-                      {ERROR_LABEL[loginError] ?? 'Đăng nhập không thành công'}
+                      {t(ERROR_LABEL[loginError] ?? 'auth.failed')}
                     </p>
                     {errorDetail && (
                       <p className="mt-1.5 break-words text-[12px] leading-relaxed text-white/65">{errorDetail}</p>

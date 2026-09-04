@@ -174,13 +174,13 @@ export function SchedulePage() {
     // và gõ gì cũng được — trợ lý vẫn biết đang bàn về việc nào.
     const han = ck.han
       ? `${ck.han.getDate()}/${ck.han.getMonth() + 1} lúc ${gioPhut(ck.han)}`
-      : 'chưa rõ hạn'
+      : t('sc.noDue')
     const gio = Math.round(ck.uocLuongPhut / 6) / 10
     setBoiCanh({
       tieuDe: ck.noiDung,
       mo_ta:
-        `hạn ${han}${ck.hanSuyRa ? ' (suy ra, chưa chắc)' : ''}`
-        + `, ${ck.nguoiCho} đang chờ, ước tính ${gio} giờ`,
+        t('sc.dueAt', { han }) + (ck.hanSuyRa ? t('sc.inferred') : '')
+        + t('sc.waitingEst', { ai: ck.nguoiCho, gio }),
     })
   }
 
@@ -282,7 +282,7 @@ export function SchedulePage() {
                     {c.noiDung}
                   </span>
                   <span className="truncate text-[11px] text-muted-foreground">
-                    {c.han ? nhanNgay(c.han, homNay) : 'Không có hạn'} · {c.nguoiCho}
+                    {c.han ? nhanNgay(c.han, homNay) : t('sc.noDueShort')} · {c.nguoiCho}
                   </span>
                 </span>
               </button>
@@ -432,7 +432,7 @@ function BangNgay({
       <div className="fixed inset-0 z-40" onClick={onDong} aria-hidden />
       <div
         role="dialog"
-        aria-label={`Việc ngày ${ngay.getDate()}/${ngay.getMonth() + 1}`}
+        aria-label={t('sc.dayTasks', { ngay: `${ngay.getDate()}/${ngay.getMonth() + 1}` })}
         // `position` NỘI TUYẾN — `.goc-cat` đặt position:relative và thắng `fixed`
         // của Tailwind. Cái bẫy này đã dính hai lần trong file này.
         style={{ position: 'fixed', left, top, width: W, maxHeight: CAO_TOI_DA }}
@@ -451,7 +451,8 @@ function BangNgay({
             'ml-auto font-mono text-[9.5px] tabular-nums',
             quaTai ? 'font-bold text-[var(--ut-gap)]' : 'text-muted-foreground',
           )}>
-            {Math.round(phut / 6) / 10} giờ{quaTai ? ' · quá tải' : ''}
+            {t('sc.hours', { n: Math.round(phut / 6) / 10 })}
+            {quaTai ? t('sc.overloaded') : ''}
           </span>
         </div>
 
@@ -479,9 +480,9 @@ function BangNgay({
                   </p>
                   <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                     {c.nguoiCho}
-                    {c.han ? ` · hạn ${gioPhut(c.han)}` : ''}
+                    {c.han ? t('sc.dueSuffix', { gio: gioPhut(c.han) }) : ''}
                     {c.batDau && khoaNgay(c.batDau) !== khoaNgay(c.han ?? c.batDau)
-                      ? ' · đợt nhiều ngày' : ''}
+                      ? t('sc.multiDay') : ''}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-0.5">
@@ -744,7 +745,7 @@ function ONgay({
         {viec.length > 0 ? (
           <button
             onClick={(e) => onMoNgay(e.currentTarget.getBoundingClientRect())}
-            title={`${viec.length} việc ngày ${ngay.getDate()}/${ngay.getMonth() + 1}`}
+            title={t('sc.nTasksOn', { n: viec.length, ngay: `${ngay.getDate()}/${ngay.getMonth() + 1}` })}
             className={cn(
               'nhay-bat -mx-0.5 rounded px-0.5 font-mono text-[11px] tabular-nums',
               'transition-colors hover:bg-foreground/10',
@@ -768,7 +769,7 @@ function ONgay({
         {con > 0 && (
           <button
             onClick={(e) => onMoNgay(e.currentTarget.getBoundingClientRect())}
-            title={`Xem ${con} việc còn lại`}
+            title={t('sc.seeRest', { n: con })}
             className="nhay-bat rounded px-1 font-mono text-[9px] font-semibold
                        text-[var(--ut-gap)] transition-colors hover:bg-foreground/10"
           >
@@ -784,7 +785,7 @@ function ONgay({
       {phut > 0 && (
         <span
           className="absolute inset-x-1.5 bottom-1 h-[2px] overflow-hidden rounded-full bg-foreground/8"
-          title={`${Math.round(phut / 6) / 10} giờ`}
+          title={t('sc.hours', { n: Math.round(phut / 6) / 10 })}
         >
           <span
             className={cn(
@@ -934,7 +935,9 @@ function DanhSachViec({
               {c.uocLuongPhut > 0 && (
                 <span className="inline-flex items-center gap-1">
                   <Clock className="size-3" />
-                  {c.uocLuongPhut >= 60 ? `${c.uocLuongPhut / 60} giờ` : `${c.uocLuongPhut} phút`}
+                  {c.uocLuongPhut >= 60
+                    ? t('ck.hours', { n: c.uocLuongPhut / 60 })
+                    : t('ck.minutes', { n: c.uocLuongPhut })}
                 </span>
               )}
             </span>
@@ -996,7 +999,7 @@ function ThanhViec({
   const top = lat ? Math.max(8, hcn.top - CAO) : duoi
 
   const ut = ck.mucUuTien
-  const nhanUuTien = ut === 3 ? 'Gấp' : ut === 2 ? 'Quan trọng' : 'Thường'
+  const nhanUuTien = t(ut === 3 ? 'sc.prio3' : ut === 2 ? 'sc.prio2' : 'sc.prio1')
   const gio = Math.round(ck.uocLuongPhut / 6) / 10
 
   return (
@@ -1064,7 +1067,7 @@ function ThanhViec({
         </button>
         <button
           onClick={onHoiAI}
-          title={`Hỏi trợ lý về: ${ck.noiDung}`}
+          title={t('sc.askAbout', { viec: ck.noiDung })}
           className="nut-ky-thuat flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5
                      text-[11px] font-medium text-foreground"
           style={{ ['--tint' as string]: 'var(--spark)' }}
@@ -1086,7 +1089,7 @@ function nhanNgay(d: Date, homNay: Date): string {
   const cach = Math.round((b.getTime() - a.getTime()) / 86400000)
   if (cach === 0) return `Nay ${gioPhut(d)}`
   if (cach === 1) return `Mai ${gioPhut(d)}`
-  if (cach < 0) return `Trễ ${-cach} ngày`
+  if (cach < 0) return t('sc.lateDays', { n: -cach })
   if (cach < 7) return `${THU[d.getDay()]} ${gioPhut(d)}`
   return `${d.getDate()}/${d.getMonth() + 1}`
 }

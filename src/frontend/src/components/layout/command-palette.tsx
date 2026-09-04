@@ -54,7 +54,7 @@ export function CommandPalette({
       { id: 'archive', label: t('cmd.archiveNews'), hint: t('cmd.archiveHint'), icon: Archive, run: () => ask('lưu trữ thư bản tin') },
       {
         id: 'theme',
-        label: theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối',
+        label: t(theme === 'dark' ? 'cmd.toLight' : 'cmd.toDark'),
         hint: t('cmd.theme'),
         icon: theme === 'dark' ? Sun : Moon,
         run: () => {
@@ -75,7 +75,7 @@ export function CommandPalette({
       return [
         {
           id: 'ask',
-          label: `Hỏi trợ lý: “${query.trim()}”`,
+          label: t('cmd.askAssistant', { q: query.trim() }),
           hint: t('cmd.sendToMeoarc'),
           icon: MessageSquare,
           run: () => ask(query.trim()),

@@ -65,7 +65,7 @@ export function VoiceMode({
         const raf = requestAnimationFrame(tick)
         audioRef.current = { ctx, stream, raf }
       } catch {
-        if (!cancelled) setError('Không truy cập được micro — hãy cấp quyền micro cho trang.')
+        if (!cancelled) setError(t('vo.micNoAccess'))
       }
     })()
 
@@ -97,14 +97,14 @@ export function VoiceMode({
         if (ma === 'no-speech' || ma === 'aborted') return
         setError(
           ma === 'not-allowed' || ma === 'service-not-allowed'
-            ? 'Micro bị từ chối — hãy cấp quyền micro cho trang.'
+            ? t('vo.micDenied')
             : ma === 'audio-capture'
-              ? 'Không tìm thấy micro. Kiểm tra thiết bị thu âm rồi thử lại.'
+              ? t('vo.micMissing')
               : ma === 'network'
-                ? 'Nhận diện giọng nói cần mạng — kiểm tra kết nối rồi thử lại.'
+                ? t('vo.needNet')
                 : ma === 'language-not-supported'
-                  ? 'Trình duyệt chưa hỗ trợ nhận diện tiếng Việt. Hãy dùng Chrome mới nhất.'
-                  : `Nhận diện giọng nói dừng lại (${ma ?? 'không rõ lý do'}). Bạn thử lại nhé.`,
+                  ? t('vo.noVi')
+                  : t('vo.stopped', { ma: ma ?? t('vo.unknownReason') }),
         )
       }
 
@@ -129,7 +129,7 @@ export function VoiceMode({
       }
       recRef.current = rec
     } else {
-      setError('Trình duyệt chưa hỗ trợ nhận diện giọng nói (hãy dùng Chrome hoặc Edge).')
+      setError(t('vo.unsupported'))
     }
 
     return () => {
@@ -237,7 +237,7 @@ export function VoiceMode({
           {/* Transcript trực tiếp */}
           <div className="flex min-h-[4.5rem] max-w-sm flex-col items-center text-center">
             <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              {transcript ? 'Đang nghe…' : 'Hãy nói yêu cầu của bạn'}
+              {transcript ? t('vo.listening') : t('vo.sayIt')}
             </p>
             <p className="mt-2 text-lg font-medium leading-relaxed text-foreground">
               {transcript || (

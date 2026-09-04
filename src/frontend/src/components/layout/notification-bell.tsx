@@ -21,12 +21,12 @@ const META: Record<string, { icon: React.ElementType; ring: string; dot: string 
 function relTime(iso: string | null): string {
   if (!iso) return ''
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'vừa xong'
+  if (s < 60) return t('tm.justNow')
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m} phút trước`
+  if (m < 60) return t('tm.minAgo', { n: m })
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h} giờ trước`
-  return `${Math.floor(h / 24)} ngày trước`
+  if (h < 24) return t('tm.hourAgo', { n: h })
+  return t('tm.dayAgo', { n: Math.floor(h / 24) })
 }
 
 function isToday(iso: string | null): boolean {
@@ -58,7 +58,7 @@ export function NotificationBell() {
   const fireDesktop = useCallback((n: NotificationItem) => {
     if (!canDesktop || Notification.permission !== 'granted') return
     try {
-      const notif = new Notification('MeoArc — thông báo', { body: n.message, tag: `meoarc-${n.id}` })
+      const notif = new Notification(t('notif.desktopTitle'), { body: n.message, tag: `meoarc-${n.id}` })
       notif.onclick = () => {
         window.focus()
         notif.close()
@@ -188,7 +188,7 @@ export function NotificationBell() {
       <DialogTrigger asChild>
         <button
           title={t('nav.notifications')}
-          aria-label={unread ? `Thông báo (${unread} chưa đọc)` : 'Thông báo'}
+          aria-label={unread ? t('notif.withUnread', { n: unread }) : 'Thông báo'}
           className="relative flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95"
         >
           <Bell className={cn('size-5', unread > 0 && 'text-foreground')} />
@@ -211,7 +211,7 @@ export function NotificationBell() {
               <div>
                 <DialogTitle className="font-serif text-lg">{t('nav.notifications')}</DialogTitle>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {unread ? `${unread} chưa đọc` : 'Đã xem hết'}
+                  {unread ? t('notif.unreadCount', { n: unread }) : t('notif.allSeen')}
                 </p>
               </div>
             </div>

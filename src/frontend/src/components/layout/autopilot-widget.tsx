@@ -17,7 +17,6 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { t } from '@/lib/ngon-ngu'
 import { Button } from '@/components/ui/button'
 import { MeoMascot } from '@/components/meo-mascot'
 import { CATEGORY } from '@/data/categories'
@@ -188,11 +187,19 @@ export function AutopilotWidget({
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 font-serif text-[15px] font-semibold leading-tight text-foreground">
             <Sparkles className="size-3.5 text-active" />
-            {phase === 'done' ? 'Mèo đã lái xong hộp thư' : 'Mèo đang tự lái hộp thư'}
+            {dich(phase === 'done' ? 'auto.done' : 'auto.driving')}
           </p>
           <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            {Math.min(cursor, N)}/{N} thư ·{' '}
-            {viewAt !== null ? 'đang xem lại' : phase === 'running' ? 'đang chạy' : phase === 'paused' ? 'tạm dừng' : 'hoàn tất'}
+            {dich('auto.msgCount', { d: Math.min(cursor, N), n: N })} ·{' '}
+            {dich(
+              viewAt !== null
+                ? 'auto.reviewing'
+                : phase === 'running'
+                  ? 'auto.running'
+                  : phase === 'paused'
+                    ? 'auto.paused'
+                    : 'auto.finished',
+            )}
           </p>
         </div>
         {phase !== 'done' ? (
@@ -204,8 +211,8 @@ export function AutopilotWidget({
                 setPhase(cursor >= N ? 'done' : 'running')
               }
             }}
-            title={phase === 'running' ? 'Tạm dừng' : 'Tiếp tục'}
-            aria-label={phase === 'running' ? 'Tạm dừng' : 'Tiếp tục'}
+            title={dich(phase === 'running' ? 'auto.pause' : 'auto.resume')}
+            aria-label={dich(phase === 'running' ? 'auto.pause' : 'auto.resume')}
             className="flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
           >
             {phase === 'running' ? <Pause className="size-4" /> : <Play className="size-4" />}
@@ -213,8 +220,8 @@ export function AutopilotWidget({
         ) : (
           <button
             onClick={restart}
-            title={t('act.rerun')}
-            aria-label={t('act.rerun')}
+            title={dich('act.rerun')}
+            aria-label={dich('act.rerun')}
             className="flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors ease-spring hover:bg-secondary hover:text-foreground active:scale-90"
           >
             <RotateCcw className="size-4" />
@@ -269,7 +276,7 @@ export function AutopilotWidget({
               <ActionChip action={effAction(activeStep)} />
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <ChevronRight className="size-3.5 shrink-0 text-active" />
-                {overrides[activeStep.id] ? 'Bạn đã hoàn tác — giữ lại thư này' : activeStep.reason}
+                {overrides[activeStep.id] ? dich('auto.keptByYou') : activeStep.reason}
               </span>
             </div>
 
@@ -341,7 +348,7 @@ export function AutopilotWidget({
                     }}
                     disabled={i >= cursor}
                     title={`${s.sender} · ${dich(ACTION_META[effAction(s)].khoa)}`}
-                    aria-label={`Tua về ${s.sender}`}
+                    aria-label={dich('auto.rewindTo', { ai: s.sender })}
                     className={cn(
                       'flex size-4 shrink-0 items-center justify-center rounded-full transition-transform ease-spring',
                       i < cursor && 'hover:scale-125 active:scale-95',
@@ -400,16 +407,16 @@ export function AutopilotWidget({
                         </span>
                         <button
                           onClick={() => approve(s.id)}
-                          title={t('act.approveSend')}
-                          aria-label={t('act.approveSend')}
+                          title={dich('act.approveSend')}
+                          aria-label={dich('act.approveSend')}
                           className="flex size-7 items-center justify-center rounded-lg text-success transition-colors hover:bg-success/15 active:scale-90"
                         >
                           <Check className="size-4" />
                         </button>
                         <button
                           onClick={() => undoStep(s.id)}
-                          title={t('act.skip')}
-                          aria-label={t('act.skip')}
+                          title={dich('act.skip')}
+                          aria-label={dich('act.skip')}
                           className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-popover-foreground/10 hover:text-foreground active:scale-90"
                         >
                           <X className="size-4" />
@@ -427,8 +434,8 @@ export function AutopilotWidget({
                         )}
                         <button
                           onClick={() => (overrides[s.id] ? redoStep(s.id) : undoStep(s.id))}
-                          title={overrides[s.id] ? 'Khôi phục đề xuất' : 'Hoàn tác'}
-                          aria-label={overrides[s.id] ? 'Khôi phục' : 'Hoàn tác'}
+                          title={dich(overrides[s.id] ? 'auto.restoreSuggest' : 'auto.undo')}
+                          aria-label={dich(overrides[s.id] ? 'auto.restore' : 'auto.undo')}
                           className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-popover-foreground/10 hover:text-foreground active:scale-90"
                         >
                           {overrides[s.id] ? <RotateCcw className="size-4" /> : <Undo2 className="size-4" />}

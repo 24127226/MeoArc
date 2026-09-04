@@ -26,14 +26,16 @@ import {
 } from '@/components/ui/dialog'
 
 
-/* Nhãn tiếng Việt cho từng giọng văn. Khoá do backend định nghĩa (nguồn sự thật
-   duy nhất ở app/models/user_preference.py); ở đây chỉ dịch để hiển thị. */
-const TONE_LABEL: Record<string, string> = {
-  formal: 'Trang trọng',
-  friendly: 'Thân thiện',
-  concise: 'Ngắn gọn',
-  warm: 'Ấm áp',
-}
+/* Nhãn hiển thị cho từng giọng văn. Khoá do backend định nghĩa (nguồn sự thật
+   duy nhất ở app/models/user_preference.py); ở đây chỉ dịch để hiển thị.
+   Là HÀM chứ không phải hằng: hằng ở tầng module chạy một lần lúc nạp, nên đổi
+   ngôn ngữ xong nhãn vẫn kẹt ở thứ tiếng lúc mở trang. */
+const nhanGiongVan = (): Record<string, string> => ({
+  formal: t('tone.formal'),
+  friendly: t('tone.friendly'),
+  concise: t('tone.concise'),
+  warm: t('tone.warm'),
+})
 
 const MCP_TOOLS = [
   'search_emails',
@@ -65,7 +67,7 @@ function PersonalTab() {
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    api.preferences().then(setPref).catch(() => setErr('Không tải được thiết lập.'))
+    api.preferences().then(setPref).catch(() => setErr(t('set.loadFail')))
   }, [])
 
   const save = async (patch: Partial<PreferenceFields>) => {
@@ -75,7 +77,7 @@ function PersonalTab() {
     try {
       setPref(await api.updatePreferences(patch))
     } catch {
-      setErr('Chưa lưu được. Thử lại nhé.')
+      setErr(t('set.saveFail'))
     } finally {
       setSaving(null)
     }
@@ -123,7 +125,7 @@ function PersonalTab() {
                     : 'border-border/40 bg-popover-foreground/5 hover:bg-popover-foreground/10',
                 )}
               >
-                {TONE_LABEL[key] ?? key}
+                {nhanGiongVan()[key] ?? key}
                 <span className="mt-0.5 block text-[11px] leading-snug text-popover-foreground/50">
                   {desc.split(',')[0]}
                 </span>
@@ -184,7 +186,7 @@ function PersonalTab() {
       </div>
 
       <p className="h-4 text-xs text-popover-foreground/50">
-        {saving ? 'Đang lưu…' : err || 'Tự lưu khi bạn rời khỏi ô.'}
+        {saving ? t('set.saving') : err || t('set.autosave')}
       </p>
     </div>
   )
