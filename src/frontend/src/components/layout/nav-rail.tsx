@@ -338,8 +338,8 @@ export function NavRail({
         </div>
         <button
           onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? 'nav.expand' : 'nav.collapse'}
-          aria-label={collapsed ? 'nav.expand' : 'nav.collapse'}
+          title={t(collapsed ? 'nav.expand' : 'nav.collapse')}
+          aria-label={t(collapsed ? 'nav.expand' : 'nav.collapse')}
           className={cn(
             'flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95',
             !collapsed && 'ml-auto',

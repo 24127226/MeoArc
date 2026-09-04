@@ -2035,7 +2035,7 @@ export function ChatPanel({
                   return !v
                 })
               }}
-              title={ttsOn ? 'ch.ttsOff' : 'ch.ttsOn'}
+              title={t(ttsOn ? 'ch.ttsOff' : 'ch.ttsOn')}
               className={cn(
                 'flex size-8 items-center justify-center rounded-lg transition-colors',
                 ttsOn ? 'text-active bg-background shadow-sm' : 'text-muted-foreground hover:bg-background/40 hover:text-foreground',
@@ -2599,7 +2599,7 @@ function DraftCard({
       <CardHeader>
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Mail className="size-4 text-primary" />
-          {editing ? 'ch.editDraft' : 'ch.replyDraft'}
+          {t(editing ? 'ch.editDraft' : 'ch.replyDraft')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1.5 pt-2 text-sm">
@@ -2789,7 +2789,7 @@ function CategorizeWidget({
             >
               <button
                 onClick={() => toggle(r.id)}
-                title={off ? 'ch.includeAgain' : 'ch.skipThis'}
+                title={t(off ? 'ch.includeAgain' : 'ch.skipThis')}
                 className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-popover-foreground/10 active:scale-90"
               >
                 {off ? <Square className="size-4" /> : <CheckSquare className="size-4 text-success" />}
@@ -3066,7 +3066,7 @@ function AgentMessage({
           <CardHeader>
             <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <ListChecks className="size-4 text-primary" />
-              {running ? 'ch.executing' : 'ch.planProposed'}
+              {t(running ? 'ch.executing' : 'ch.planProposed')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
