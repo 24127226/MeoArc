@@ -103,20 +103,20 @@ export function AccountMenu() {
             {/* ĐỔI TÀI KHOẢN KHÔNG CẦN ĐĂNG XUẤT — đúng cách Google làm.
                 Chỉ hiện khi CÓ tài khoản khác; một danh sách một dòng thì chỉ tổ
                 chiếm chỗ và làm người dùng tưởng mình bỏ sót thao tác gì đó. */}
-            {dsTaiKhoan.filter((t) => !t.dang_dung).length > 0 && (
+            {dsTaiKhoan.filter((tk) => !tk.dang_dung).length > 0 && (
               <div className="flex flex-col gap-1">
                 <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-popover-foreground/50">
-                  Chuyển sang
+                  {t('acct.switchTo')}
                 </p>
-                {dsTaiKhoan.filter((t) => !t.dang_dung).map((t) => (
+                {dsTaiKhoan.filter((tk) => !tk.dang_dung).map((tk) => (
                   <button
-                    key={t.user_id}
+                    key={tk.user_id}
                     onClick={() => {
                       // Đổi xong TẢI LẠI trang: cookie phiên đã khác, mà mọi dữ liệu
                       // đang giữ trong bộ nhớ (thư, hội thoại, cam kết) là của tài
                       // khoản cũ. Trộn hai hộp thư trên cùng một màn hình còn tệ hơn
                       // hẳn một nhịp chờ.
-                      fetch(duongDanApi(`/auth/switch/${t.user_id}`),
+                      fetch(duongDanApi(`/auth/switch/${tk.user_id}`),
                             { method: 'POST', credentials: 'include' })
                         .then((r) => { if (r.ok) window.location.reload() })
                         .catch(() => {})
@@ -124,11 +124,11 @@ export function AccountMenu() {
                     className="flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-popover-foreground/8"
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-popover-foreground/10 font-serif text-xs font-semibold">
-                      {(t.name || t.email).slice(0, 1).toUpperCase()}
+                      {(tk.name || tk.email).slice(0, 1).toUpperCase()}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[13px] font-medium text-popover-foreground">{t.name}</span>
-                      <span className="block truncate text-[11px] text-popover-foreground/60">{t.email}</span>
+                      <span className="block truncate text-[13px] font-medium text-popover-foreground">{tk.name}</span>
+                      <span className="block truncate text-[11px] text-popover-foreground/60">{tk.email}</span>
                     </span>
                   </button>
                 ))}
@@ -149,15 +149,15 @@ export function AccountMenu() {
                   sách, nên tài khoản đang mở vẫn còn nguyên khi quay lại. */}
               <Button variant="outline" onClick={() => { window.location.href = duongDanApi('/auth/google/start') }}>
                 <UserPlus className="size-4" />
-                Thêm tài khoản khác
+                {t('acct.addAnother')}
               </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="size-4" />
-                Đăng xuất tài khoản này
+                {t('acct.logoutThis')}
               </Button>
               <Button variant="ghost" onClick={() => setStep('revoke')}>
                 <ShieldOff className="size-4" />
-                Thu hồi quyền Gmail
+                {t('acct.revoke')}
               </Button>
             </div>
           </>
@@ -166,20 +166,19 @@ export function AccountMenu() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="size-5 text-destructive" />
-                Thu hồi quyền Gmail?
+                {t('acct.revokeAsk')}
               </DialogTitle>
               <DialogDescription>
-                MeoArc sẽ mất toàn bộ quyền đọc &amp; quản lý thư trên Gmail của bạn và bạn sẽ bị
-                đăng xuất. Lần sau muốn dùng lại phải cấp quyền từ đầu.
+                {t('acct.revokeWarn')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep('menu')}>
-                Huỷ
+                {t('act.cancel')}
               </Button>
               <Button variant="destructive" onClick={handleRevoke}>
                 <ShieldOff className="size-4" />
-                Thu hồi &amp; đăng xuất
+                {t('acct.revokeGo')}
               </Button>
             </DialogFooter>
           </>

@@ -310,17 +310,17 @@ export function ComposeDialog() {
 
               {/* Người gửi */}
               <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2 text-xs text-popover-foreground/60">
-                <span className="text-popover-foreground/80">Từ</span>
+                <span className="text-popover-foreground/80">{t('mail.from')}</span>
                 Anh Quân &lt;quanpta.meoarc@gmail.com&gt;
               </div>
 
               {/* Tới + Cc/Bcc toggle + autocomplete người nhận (như Gmail) */}
               <div className="relative">
                 <div className="flex items-center gap-2 border-b border-border/30 px-3.5 py-2">
-                  <span className="w-7 shrink-0 text-xs text-popover-foreground/60">Tới</span>
+                  <span className="w-7 shrink-0 text-xs text-popover-foreground/60">{t('mail.to')}</span>
                   <input
                     className={fieldCls}
-                    placeholder="email người nhận"
+                    placeholder={t('mail.toPlaceholder')}
                     value={to}
                     onChange={(e) => onToChange(e.target.value)}
                     onKeyDown={(e) => {
@@ -378,7 +378,7 @@ export function ComposeDialog() {
               <div className="border-b border-border/30 px-3.5 py-2">
                 <input
                   className={`${fieldCls} font-medium`}
-                  placeholder="Chủ đề"
+                  placeholder={t('mail.subject')}
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
@@ -421,7 +421,7 @@ export function ComposeDialog() {
               ) : (
                 <textarea
                   className={`${fieldCls} min-h-44 resize-none px-3.5 py-3 leading-relaxed`}
-                  placeholder="Nội dung email…"
+                  placeholder={t('mail.bodyPlaceholder')}
                   value={body}
                   onChange={(e) => onBodyChange(e.target.value)}
                   onKeyDown={(e) => {
@@ -521,7 +521,7 @@ export function ComposeDialog() {
               <span className="text-sm font-medium">
                 {dragging ? 'Thả ra để đính kèm ✨' : 'Kéo & thả tệp vào đây'}
               </span>
-              <span className="text-xs text-muted-foreground">hoặc bấm để chọn từ máy</span>
+              <span className="text-xs text-muted-foreground">{t('mail.orBrowse')}</span>
             </div>
 
             <input
@@ -575,7 +575,7 @@ export function ComposeDialog() {
             </DialogHeader>
             <div className="space-y-2 rounded-xl bg-popover-foreground/5 p-3.5 text-sm text-popover-foreground">
               <p>
-                <span className="text-popover-foreground/60">Tới:</span> {to}
+                <span className="text-popover-foreground/60">{t('mail.toLabel')}</span> {to}
               </p>
               {cc && (
                 <p>

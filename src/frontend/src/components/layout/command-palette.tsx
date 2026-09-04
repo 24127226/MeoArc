@@ -46,16 +46,16 @@ export function CommandPalette({
   // Lệnh tĩnh — phần lớn đẩy NL sang agent (UC007)
   const commands = useMemo<Cmd[]>(
     () => [
-      { id: 'digest', label: 'Digest hôm nay', hint: 'Báo cáo nhanh hộp thư', icon: Sparkles, run: () => ask('digest hôm nay') },
-      { id: 'triage', label: 'Triage hộp thư', hint: 'Phân loại theo ưu tiên', icon: ListChecks, run: () => ask('triage hộp thư') },
-      { id: 'brief', label: 'Meeting Brief', hint: 'Tóm tắt cuộc họp', icon: CalendarClock, run: () => ask('brief cuộc họp') },
-      { id: 'summarize', label: 'Tóm tắt thư chưa đọc', hint: 'Rút gọn nội dung', icon: FileText, run: () => ask('tóm tắt thư chưa đọc') },
-      { id: 'autolabel', label: 'Phân loại tự động', hint: 'Gắn nhãn toàn bộ', icon: Tag, run: () => ask('phân loại tự động toàn bộ') },
-      { id: 'archive', label: 'Lưu trữ thư bản tin', hint: 'Dọn hộp thư', icon: Archive, run: () => ask('lưu trữ thư bản tin') },
+      { id: 'digest', label: t('cmd.digest'), hint: t('cmd.digestHint'), icon: Sparkles, run: () => ask('digest hôm nay') },
+      { id: 'triage', label: t('cmd.triage'), hint: t('cmd.triageHint'), icon: ListChecks, run: () => ask('triage hộp thư') },
+      { id: 'brief', label: 'Meeting Brief', hint: t('cmd.briefHint'), icon: CalendarClock, run: () => ask('brief cuộc họp') },
+      { id: 'summarize', label: t('cmd.summarize'), hint: t('cmd.summarizeHint'), icon: FileText, run: () => ask('tóm tắt thư chưa đọc') },
+      { id: 'autolabel', label: t('skill.autolabel'), hint: t('cmd.autolabelHint'), icon: Tag, run: () => ask('phân loại tự động toàn bộ') },
+      { id: 'archive', label: t('cmd.archiveNews'), hint: t('cmd.archiveHint'), icon: Archive, run: () => ask('lưu trữ thư bản tin') },
       {
         id: 'theme',
         label: theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối',
-        hint: 'Đổi theme',
+        hint: t('cmd.theme'),
         icon: theme === 'dark' ? Sun : Moon,
         run: () => {
           onToggleTheme()
@@ -76,7 +76,7 @@ export function CommandPalette({
         {
           id: 'ask',
           label: `Hỏi trợ lý: “${query.trim()}”`,
-          hint: 'Gửi cho MeoArc xử lý',
+          hint: t('cmd.sendToMeoarc'),
           icon: MessageSquare,
           run: () => ask(query.trim()),
         },
@@ -141,7 +141,7 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Gõ lệnh hoặc hỏi trợ lý…"
+            placeholder={t('cmd.placeholder')}
             className="w-full bg-transparent text-sm text-popover-foreground outline-none placeholder:text-popover-foreground/40"
           />
           <kbd className="hidden shrink-0 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] font-medium text-popover-foreground/50 sm:block">

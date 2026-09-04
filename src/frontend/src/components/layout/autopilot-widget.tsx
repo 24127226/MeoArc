@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { MeoMascot } from '@/components/meo-mascot'
 import { CATEGORY } from '@/data/categories'
 import type { AutopilotAction, AutopilotStep, AgentReply } from '@/lib/agent'
+import { t as dich } from '@/lib/ngon-ngu'
 
 /** Kết quả tự lái gửi về ChatPanel để áp dụng thật qua EmailActions. */
 export type AutopilotResult = {
@@ -33,13 +34,13 @@ export type AutopilotResult = {
 
 type Tone = 'safe' | 'risk' | 'hold'
 
-const ACTION_META: Record<AutopilotAction, { icon: React.ElementType; label: string; tone: Tone }> =
+const ACTION_META: Record<AutopilotAction, { icon: React.ElementType; khoa: string; tone: Tone }> =
   {
-    archive: { icon: Archive, label: 'Lưu trữ', tone: 'safe' },
-    markRead: { icon: MailOpen, label: 'Đánh dấu đã đọc', tone: 'safe' },
-    flag: { icon: Star, label: 'Gắn sao', tone: 'safe' },
-    reply: { icon: Send, label: 'Soạn trả lời', tone: 'risk' },
-    keep: { icon: Inbox, label: 'Giữ lại', tone: 'hold' },
+    archive: { icon: Archive, khoa: 'act.archive', tone: 'safe' },
+    markRead: { icon: MailOpen, khoa: 'act.markRead', tone: 'safe' },
+    flag: { icon: Star, khoa: 'act.star', tone: 'safe' },
+    reply: { icon: Send, khoa: 'act.replyDraft', tone: 'risk' },
+    keep: { icon: Inbox, khoa: 'act.keep', tone: 'hold' },
   }
 
 const TONE_CHIP: Record<Tone, string> = {
@@ -90,7 +91,7 @@ function ActionChip({ action, className }: { action: AutopilotAction; className?
       )}
     >
       <Icon className="size-3.5" />
-      {m.label}
+      {dich(m.khoa)}
     </span>
   )
 }
@@ -323,7 +324,7 @@ export function AutopilotWidget({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Cỗ máy thời gian
             </span>
-            <span className="text-[11px] text-muted-foreground/70">— bấm để tua lại</span>
+            <span className="text-[11px] text-muted-foreground/70">{dich('auto.replay')}</span>
           </div>
           <div className="flex items-center px-0.5">
             {plan.map((s, i) => {
@@ -339,7 +340,7 @@ export function AutopilotWidget({
                       setPhase('paused')
                     }}
                     disabled={i >= cursor}
-                    title={`${s.sender} · ${ACTION_META[effAction(s)].label}`}
+                    title={`${s.sender} · ${dich(ACTION_META[effAction(s)].khoa)}`}
                     aria-label={`Tua về ${s.sender}`}
                     className={cn(
                       'flex size-4 shrink-0 items-center justify-center rounded-full transition-transform ease-spring',
@@ -445,10 +446,10 @@ export function AutopilotWidget({
           <div className="space-y-3 border-t border-border/40 pt-3 duration-300 animate-in fade-in slide-in-from-bottom-2">
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: 'Lưu trữ', value: result.counts.archive },
-                { label: 'Đã đọc', value: result.counts.markRead },
-                { label: 'Gắn sao', value: result.counts.flag },
-                { label: 'Đã gửi', value: result.counts.replied },
+                { label: dich('act.archive'), value: result.counts.archive },
+                { label: dich('auto.read'), value: result.counts.markRead },
+                { label: dich('act.star'), value: result.counts.flag },
+                { label: dich('auto.sent'), value: result.counts.replied },
               ].map((t) => (
                 <div
                   key={t.label}

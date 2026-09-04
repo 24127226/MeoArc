@@ -2,6 +2,7 @@ import { Zap, AlertTriangle } from 'lucide-react'
 import type { SubscriptionStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { dailyRatio, isOutOfTokens, turnsLeft } from '@/lib/subscription'
+import { t } from '@/lib/ngon-ngu'
 
 /* ══════════════════════════════════════════════════════════════════════════════
    ĐỒNG HỒ TOKEN — chip nhỏ nằm ngay cạnh ô nhập chat.
@@ -36,12 +37,12 @@ export function TokenMeter({ status, onUpgrade, compact = false }: {
     <button
       onClick={onUpgrade}
       title={
-        `Gói ${status.tierLabel} — đã dùng ${status.daily.used.toLocaleString('vi-VN')} / ` +
-        `${status.daily.limit.toLocaleString('vi-VN')} token hôm nay.
-` +
-        `Trợ lý đọc ${status.scanDays} ngày thư gần nhất; thư cũ hơn vẫn tìm được bằng từ khoá.
-` +
-        `Bấm để xem các gói.`
+        t('tok.title', {
+          goi: status.tierLabel,
+          dung: status.daily.used.toLocaleString('vi-VN'),
+          tran: status.daily.limit.toLocaleString('vi-VN'),
+          ngay: status.scanDays,
+        })
       }
       className={cn(
         'group flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-secondary/40 px-2.5 py-1.5',
@@ -57,7 +58,7 @@ export function TokenMeter({ status, onUpgrade, compact = false }: {
 
       <span className="flex flex-col items-start gap-1">
         <span className={cn('font-mono text-[10.5px] font-semibold leading-none tabular-nums', tone)}>
-          {out ? 'Hết token' : `${left} lượt`}
+          {out ? t('tok.out') : t('tok.left', { n: left })}
         </span>
         {!compact && (
           <span className="h-1 w-14 overflow-hidden rounded-full bg-border/70">
@@ -94,12 +95,12 @@ export function QuotaBanner({ status, onUpgrade }: {
       <AlertTriangle className="size-4 shrink-0 text-destructive" />
       <div className="min-w-0 flex-1">
         <p className="text-[12.5px] font-semibold text-foreground">
-          Đã dùng hết token {daily ? 'hôm nay' : 'tháng này'} của gói {status.tierLabel}
+          {t('tok.usedUp', { khi: t(daily ? 'tok.today' : 'tok.month'), goi: status.tierLabel })}
         </p>
         <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">
           {daily
-            ? `Hạn mức ${shortNum(status.daily.limit)} token/ngày đã cạn. Chờ sang ngày mai hoặc nâng gói để hỏi tiếp.`
-            : `Hạn mức ${shortNum(status.monthly.limit)} token/tháng đã cạn. Nâng gói để tiếp tục.`}
+            ? t('tok.dayGone', { n: shortNum(status.daily.limit) })
+            : t('tok.monthGone', { n: shortNum(status.monthly.limit) })}
         </p>
       </div>
       <button

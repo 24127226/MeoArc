@@ -1,6 +1,7 @@
 import { Sparkles, Zap, Crown } from 'lucide-react'
 import type { SubscriptionStatus, TokenBucket } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { t } from '@/lib/ngon-ngu'
 
 /* ══════════════════════════════════════════════════════════════════════════════
    KHỐI GÓI & HẠN MỨC TOKEN — nhúng trong menu tài khoản (UC013 mở rộng).
@@ -75,12 +76,12 @@ export function UsageSummary({ status, onOpenPlans }: {
           onClick={onOpenPlans}
           className="rounded-full bg-active px-3 py-1 text-[11px] font-semibold text-active-foreground transition-transform active:scale-95"
         >
-          {status.tier === 'max' ? 'Xem gói' : 'Nâng cấp'}
+          {t(status.tier === 'max' ? 'sub.viewPlans' : 'sub.upgrade')}
         </button>
       </div>
       <div className="mt-3 space-y-2.5">
-        <UsageBar bucket={status.daily} label="Hôm nay" />
-        <UsageBar bucket={status.monthly} label="Tháng này" />
+        <UsageBar bucket={status.daily} label={t('cal.today')} />
+        <UsageBar bucket={status.monthly} label={t('sub.thisMonth')} />
       </div>
       {nearLimit && (
         <p className="mt-2.5 text-[11px] leading-relaxed text-gold">

@@ -122,7 +122,7 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
         id: `han-${c.id}`,
         loai: 'han',
         tieu_de: c.noiDung,
-        phu: `Còn ${soGio} giờ · ${c.nguoiCho} đang chờ`,
+        phu: dich('al.hoursLeft', { n: soGio, ai: c.nguoiCho }),
         mucRuiRo: 2,
       })
     }
@@ -141,7 +141,7 @@ export function AlertOverlay({ emails }: { emails: Email[] }) {
           tieu_de: e.subject,
           // Thư mới chưa qua triage nên chưa biết mức ưu tiên. Nói đúng thứ
           // BIẾT CHẮC (ai gửi) còn hơn đoán một mức ưu tiên chưa có.
-          phu: `${e.sender} · thư mới`,
+          phu: dich('al.newMail', { ai: e.sender }),
           mucRuiRo: e.priority === 'High' ? 2 : 1,
         })
       }

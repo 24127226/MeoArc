@@ -1,30 +1,30 @@
 import { useState } from 'react'
 import { Inbox, Sparkles, Mic, Command } from 'lucide-react'
 import { MeoMascot } from '@/components/meo-mascot'
-import { t } from '@/lib/ngon-ngu'
+import { t as dich } from '@/lib/ngon-ngu'
 
 const KEY = 'meoarc:onboarded'
 
 const TIPS = [
   {
     icon: Inbox,
-    title: 'Giao diện 3 cột',
-    desc: 'Điều hướng trái · danh sách thư giữa · trợ lý AI phải. Kéo mép phải để chỉnh rộng.',
+    tieuDe: 'onb.t1',
+    moTa: 'onb.d1',
   },
   {
     icon: Sparkles,
-    title: 'Trợ lý ngôn ngữ tự nhiên',
-    desc: 'Cứ nhắn lời thường: “tóm tắt thư chưa đọc”, “lưu trữ thư bản tin”, “brief cuộc họp”…',
+    tieuDe: 'onb.t2',
+    moTa: 'onb.d2',
   },
   {
     icon: Mic,
-    title: 'Ra lệnh bằng giọng nói',
-    desc: 'Bấm mic để nói — trợ lý nghe, hiểu và đọc lại câu trả lời cho bạn.',
+    tieuDe: 'onb.t3',
+    moTa: 'onb.d3',
   },
   {
     icon: Command,
-    title: 'Phím tắt nhanh',
-    desc: '⌘K mở bảng lệnh · / tìm kiếm · j/k duyệt thư · Enter mở · c soạn thư.',
+    tieuDe: 'onb.t4',
+    moTa: 'onb.d4',
   },
 ]
 
@@ -44,7 +44,7 @@ export function Onboarding() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t('onb.welcome')}
+        aria-label={dich('onb.welcome')}
         className="glass edge-light relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-accent/30 p-7 shadow-float duration-300 animate-in fade-in zoom-in-95"
       >
         {/* Mèo chào */}
@@ -65,13 +65,13 @@ export function Onboarding() {
           {TIPS.map((t) => {
             const Icon = t.icon
             return (
-              <div key={t.title} className="flex items-start gap-3 rounded-2xl bg-popover-foreground/5 p-3">
+              <div key={t.tieuDe} className="flex items-start gap-3 rounded-2xl bg-popover-foreground/5 p-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
                   <Icon className="size-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{t.title}</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">{t.desc}</p>
+                  <p className="text-sm font-semibold text-foreground">{dich(t.tieuDe)}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{dich(t.moTa)}</p>
                 </div>
               </div>
             )

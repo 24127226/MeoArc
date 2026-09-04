@@ -135,7 +135,9 @@ function DongCamKet({ ck, onOpen }: { ck: CamKet; onOpen: () => void }) {
               <span className="text-muted-foreground/40">·</span>
               <span className="inline-flex items-center gap-1">
                 <Clock className="size-3" />
-                {ck.uocLuongPhut >= 60 ? `${ck.uocLuongPhut / 60} giờ` : `${ck.uocLuongPhut} phút`}
+                {ck.uocLuongPhut >= 60
+                  ? t('ck.hours', { n: ck.uocLuongPhut / 60 })
+                  : t('ck.minutes', { n: ck.uocLuongPhut })}
               </span>
             </>
           )}
@@ -166,7 +168,7 @@ function DongCamKet({ ck, onOpen }: { ck: CamKet; onOpen: () => void }) {
             ck.mucRuiRo === 2 ? 'rui-ro-2 text-[var(--rr-can)]' : 'rui-ro-1 text-[var(--rr-hoan)]',
           )}
         >
-          {ck.trangThai === 'dang_doi' ? 'Đang đợi' : ck.mucRuiRo === 2 ? 'Gấp' : 'Chưa làm'}
+          {t(ck.trangThai === 'dang_doi' ? 'flt.waiting' : ck.mucRuiRo === 2 ? 'ck.urgent' : 'ck.todo')}
         </span>
         <ArrowUpRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
       </span>

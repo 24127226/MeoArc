@@ -152,12 +152,12 @@ function initSessions(): Session[] {
 // Hai thứ này phục vụ hai đối tượng khác nhau: nhãn là cho người đọc, prompt là cho
 // mô hình. Dịch luôn cả prompt thì phải chỉnh lại phần nhận diện ý định ở backend —
 // một thay đổi không ai yêu cầu, và là đúng kiểu "sửa cái này hỏng cái kia".
-const SKILLS = [
-  { label: 'Hộp thư tự lái', prompt: 'tự lái hộp thư' },
-  { label: 'Tóm tắt hôm nay', prompt: 'digest hôm nay' },
-  { label: 'Phân loại ưu tiên', prompt: 'triage hộp thư' },
-  { label: 'Tóm lược cuộc họp', prompt: 'brief cuộc họp' },
-  { label: 'Phân loại tự động', prompt: 'phân loại tự động toàn bộ' },
+const dsSkills = () => [
+  { label: t('skill.autopilot'), prompt: 'tự lái hộp thư' },
+  { label: t('skill.digest'), prompt: 'digest hôm nay' },
+  { label: t('skill.triage'), prompt: 'triage hộp thư' },
+  { label: t('skill.brief'), prompt: 'brief cuộc họp' },
+  { label: t('skill.autolabel'), prompt: 'phân loại tự động toàn bộ' },
 ]
 
 /** GỢI Ý CÂU TIẾP THEO — suy từ THỂ LOẠI câu trả lời vừa rồi.
@@ -1329,7 +1329,7 @@ export function ChatPanel({
       map.get(b)!.push(s)
     })
     const groups: { label: string; items: Session[]; pinned?: boolean }[] = []
-    if (pinned.length) groups.push({ label: 'Đã ghim', items: pinned, pinned: true })
+    if (pinned.length) groups.push({ label: t('st.pinned'), items: pinned, pinned: true })
     TIME_ORDER.filter((o) => map.has(o)).forEach((o) => groups.push({ label: o, items: map.get(o)! }))
     return groups
   }, [sessions, historyQuery])
@@ -2118,7 +2118,7 @@ export function ChatPanel({
 
         {/* Kỹ năng AI — LUÔN hiện (không thu gọn) */}
         <div className="mb-2 flex flex-wrap gap-2">
-          {SKILLS.map((s) => (
+          {dsSkills().map((s) => (
             <button
               key={s.label}
               onClick={() => send(s.prompt)}
@@ -2191,7 +2191,7 @@ export function ChatPanel({
               <div className="mb-1.5 flex items-center gap-2 rounded-xl border border-[var(--spark)]/30 bg-[var(--spark)]/10 px-3 py-1.5">
                 <CalendarClock className="size-3.5 shrink-0 text-[var(--spark)]" />
                 <span className="min-w-0 flex-1 truncate text-[12px]">
-                  <span className="text-muted-foreground">Đang hỏi về: </span>
+                  <span className="text-muted-foreground">{t('st.askingAbout')} </span>
                   <span className="font-medium">{boiCanh.tieuDe}</span>
                 </span>
                 <button
@@ -2275,7 +2275,7 @@ export function ChatPanel({
             <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emphasis text-emphasis-foreground shadow-subtle">
               <Sparkles className="size-4" />
             </span>
-            <span className="flex-1 truncate text-sm text-muted-foreground">Nhắn cho trợ lý MeoArc…</span>
+            <span className="flex-1 truncate text-sm text-muted-foreground">{t('chat.placeholder')}</span>
             <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Send className="size-4" />
             </span>
@@ -2340,7 +2340,7 @@ export function ChatPanel({
             <input
               value={historyQuery}
               onChange={(e) => setHistoryQuery(e.target.value)}
-              placeholder="Tìm trong lịch sử…"
+              placeholder={t('chat.searchHistory')}
               className="w-full rounded-xl border border-border/40 bg-popover-foreground/5 py-2 pl-9 pr-3 text-sm text-popover-foreground outline-none transition-shadow placeholder:text-popover-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/40"
             />
           </div>
@@ -2604,7 +2604,7 @@ function DraftCard({
         ) : (
           <>
             <p className="text-muted-foreground text-xs">
-              <span className="text-foreground font-medium">Tới:</span> {to}
+              <span className="text-foreground font-medium">{t('mail.toLabel')}</span> {to}
             </p>
             <p className="text-muted-foreground text-xs">
               <span className="text-foreground font-medium">{t('mail.subjectLabel')}</span> {subject}
@@ -2656,7 +2656,7 @@ function DraftCard({
               value={rwText}
               onChange={(e) => setRwText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doRewrite()}
-              placeholder="Gợi ý: ngắn gọn hơn, trang trọng hơn…"
+              placeholder={t('chat.rewriteHint')}
               className={fieldCls}
             />
             <Button size="sm" variant="accent" onClick={doRewrite}>

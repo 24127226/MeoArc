@@ -14,7 +14,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useT } from '@/lib/ngon-ngu'
+import { t } from '@/lib/ngon-ngu'
 import { LogoMark } from '@/components/logo'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { SettingsDialog } from '@/components/layout/settings-dialog'
@@ -86,7 +86,6 @@ function MucNav({
   to: boolean
 }) {
   const Icon = item.icon
-  const t = useT()
   return (
     <button
       onClick={onBam}
@@ -137,7 +136,6 @@ function OThuMuc({
   onBam: () => void
 }) {
   const Icon = item.icon
-  const t = useT()
   return (
     <button
       onClick={onBam}
@@ -212,7 +210,7 @@ function DaiApLuc({
               <span
                 key={x.ngay.toISOString()}
                 className="relative flex min-w-0 flex-1 flex-col items-center gap-1"
-                title={`${CHU[x.ngay.getDay()]} — ${x.soViec} việc, ${Math.round(x.phut / 6) / 10} giờ`}
+                title={t('nav.dayLoad', { thu: CHU[x.ngay.getDay()], n: x.soViec, gio: Math.round(x.phut / 6) / 10 })}
               >
                 <span className="flex h-6 w-full items-end">
                   <span
@@ -241,7 +239,7 @@ function DaiApLuc({
         {!collapsed && (
           <p className="mt-1.5 border-t border-border/15 pt-1 text-center font-mono text-[8px] uppercase tracking-[0.1em] text-muted-foreground/55">
             {tongViec === 0 ? (
-              'tuần này trống'
+              t('nav.weekEmpty')
             ) : ngayQuaTai > 0 ? (
               <span className="text-[var(--ut-gap)]">{ngayQuaTai} ngày quá tải · {soGio} giờ</span>
             ) : (
@@ -264,7 +262,7 @@ function SystemStatus({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed) {
     return (
-      <div className="flex flex-col items-center gap-1.5 py-2" title={`Trợ lý sẵn sàng · ${hhmm}`}>
+      <div className="flex flex-col items-center gap-1.5 py-2" title={t('nav.ready', { gio: hhmm })}>
         <span className="pulse-dot" aria-hidden />
         <span className="font-mono text-[9px] tabular-nums text-muted-foreground/45">{hhmm}</span>
       </div>
@@ -340,8 +338,8 @@ export function NavRail({
         </div>
         <button
           onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
-          aria-label={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
+          title={collapsed ? 'nav.expand' : 'nav.collapse'}
+          aria-label={collapsed ? 'nav.expand' : 'nav.collapse'}
           className={cn(
             'flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95',
             !collapsed && 'ml-auto',

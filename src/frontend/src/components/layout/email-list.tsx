@@ -47,30 +47,30 @@ import type { Category, Email, TaskStatus } from '@/data/emails'
 
 /** Thanh tag danh mục = 'Tất cả' + ĐỦ 7 nhãn (nguồn duy nhất: CATEGORY_OPTIONS).
  *  Render dạng flex-wrap 2 hàng → thấy hết tag ngay, không phải kéo ngang tìm. */
-const FILTERS: { key: Category | 'all'; label: string }[] = [
-  { key: 'all', label: 'Tất cả' },
+const dsFilters = (): { key: Category | 'all'; label: string }[] => [
+  { key: 'all', label: t('flt.all') },
   ...CATEGORY_OPTIONS,
 ]
 
 /* Chip trạng thái việc (PA1 §4.2.9: Todo / Waiting / Done).
    Hiển thị theo STATUS chứ không theo priority: người dùng cần biết "phải làm gì"
    trước khi cần biết "gấp cỡ nào". Độ gấp thể hiện bằng sắc thái chip bên dưới. */
-const STATUS_CHIP: Record<TaskStatus, { label: string; cls: string; dot: string }> = {
-  Todo: { label: 'Cần xử lý', cls: 'bg-spark/20 text-foreground', dot: 'cherry-dot' },
-  Waiting: { label: 'Đang đợi', cls: 'bg-active/20 text-foreground', dot: 'bg-active' },
-  Done: { label: 'Xong', cls: 'bg-muted/40 text-muted-foreground', dot: 'bg-muted-foreground/60' },
-}
+const chipTrangThai = (): Record<TaskStatus, { label: string; cls: string; dot: string }> => ({
+  Todo: { label: t('flt.action'), cls: 'bg-spark/20 text-foreground', dot: 'cherry-dot' },
+  Waiting: { label: t('flt.waiting'), cls: 'bg-active/20 text-foreground', dot: 'bg-active' },
+  Done: { label: t('flt.done'), cls: 'bg-muted/40 text-muted-foreground', dot: 'bg-muted-foreground/60' },
+})
 
 /* Ưu tiên Cao được nhấn thêm; Medium/Low giữ nguyên nền chip để danh sách không
    biến thành một bức tường màu đỏ. */
 const HIGH_RING = 'ring-1 ring-spark/50'
 
-const QUICK = [
-  { key: 'unread', label: 'Chưa đọc' },
-  { key: 'starred', label: 'Gắn sao' },
-  { key: 'attachment', label: 'Đính kèm' },
+const dsQuick = () => [
+  { key: 'unread', label: t('flt.unread') },
+  { key: 'starred', label: t('act.star') },
+  { key: 'attachment', label: t('flt.attach') },
 ] as const
-type QuickKey = (typeof QUICK)[number]['key']
+type QuickKey = ReturnType<typeof dsQuick>[number]['key']
 
 function CardAction({
   icon: Icon,
@@ -286,15 +286,15 @@ function EmailCard({
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
               {email.status && (
                 <span
-                  title={email.priority ? `Độ ưu tiên: ${email.priority}` : undefined}
+                  title={email.priority ? t('mail.prioTitle', { muc: email.priority }) : undefined}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                    STATUS_CHIP[email.status].cls,
+                    chipTrangThai()[email.status].cls,
                     email.priority === 'High' && HIGH_RING,
                   )}
                 >
-                  <span className={cn('size-1.5 rounded-full', STATUS_CHIP[email.status].dot)} />
-                  {STATUS_CHIP[email.status].label}
+                  <span className={cn('size-1.5 rounded-full', chipTrangThai()[email.status].dot)} />
+                  {chipTrangThai()[email.status].label}
                 </span>
               )}
               {email.label && (
@@ -331,9 +331,9 @@ const FOLDER_ICONS: Record<string, React.ElementType> = {
 }
 
 const FOLDER_TITLES: Record<string, string> = {
-  inbox: 'Hộp thư',
-  starred: 'Gắn sao',
-  sent: 'Đã gửi',
+  inbox: 'fld.inbox',
+  starred: 'fld.starred',
+  sent: 'fld.sent',
   drafts: 'Nháp',
   archive: 'Lưu trữ',
   trash: 'Thùng rác',
@@ -532,7 +532,7 @@ export function EmailList({
   }
   const quickStar = (e: Email) => {
     actions.setImportant([e.id], !e.starred)
-    toast(e.starred ? 'Đã bỏ quan trọng' : 'Đã đánh dấu quan trọng', 'success')
+    toast(t(e.starred ? 'toast.unstarred' : 'toast.starred'), 'success')
   }
 
   const isFiltering =
@@ -542,6 +542,7 @@ export function EmailList({
   // thì trồi nó lên thay chip cuối → không bao giờ "mất dấu" filter đang áp.
   const COLLAPSED_TAGS = 3
   const shownFilters = useMemo(() => {
+    const FILTERS = dsFilters()
     if (tagsOpen) return FILTERS
     const base = FILTERS.slice(0, COLLAPSED_TAGS)
     if (base.some((f) => f.key === filter)) return base
@@ -570,12 +571,12 @@ export function EmailList({
 
   const doMarkRead = (read: boolean) => {
     actions.markRead(ids, read)
-    toast(`Đã đánh dấu ${ids.length} thư là ${read ? 'đã đọc' : 'chưa đọc'}`, 'success')
+    toast(t(read ? 'toast.markedRead' : 'toast.markedUnread', { n: ids.length }), 'success')
     clearSel()
   }
   const doImportant = () => {
     actions.setImportant(ids, true)
-    toast(`Đã đánh dấu ${ids.length} thư là quan trọng`, 'success')
+    toast(t('toast.markedImportant', { n: ids.length }), 'success')
     clearSel()
   }
   const doDelete = () => {
@@ -583,12 +584,12 @@ export function EmailList({
     const n = deleteIds.length
     actions.removeEmails(deleteIds, 'delete')
     setDeleteIds(null)
-    toast(`Đã xoá ${n} thư`, 'destructive')
+    toast(t('toast.deleted', { n }), 'destructive')
     clearSel()
   }
 
   // Tiêu đề khung thanh lịch (AI tắt) + khay công cụ dùng CHUNG cho 2 kiểu header.
-  const elegantTitle = folder === 'inbox' ? 'Hộp thư' : (FOLDER_TITLES[folder] ?? 'Hộp thư')
+  const elegantTitle = t(folder === 'inbox' ? 'fld.inbox' : (FOLDER_TITLES[folder] ?? 'fld.inbox'))
   const renderToolbar = (tone: 'poster' | 'elegant') => {
     const base = 'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors'
     const on = tone === 'poster' ? 'bg-[var(--sc-ink)] text-[var(--sc-base)]' : 'bg-foreground text-background'
@@ -599,7 +600,7 @@ export function EmailList({
     return (
       <div className="flex items-center gap-0.5">
         <button
-          title={searchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'}
+          title={t(searchOpen ? 'mail.closeSearch' : 'mail.searchTitle')}
           aria-label={t('mail.toggleSearch')}
           onClick={toggleSearch}
           className={cn(base, searchOpen || query ? on : off)}
@@ -670,7 +671,7 @@ export function EmailList({
               <div className="min-w-0 leading-none">
                 <div className="flex items-baseline gap-2">
                   <p className="truncate text-[19px] font-semibold leading-none tracking-tight text-foreground">
-                    {folder === 'inbox' ? 'Thư' : (FOLDER_TITLES[folder] ?? 'Thư')}
+                    {folder === 'inbox' ? t('mail.colTitle') : t(FOLDER_TITLES[folder] ?? 'mail.colTitle')}
                   </p>
                   {soChuaDoc > 0 && (
                     <span className="font-mono text-[12px] tabular-nums text-[var(--spark)]">
@@ -680,7 +681,7 @@ export function EmailList({
                 </div>
                 <p className="mt-1.5 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground/60">
                   <span className="pulse-dot" aria-hidden />
-                  {soChuaDoc > 0 ? `${soChuaDoc} thư chưa đọc` : 'Đã đọc hết'}
+                  {soChuaDoc > 0 ? t('mail.unreadCount', { n: soChuaDoc }) : t('mail.allRead')}
                 </p>
               </div>
             </div>
@@ -703,16 +704,16 @@ export function EmailList({
             }}
             placeholder={
               serverMode
-                ? 'Tìm trên Gmail (vd: from:github, has:attachment)…'
+                ? t('mail.phGmail')
                 : nlMode
-                  ? 'Hỏi: "thư chưa đọc có đính kèm"…'
-                  : 'Tìm (phím / để focus)…'
+                  ? t('mail.phNl')
+                  : t('mail.phPlain')
             }
             className="den-vien bg-gradient-to-b from-foreground/[0.06] to-foreground/[0.02] pl-9 pr-10 text-foreground rounded-xl placeholder:text-foreground/40 backdrop-blur-xl focus-visible:den-vien-cham"
           />
           <button
             onClick={() => setNlMode((v) => !v)}
-            title={nlMode ? 'Tắt tìm theo ngôn ngữ tự nhiên' : 'Tìm bằng ngôn ngữ tự nhiên'}
+            title={t(nlMode ? 'mail.nlOff' : 'mail.nlOn')}
             className={cn(
               'absolute right-2 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg transition-colors',
               nlMode ? 'bg-active text-active-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
@@ -761,7 +762,7 @@ export function EmailList({
           })}
           <button
             onClick={() => setTagsOpen((v) => !v)}
-            title={tagsOpen ? 'Thu gọn nhãn' : 'Hiện đủ nhãn phân loại'}
+            title={t(tagsOpen ? 'mail.tagsCollapse' : 'mail.tagsExpand')}
             className="flex items-center gap-1 rounded-lg border border-dashed border-foreground/[0.16] px-2.5 py-1.5 text-[11px] font-serif tracking-wide text-foreground/60 transition-all duration-300 hover:border-gold/40 hover:bg-foreground/[0.05] hover:text-foreground active:scale-95"
           >
             {tagsOpen ? (
@@ -771,7 +772,7 @@ export function EmailList({
               </>
             ) : (
               <>
-                +{FILTERS.length - shownFilters.length}
+                +{dsFilters().length - shownFilters.length}
                 <ChevronDown className="size-3" />
               </>
             )}
@@ -780,7 +781,7 @@ export function EmailList({
 
         {showFilters && (
           <div className="flex flex-wrap gap-2">
-            {QUICK.map((q) => {
+            {dsQuick().map((q) => {
               const active = quick[q.key]
               return (
                 <button
@@ -806,7 +807,7 @@ export function EmailList({
         <div className="flex items-center gap-2 border-y border-foreground/[0.04] bg-foreground/[0.01] px-4 py-2.5">
           <button
             onClick={toggleSelectAll}
-            title={allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+            title={t(allSelected ? 'mail.deselectAll' : 'mail.selectAll')}
             className="flex size-8 items-center justify-center rounded-lg text-active transition-colors hover:bg-foreground/[0.04]"
           >
             {allSelected ? <CheckSquare className="size-5" /> : <Square className="size-5" />}
@@ -888,7 +889,7 @@ export function EmailList({
                   disabled={loadingMore}
                   className="mt-1 w-full rounded-xl glass py-2.5 text-xs font-medium text-foreground shadow-subtle transition-all hover:-translate-y-0.5 disabled:opacity-60"
                 >
-                  {loadingMore ? 'Đang tải…' : 'Tải thêm thư'}
+                  {t(loadingMore ? 'st.loading' : 'mail.loadMore')}
                 </button>
               )}
             </>
@@ -903,12 +904,14 @@ export function EmailList({
                 </span>
               </div>
               <p className="text-sm font-medium text-foreground">
-                {isFiltering ? 'Không tìm thấy thư nào' : `Mục “${FOLDER_TITLES[folder] ?? ''}” đang trống`}
+                {isFiltering
+                  ? t('mail.noResult')
+                  : t('mail.folderEmpty', { ten: t(FOLDER_TITLES[folder] ?? 'fld.inbox') })}
               </p>
               <p className="text-xs text-muted-foreground/60">
                 {isFiltering
-                  ? 'Thử đổi từ khoá hoặc bỏ bớt bộ lọc đang áp dụng.'
-                  : 'Chưa có thư nào ở đây.'}
+                  ? t('mail.tryOther')
+                  : t('mail.nothingHere')}
               </p>
               {isFiltering && (
                 <button
@@ -916,7 +919,7 @@ export function EmailList({
                   className="mt-1 flex items-center gap-1.5 rounded-full glass px-3 py-1 text-xs font-medium text-foreground shadow-subtle hover:-translate-y-0.5"
                 >
                   <X className="size-3.5" />
-                  Xoá bộ lọc
+                  {t('mail.clearFilter')}
                 </button>
               )}
             </div>
@@ -930,7 +933,7 @@ export function EmailList({
         count={selected.size}
         onPick={(category, label) => {
           actions.applyLabel(ids, category, label)
-          toast(`Đã gắn nhãn “${label}” cho ${ids.length} thư`, 'success')
+          toast(t('toast.labelled', { nhan: label, n: ids.length }), 'success')
           clearSel()
         }}
       />
@@ -943,7 +946,7 @@ export function EmailList({
               Xoá {deleteIds?.length ?? 0} thư?
             </DialogTitle>
             <DialogDescription>
-              {(deleteIds?.length ?? 0) > 1 ? 'Các thư' : 'Thư'} sẽ bị xoá khỏi hộp thư. Bạn không thể
+              {t((deleteIds?.length ?? 0) > 1 ? 'mail.theseMsgs' : 'mail.thisMsg')} sẽ bị xoá khỏi hộp thư. Bạn không thể
               hoàn tác thao tác này.
             </DialogDescription>
           </DialogHeader>

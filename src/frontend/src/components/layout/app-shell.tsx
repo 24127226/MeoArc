@@ -15,6 +15,7 @@ import type { EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { trichCamKet, apLucTheoNgay } from '@/lib/cam-ket'
 import { chuyenCanh } from '@/lib/chuyen-canh'
+import { t } from '@/lib/ngon-ngu'
 
 /** Layout 3 phần: nav rail trái · email list giữa · (chi tiết email | AI chat) phải */
 export function AppShell() {
@@ -81,8 +82,8 @@ export function AppShell() {
         setEmails([])
         setLoiNapThu(
           e?.status === 401
-            ? 'Phiên đăng nhập đã hết hạn. Đăng nhập lại để xem thư.'
-            : 'Không nạp được thư từ máy chủ. Kiểm tra kết nối rồi thử lại.',
+            ? t('sh.expired')
+            : t('sh.netFail'),
         )
       })
   }, [folder])

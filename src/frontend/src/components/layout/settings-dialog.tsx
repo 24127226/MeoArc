@@ -45,10 +45,10 @@ const MCP_TOOLS = [
   'extract_tasks',
 ]
 
-const SCOPES = [
-  { label: 'Đọc thư (read)', on: true },
-  { label: 'Quản lý thư (modify/label/archive)', on: true },
-  { label: 'Soạn & gửi (send)', on: true },
+const dsScopes = () => [
+  { label: t('scope.read'), on: true },
+  { label: t('scope.modify'), on: true },
+  { label: t('scope.send'), on: true },
 ]
 
 /* ─────────────────── Tab "Cá nhân hoá" — PA2 §1.5.2 ───────────────────
@@ -100,7 +100,7 @@ function PersonalTab() {
             const v = e.target.value.trim()
             if (v !== (pref.displayName ?? '')) save({ displayName: v || null })
           }}
-          placeholder="Anh Quân"
+          placeholder={t('pref.namePlaceholder')}
           className="w-full rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 text-sm outline-none transition-colors focus-visible:border-spark/60"
         />
       </div>
@@ -160,7 +160,7 @@ function PersonalTab() {
           }}
           rows={2}
           maxLength={1000}
-          placeholder="Đừng dùng từ 'trân trọng'. Luôn hỏi lại trước khi hứa deadline."
+          placeholder={t('pref.instrPlaceholder')}
           className="w-full resize-none rounded-xl border border-border/40 bg-popover-foreground/5 px-3 py-2 text-sm outline-none transition-colors focus-visible:border-spark/60"
         />
       </div>
@@ -242,7 +242,7 @@ export function SettingsDialog() {
         <div className="flex gap-1 rounded-xl bg-popover-foreground/5 p-1">
           {[
             { key: 'general', label: 'Chung', icon: Settings },
-            { key: 'personal', label: 'Cá nhân hoá', icon: UserCog },
+            { key: 'personal', label: t('settings.personal'), icon: UserCog },
             { key: 'mcp', label: 'MCP', icon: Plug },
           ].map((t) => {
             const Icon = t.icon
@@ -272,8 +272,8 @@ export function SettingsDialog() {
               <p className="mb-2 text-sm font-semibold">{t('settings.appearance')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { key: 'light', label: 'Sáng', icon: Sun },
-                  { key: 'dark', label: 'Tối', icon: Moon },
+                  { key: 'light', label: t('theme.light'), icon: Sun },
+                  { key: 'dark', label: t('theme.dark'), icon: Moon },
                 ].map((opt) => {
                   const Icon = opt.icon
                   const active = theme === opt.key
@@ -365,7 +365,7 @@ export function SettingsDialog() {
                 Phạm vi quyền đã cấp
               </p>
               <div className="space-y-1.5">
-                {SCOPES.map((s) => (
+                {dsScopes().map((s) => (
                   <div key={s.label} className="flex items-center gap-2 text-sm text-popover-foreground/80">
                     <Check className="size-4 text-success" />
                     {s.label}

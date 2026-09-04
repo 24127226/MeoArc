@@ -363,7 +363,7 @@ export function PricingScreen({ open, onClose, status, onChanged }: {
                     <span className="font-bold" style={{ color: NEON }}>
                       {Math.floor(p.dailyTokens / TOKENS_PER_TURN)}
                     </span>
-                    <span className="text-white/40"> lượt hỏi / ngày</span>
+                    <span className="text-white/40"> {t('plan.perDay')}</span>
                   </div>
                 </div>
 

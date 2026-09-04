@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '@/lib/ngon-ngu'
 
 /**
  * MailboxChrome — thanh đầu cột Hộp thư.
@@ -14,7 +15,7 @@ import type { ReactNode } from 'react'
  */
 export function MailboxChrome({
   title,
-  subtitle = 'Hộp thư đang đồng bộ',
+  subtitle = t('sh.syncing'),
   count,
   right,
 }: {

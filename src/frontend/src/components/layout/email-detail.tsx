@@ -42,13 +42,13 @@ function contextActions(email: Email): ContextAction[] {
   const first = email.sender.split(' ').slice(-1)[0] || email.sender
   const acts: ContextAction[] = []
   if (/(họp|meeting|lịch|cuộc họp|\bhẹn\b)/.test(text)) {
-    acts.push({ label: 'Tạo Meeting Brief', icon: CalendarClock, command: 'brief cuộc họp' })
+    acts.push({ label: t('sug.brief'), icon: CalendarClock, command: 'brief cuộc họp' })
   }
   if (/(deadline|hạn|nộp|trước \d|submit|báo cáo)/.test(text)) {
-    acts.push({ label: 'Trích việc & deadline', icon: ListChecks, command: 'triage hộp thư' })
+    acts.push({ label: t('sug.tasks'), icon: ListChecks, command: 'triage hộp thư' })
   }
-  acts.push({ label: 'Tóm tắt thư này', icon: FileText, command: `tóm tắt thư từ ${first}` })
-  acts.push({ label: 'Soạn trả lời', icon: Reply, command: `soạn trả lời ${first}` })
+  acts.push({ label: t('sug.summarize'), icon: FileText, command: `tóm tắt thư từ ${first}` })
+  acts.push({ label: t('act.replyDraft'), icon: Reply, command: `soạn trả lời ${first}` })
   return acts.slice(0, 3)
 }
 
@@ -140,10 +140,10 @@ export function EmailDetail({
         <div className="ml-auto flex items-center gap-0.5">
           <ActionBtn
             icon={Mail}
-            label="Đánh dấu chưa đọc"
+            label={t('act.markUnread')}
             onClick={() => {
               actions.markRead([id], false)
-              toast('Đã đánh dấu chưa đọc', 'success')
+              toast(t('toast.markedUnreadOne'), 'success')
             }}
           />
           <ActionBtn
@@ -151,7 +151,7 @@ export function EmailDetail({
             label="Lưu trữ"
             onClick={() => {
               actions.removeEmails([id], 'archive') // bỏ nhãn INBOX
-              toast('Đã lưu trữ thư', 'success')
+              toast(t('toast.archived'), 'success')
             }}
           />
           <ActionBtn icon={Tag} label="Gắn nhãn" onClick={() => setLabelOpen(true)} />
@@ -161,8 +161,8 @@ export function EmailDetail({
               actions.setImportant([id], !email.starred)
               toast(email.starred ? 'Đã bỏ quan trọng' : 'Đã đánh dấu quan trọng', 'success')
             }}
-            aria-label={email.starred ? 'Bỏ quan trọng' : 'Đánh dấu quan trọng'}
-            title={email.starred ? 'Bỏ quan trọng' : 'Đánh dấu quan trọng'}
+            aria-label={t(email.starred ? 'det.unstar' : 'det.star')}
+            title={t(email.starred ? 'det.unstar' : 'det.star')}
             className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <Star className="size-4" style={email.starred ? { fill: c.bar, color: c.bar } : undefined} />
@@ -217,9 +217,9 @@ export function EmailDetail({
               {/* HÀNG SỐ LIỆU — thứ đọc được bằng liếc mắt, không phải bằng đọc */}
               <div className="mb-3 grid grid-cols-3 gap-2">
                 {[
-                  { nhan: 'Trạng thái', gtri: TRANG_THAI[email.priority ?? 'fyi'] },
-                  { nhan: 'Độ dài', gtri: `${soChu} chữ` },
-                  { nhan: 'Thời gian đọc', gtri: `${phutDoc} phút` },
+                  { nhan: t('det.status'), gtri: t(TRANG_THAI[email.priority ?? 'fyi']) },
+                  { nhan: t('det.length'), gtri: t('det.words', { n: soChu }) },
+                  { nhan: t('det.readTime'), gtri: t('det.minutes', { n: phutDoc }) },
                 ].map((o) => (
                   <div key={o.nhan} className="den-vien goc-cat-nho goc-cat px-2.5 py-2">
                     <p className="text-[8.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70">
@@ -327,7 +327,7 @@ export function EmailDetail({
 
           {/* Người nhận */}
           <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            <span className="text-foreground/75">Tới</span> · {email.to}
+            <span className="text-foreground/75">{t('mail.to')}</span> · {email.to}
           </p>
 
           {/* Vạch ngăn */}
@@ -400,7 +400,7 @@ export function EmailDetail({
         </Button>
         <Button variant="outline" onClick={() => setShowSummary((v) => !v)}>
           <Sparkles className="size-4" />
-          {showSummary ? 'Ẩn tóm tắt' : 'Tóm tắt với AI'}
+          {t(showSummary ? 'det.hideSummary' : 'det.aiSummary')}
         </Button>
       </div>
 
@@ -411,7 +411,7 @@ export function EmailDetail({
         count={1}
         onPick={(category, label) => {
           actions.applyLabel([id], category, label)
-          toast(`Đã gắn nhãn “${label}”`, 'success')
+          toast(t('toast.labelledOne', { nhan: label }), 'success')
         }}
       />
 
@@ -600,9 +600,9 @@ function EmailHtmlBody({ html, dark }: { html: string; dark: boolean }) {
 /** Tóm tắt mock từ nội dung email (UC008) — backend thật dùng LLM. */
 /** Nhãn trạng thái xử lý — cùng bộ với badge triage ở danh sách thư. */
 const TRANG_THAI: Record<string, string> = {
-  action: 'Cần xử lý',
-  waiting: 'Đang đợi',
-  fyi: 'Để biết',
+  action: 'flt.action',
+  waiting: 'flt.waiting',
+  fyi: 'det.fyi',
 }
 
 /** Một đoạn có phải CÂU THẬT không, hay là rác mã hoá?
@@ -638,7 +638,7 @@ function aiSummary(email: Email): string[] {
   if (core.length) return core
   // Không đoạn nào là câu thật (thư toàn HTML/mã) → dùng dòng xem trước, và nếu
   // dòng đó cũng là rác thì thà nói thẳng còn hơn hiện một dòng ký tự vô nghĩa.
-  return laCauThat(email.preview) ? [email.preview] : ['Thư này chủ yếu là nội dung HTML — xem bản đầy đủ bên dưới.']
+  return laCauThat(email.preview) ? [email.preview] : [t('det.htmlNote')]
 }
 
 function ActionBtn({

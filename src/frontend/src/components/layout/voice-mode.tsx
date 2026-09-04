@@ -241,7 +241,7 @@ export function VoiceMode({
             </p>
             <p className="mt-2 text-lg font-medium leading-relaxed text-foreground">
               {transcript || (
-                <span className="text-muted-foreground">vd: “tóm tắt thư chưa đọc”</span>
+                <span className="text-muted-foreground">{t('voice.example')}</span>
               )}
             </p>
             {!transcript && imLang && (

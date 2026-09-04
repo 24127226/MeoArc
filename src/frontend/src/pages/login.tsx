@@ -161,10 +161,10 @@ export function LoginPage() {
 
           <div className="hidden items-center gap-7 md:flex">
             {[
-              { label: 'Tính năng', chev: true },
-              { label: 'Cách vận hành', chev: false },
-              { label: 'Gói dịch vụ', chev: false },
-              { label: 'Giải đáp', chev: true },
+              { label: t('nav.features'), chev: true },
+              { label: t('nav.how'), chev: false },
+              { label: t('nav.pricing'), chev: false },
+              { label: t('nav.faq'), chev: true },
             ].map((n) => (
               <button
                 key={n.label}
