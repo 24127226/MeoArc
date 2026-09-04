@@ -30,11 +30,11 @@ export type DichDen = { duong_dan: string; ten: string }
 
 const DICH: { re: RegExp; dich: DichDen }[] = [
   {
-    re: /(lịch trình|lich trinh|lịch của tôi|lich cua toi|thời khoá biểu|thoi khoa bieu|calendar|deadline của tôi)/i,
+    re: /(lịch trình|lich trinh|lịch của tôi|lich cua toi|thời khoá biểu|thoi khoa bieu|deadline của tôi|calendar|schedule|timetable|my deadlines)/i,
     dich: { duong_dan: '/lich', ten: 'Lịch trình' },
   },
   {
-    re: /(hộp thư|hop thu|hòm thư|hom thu|inbox|danh sách thư|danh sach thu|trang chính|trang chinh)/i,
+    re: /(hộp thư|hop thu|hòm thư|hom thu|danh sách thư|danh sach thu|trang chính|trang chinh|inbox|mail ?box|mail list|main page|home page)/i,
     dich: { duong_dan: '/app', ten: 'Hộp thư' },
   },
 ]
@@ -51,6 +51,11 @@ const DONG_TU_DI = new RegExp(
     'qua (phần|phan|màn|man|trang)|vào (phần|phan|màn|man|trang)|vao (phan|man|trang)|' +
     'cho (tôi|toi|mình|minh|tớ) (xem|coi|tới|toi|đến|den)|đưa (tôi|toi|mình|minh)|dua (toi|minh)|' +
     'xem (phần|phan|màn|man|trang)|quay (lại|lai) (phần|phan|màn|man|trang)|' +
+    // Tiếng Anh: giao diện đã dịch được thì lối tắt cũng phải nghe được tiếng Anh.
+    // Thiếu phần này thì bật English xong "return me to the mailbox" rơi xuống agent
+    // và nhận về một danh sách thư mới nhất — đúng thứ người dùng báo.
+    'open (the |my )?|go (back )?to|back to|return (me )?to|take me (back )?to|' +
+    'bring me (back )?to|switch to|show me the|' +
     'about:|goto|navigate)',
   'i',
 )
@@ -66,13 +71,14 @@ const TAC_DONG = new RegExp(
     'chuyen tiep|lưu trữ|luu tru|archive|đánh dấu|danh dau|gắn nhãn|gan nhan|spam|' +
     'dọn sạch|don sach|dọn dẹp|don dep|' +
     'bỏ qua (mọi|moi|các|cac|tất cả|tat ca)|bo qua (moi|cac|tat ca)|' +
-    'ignore (all|previous|prior)|disregard)',
+    'ignore (all|previous|prior)|disregard|\bmark\b|\blabel\b|clean ?up|clear out|' +
+    '\bremove\b|\btrash\b|\bempty\b)',
   'i',
 )
 
 /** Dấu hiệu người dùng đang hỏi VỀ NỘI DUNG, không phải xin đổi màn. */
 const HOI_NOI_DUNG =
-  /(có gì|co gi|thế nào|the nao|ra sao|bao nhiêu|bao nhieu|quá tải|qua tai|khi nào|khi nao|mấy giờ|may gio|liệt kê|liet ke|tóm tắt|tom tat|còn gì|con gi|những gì|nhung gi|\?)/i
+  /(có gì|co gi|thế nào|the nao|ra sao|bao nhiêu|bao nhieu|quá tải|qua tai|khi nào|khi nao|mấy giờ|may gio|liệt kê|liet ke|tóm tắt|tom tat|còn gì|con gi|những gì|nhung gi|\?|what|how (many|much|is|are|'s)|which|when|anything|summar|list|overload)/i
 
 /** Câu dài gần như luôn là yêu cầu thật. Ngưỡng thô nhưng tách đúng hai loại. */
 const DAI_TOI_DA = 60

@@ -75,8 +75,11 @@ class Classification:
 # Mỗi mục: (danh sách mảnh chuỗi trong email/domain, category, lý do).
 _DOMAIN_RULES: list[tuple[list[str], Category, str]] = [
     # Học tập — trường/giáo dục
-    (["edu.vn", ".edu", "hcmus", "fit.hcmus", "vnu.edu", "student.", "giaovu", "daotao",
-      "phongdaotao", "elearning", "lms.", "moodle", "courses.", "classroom.google"],
+    # Mảnh có `@` là CỐ Ý neo vào tên người gửi (giaovu@hcmus.edu.vn); mảnh không có
+    # `@` chỉ so tên miền. Xem `_khop_dia_chi`.
+    (["edu.vn", ".edu", "hcmus", "fit.hcmus", "vnu.edu", "student.", "elearning", "lms.",
+      "moodle", "courses.", "classroom.google",
+      "giaovu@", "daotao@", "phongdaotao@"],
      HOC_TAP, "gửi từ tên miền giáo dục/nhà trường"),
 
     # Tài chính — ngân hàng/ví/thanh toán (ĐẶT TRƯỚC mua sắm: 'bank' ưu tiên hơn 'sale')
@@ -92,13 +95,14 @@ _DOMAIN_RULES: list[tuple[list[str], Category, str]] = [
 
     # Công việc/Tuyển dụng
     (["topcv", "vietnamworks", "itviec", "careerbuilder", "indeed", "glints", "ybox",
-      "recruit", "talent", "hr@", "tuyendung", "jobs.", "workable", "greenhouse.io", "lever.co"],
+      "recruit", "talent", "jobs.", "workable", "greenhouse.io", "lever.co",
+      "hr@", "tuyendung@", "recruit@", "talent@", "hiring@"],
      CONG_VIEC, "gửi từ nền tảng/bộ phận tuyển dụng"),
 
     # Mua sắm & Ưu đãi — sàn TMĐT + bản tin marketing
     (["shopee", "lazada", "tiki.vn", "sendo", "@grab", "shopeemail", "dienmay", "thegioididong",
-      "fptshop", "amazon.", "aliexpress", "temu", "newsletter", "mailchimp", "sendgrid.net",
-      "substack", "marketing@", "promo", "deals@"],
+      "fptshop", "amazon.", "aliexpress", "temu", "mailchimp", "sendgrid.net", "substack",
+      "marketing@", "newsletter@", "promo@", "deals@"],
      MUA_SAM, "gửi từ sàn mua sắm/bản tin khuyến mãi"),
 
     # Cập nhật & Hệ thống — thông báo tự động, dev-ops, bảo mật
@@ -130,6 +134,33 @@ _BOT_PAT = re.compile(r"(no-?reply|do-?not-?reply|noreply|donotreply|notificatio
                       r"mailer|auto|robot|system)", re.I)
 
 
+def _khop_dia_chi(needle: str, email_l: str) -> bool:
+    """Mảnh chuỗi có khớp địa chỉ người gửi không — và khớp Ở ĐÂU mới tính.
+
+    ── VÌ SAO KHÔNG DÙNG `needle in email_l` ────────────────────────────────
+    Bản trước so khớp trên CẢ địa chỉ. Nghe thì rộng rãi, thực tế là một cái bẫy:
+    `hcmus` viết ra để khớp `@fit.hcmus.edu.vn`, nhưng nó khớp luôn phần TÊN người
+    dùng — nên `meoarc.hcmus@outlook.com.vn` bị gán Học tập với confidence "high",
+    và vì luật tên miền chạy trước mọi luật từ khoá, MỌI thư từ tài khoản đó đều
+    thành Học tập: xác nhận khách sạn, vé máy bay, tất cả. Đo được trên bộ 46 thư
+    demo. Người dùng thấy "AI phân loại dở", nhưng AI không hề tham gia — đây là
+    một phép so chuỗi con quá tay.
+
+    Cùng cái bẫy còn nằm sẵn ở chỗ khác: `microsoft.fan@gmail.com` sẽ thành Hệ
+    thống, `amazon.deals.vn@gmail.com` thành Mua sắm.
+
+    ── LUẬT MỚI ────────────────────────────────────────────────────────────
+    • Mảnh có chứa `@` (`hr@`, `@momo`, `no-reply@google`) → người viết đã CỐ Ý neo
+      qua ranh giới địa chỉ, nên so trên cả địa chỉ, đúng như ý họ.
+    • Mảnh không có `@` → chỉ so phần TÊN MIỀN (sau dấu `@` cuối). Đó là điều những
+      mảnh này vốn muốn nói, chỉ là trước đây không nói được ra.
+    """
+    if "@" in needle:
+        return needle in email_l
+    domain = email_l.rsplit("@", 1)[-1] if "@" in email_l else email_l
+    return needle in domain
+
+
 def classify(sender_email: str, sender_name: str = "",
              subject: str = "", snippet: str = "") -> Classification:
     """Đoán nhãn cho MỘT email. Ưu tiên: tên miền (high) → từ khoá (medium) →
@@ -139,7 +170,7 @@ def classify(sender_email: str, sender_name: str = "",
 
     # 1) Tên miền — tín hiệu mạnh nhất
     for needles, cat, why in _DOMAIN_RULES:
-        if any(n in email_l for n in needles):
+        if any(_khop_dia_chi(n, email_l) for n in needles):
             return Classification(cat, "high", why)
 
     # 2) Từ khoá tiêu đề/nội dung

@@ -260,9 +260,19 @@ export function docHan(van: string, moc = new Date()): { han: Date; suyRa: boole
       if (gio === null) { gio = 23; phut = 59 }
 
       const d = new Date(nam, thang - 1, ngay, gio, phut ?? 0)
-      // Không ghi năm mà ngày đã qua → hiểu là năm sau. "nộp trước 15/1" gửi
-      // hồi tháng 12 nói về tháng 1 năm sau, không phải tháng 1 vừa rồi.
-      if (!m[3] && d.getTime() < moc.getTime() - 86400000) d.setFullYear(nam + 1)
+      // Không ghi năm mà ngày đã qua → hiểu là năm sau. NHƯNG chỉ khi đã qua KHÁ LÂU.
+      //
+      // Mốc cũ là 1 ngày, nên một hạn trễ ba hôm bị đẩy sang năm sau — 362 ngày nữa —
+      // rồi rơi khỏi mọi cửa sổ hỏi. Món nợ vừa quá hạn, thứ cần nhắc gấp nhất, lại
+      // là thứ biến mất trước tiên.
+      //
+      // Ranh giới thật: "05/01" viết trong tháng 12 vốn đã ở TƯƠNG LAI nên nhánh này
+      // không đụng tới; "15/03" viết trong tháng 12 mới là hạn năm sau. Cái phân biệt
+      // hai ca đó là ĐÃ QUA BAO LÂU, không phải đã qua hay chưa.
+      //
+      // Phải khớp `_NGUONG_TRE` ở `app/core/cam_ket.py` — hai bản trích này dùng chung
+      // bộ ca kiểm thử `src/shared/ca-cam-ket.json`, lệch ở đây là lệch âm thầm.
+      if (!m[3] && d.getTime() < moc.getTime() - NGUONG_TRE_MS) d.setFullYear(nam + 1)
       return { han: d, suyRa: false }
     }
   }
@@ -573,6 +583,10 @@ export const SO_DAI_DOT = 2
  *  cả lưới tháng và xoá sạch mọi thứ khác. Khoảng thư NÓI THẲNG ("từ 7/9 đến
  *  25/9") thì không phải phỏng đoán, chặn nó ở 14 ngày là tự bóp méo dữ liệu
  *  thật — một đồ án ba tuần phải hiện ra đúng ba tuần. */
+/** Hạn không ghi năm mà đã qua BAO LÂU thì mới hiểu là của năm sau.
+ *  Khớp `_NGUONG_TRE` bên `app/core/cam_ket.py` (60 ngày). */
+const NGUONG_TRE_MS = 60 * 86400000
+
 export const TRAN_NGAY_SUY_RA = 14
 export const TRAN_NGAY_RO_RANG = 70
 

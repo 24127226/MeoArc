@@ -181,6 +181,12 @@ def doc_khoang(van: str, moc: datetime | None = None) -> tuple[datetime, datetim
     return bat_dau, han
 
 
+# Hạn không ghi năm mà đã qua BAO LÂU thì mới hiểu là của năm sau. Trong khoảng này
+# thì hiểu là VỪA TRỄ — đó là cách người ta thật sự viết thư: hạn nhắc trong thư là
+# hạn gần, không phải hạn của mười một tháng nữa.
+_NGUONG_TRE = timedelta(days=60)
+
+
 def doc_han(van: str, moc: datetime | None = None) -> tuple[datetime, bool] | None:
     """Đọc mốc hạn trong một đoạn văn. Trả (hạn, có_phải_suy_ra) hoặc None."""
     moc = moc or datetime.now()
@@ -250,8 +256,18 @@ def doc_han(van: str, moc: datetime | None = None) -> tuple[datetime, bool] | No
             d = datetime(nam, thang, ngay, gio, phut or 0)
         except ValueError:
             return None
-        # Không ghi năm mà ngày đã qua → hiểu là năm sau.
-        if not m.group(3) and d < moc - timedelta(days=1):
+        # Không ghi năm mà ngày đã qua → hiểu là năm sau. NHƯNG chỉ khi đã qua KHÁ LÂU.
+        #
+        # Bản trước lấy mốc 1 ngày. Hệ quả đo được: một hạn trễ ba hôm không được coi
+        # là TRỄ mà bị đẩy sang năm sau — tức 362 ngày nữa — rồi rơi ra ngoài mọi cửa
+        # sổ hỏi. Món nợ vừa quá hạn, đúng thứ cần nhắc gấp nhất, là thứ biến mất
+        # trước tiên. Người dùng báo đúng chỗ này.
+        #
+        # Ranh giới thật nằm ở chỗ: "05/01" viết trong tháng 12 là hạn SẮP TỚI (nó
+        # vốn đã nằm ở tương lai, nhánh này không đụng vào), còn "15/03" viết trong
+        # tháng 12 mới là hạn của năm sau. Cái phân biệt hai ca đó là ĐÃ QUA BAO LÂU,
+        # không phải đã qua hay chưa.
+        if not m.group(3) and d < moc - _NGUONG_TRE:
             d = d.replace(year=nam + 1)
         return d, False
 

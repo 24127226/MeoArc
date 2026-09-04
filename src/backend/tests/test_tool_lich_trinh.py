@@ -152,3 +152,62 @@ def test_prompt_day_dung_tool_lich_trinh():
     assert "liet_ke_cam_ket" in p
     assert "ap_luc_lich_trinh" in p
     assert "han_suy_ra" in p
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VIỆC QUÁ HẠN MÀ CHƯA XONG PHẢI Ở LẠI LỊCH TRÌNH
+#
+# Người dùng báo: việc đã qua deadline biến mất khỏi lịch trình dù chưa làm xong.
+# Đúng vậy — bộ lọc có `c.han < moc`, nên 0h00 ngày hôm sau là món nợ tự bốc hơi,
+# im lặng, không dấu vết nào.
+#
+# Nhìn từ phía người dùng, một trợ lý QUÊN MẤT thứ mình đang trễ còn tệ hơn hẳn một
+# trợ lý không có lịch trình: cái sau thì họ còn tự nhớ, cái trước ru họ ngủ. Thứ
+# duy nhất được phép đẩy một việc ra khỏi lịch trình là NÓ ĐÃ XONG.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_qua_han_ma_chua_xong_thi_VAN_O_LAI(hop_thu):
+    qua = datetime.now() - timedelta(days=3)
+    hop_thu([_thu(1, "Nhắc nộp báo cáo SRS",
+                  f"Bạn nộp báo cáo trước hạn chót {qua.day}/{qua.month} nhé.")])
+    ra = await T.liet_ke_cam_ket(LietKeCamKetInput(so_ngay_toi=7, chi_con_han=True), CTX)
+    assert ra.success and len(ra.data) == 1, "việc trễ đã bị vứt mất"
+
+
+@pytest.mark.asyncio
+async def test_qua_han_nam_TREN_DAU_danh_sach(hop_thu):
+    """Trễ nhất phải lên trên cùng — nó là món nợ gấp nhất, không phải phần phụ lục."""
+    qua = datetime.now() - timedelta(days=2)
+    sap = datetime.now() + timedelta(days=4)
+    hop_thu([
+        _thu(1, "Gửi slide", f"Hạn chót {sap.day}/{sap.month} gửi slide nhé."),
+        _thu(2, "Nộp báo cáo", f"Hạn chót {qua.day}/{qua.month} nộp báo cáo nhé."),
+    ])
+    ra = await T.liet_ke_cam_ket(LietKeCamKetInput(so_ngay_toi=7, chi_con_han=True), CTX)
+    assert len(ra.data) == 2
+    dau = ra.data[0].han or ""
+    assert dau.startswith(f"{qua.day:02d}/{qua.month:02d}"), f"đứng đầu lại là {dau}"
+
+
+@pytest.mark.asyncio
+async def test_viec_XONG_thi_van_bi_loai(hop_thu):
+    """Ranh giới còn lại: 'xong' vẫn là lý do duy nhất để rời lịch trình.
+
+    `trang_thai` lấy từ trường `status` của thư (do `labeling.analyze` đặt lúc dựng
+    thư), không tính lại từ thân thư ở đây — nên test phải đặt nó, đúng như đường
+    chạy thật."""
+    qua = datetime.now() - timedelta(days=3)
+    e = _thu(1, "Nộp báo cáo", f"Hạn chót {qua.day}/{qua.month} nộp báo cáo nhé.")
+    hop_thu([e.model_copy(update={"status": "Done"})])
+    ra = await T.liet_ke_cam_ket(LietKeCamKetInput(so_ngay_toi=7, chi_con_han=True), CTX)
+    assert ra.data == [], "việc đã xong vẫn còn nằm trong lịch trình"
+
+
+@pytest.mark.asyncio
+async def test_han_qua_XA_thi_van_bi_cat(hop_thu):
+    """Không nới hết mọi bộ lọc: hỏi 7 ngày tới thì việc hạn 60 ngày nữa vẫn nằm ngoài."""
+    xa = datetime.now() + timedelta(days=60)
+    hop_thu([_thu(1, "Nộp đồ án cuối kỳ", f"Hạn chót {xa.day}/{xa.month} nộp đồ án nhé.")])
+    ra = await T.liet_ke_cam_ket(LietKeCamKetInput(so_ngay_toi=7, chi_con_han=True), CTX)
+    assert ra.data == []

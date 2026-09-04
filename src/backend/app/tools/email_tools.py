@@ -379,11 +379,20 @@ async def liet_ke_cam_ket(inp: LietKeCamKetInput, ctx: RequestContext) -> LietKe
     loc = []
     for c in ds:
         if inp.chi_con_han:
+            # THỨ DUY NHẤT khiến một việc rời khỏi lịch trình là NÓ ĐÃ XONG.
             if c.trang_thai == "xong":
                 continue
             # Việc không có hạn (vd thư đã gửi đang chờ hồi âm) VẪN giữ: nó là việc
             # hay bị quên nhất, mà lọc theo hạn thì nó rụng đầu tiên.
-            if c.han and (c.han < moc or c.han > han_chot):
+            #
+            # QUÁ HẠN MÀ CHƯA XONG THÌ CÀNG PHẢI GIỮ. Bản trước có thêm `c.han < moc`
+            # ở đây, nên đúng 0h00 của ngày hôm sau là việc chưa làm BIẾN MẤT khỏi
+            # lịch trình — im lặng, không dấu vết. Người dùng báo đúng chỗ này. Nhìn
+            # từ phía họ, một trợ lý quên mất thứ mình đang trễ còn tệ hơn hẳn một
+            # trợ lý không có lịch trình: cái sau thì họ tự nhớ, cái trước ru họ ngủ.
+            # Quá hạn có `han` nhỏ nên phép sắp xếp bên dưới tự đẩy nó lên đầu — đúng
+            # thứ tự cần: món nợ trễ nhất nằm trên cùng.
+            if c.han and c.han > han_chot:
                 continue
         loc.append(c)
 

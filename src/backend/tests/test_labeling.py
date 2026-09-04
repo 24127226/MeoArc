@@ -130,3 +130,64 @@ def test_categorize_la_tool_doc_khong_confirm():
     import app.tools.email_tools  # noqa: F401
     from app.tools.registry import tool_registry
     assert tool_registry.get_spec("categorize_emails").requires_confirmation is False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MẢNH TÊN MIỀN CHỈ ĐƯỢC KHỚP PHẦN TÊN MIỀN, KHÔNG KHỚP TÊN NGƯỜI GỬI
+#
+# Người dùng báo "phân loại tự động khá dở": xác nhận đặt phòng khách sạn và vé máy
+# bay đều bị xếp vào Học tập. Đo lại thì AI không hề tham gia — `classify()` là tất
+# định, và nó khớp chuỗi con `hcmus` trong `meoarc.hcmus@outlook.com.vn`, tức trong
+# TÊN NGƯỜI DÙNG chứ không phải tên miền. Luật tên miền chạy trước mọi luật từ khoá
+# và trả về confidence "high", nên MỌI thư từ tài khoản đó đều thành Học tập.
+#
+# Cùng cái bẫy còn nằm sẵn ở vài chỗ khác (`microsoft`, `amazon.`, `shopee`...), nên
+# test khoá cả luật chung chứ không chỉ khoá đúng một ca đã gặp.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_ten_truong_trong_TEN_NGUOI_GUI_khong_bien_moi_thu_thanh_hoc_tap():
+    """Chính ca người dùng gặp, trên chính địa chỉ demo."""
+    from app.core.labeling import classify
+    for tieu_de, than in [
+        ("Xác nhận đặt phòng 19/9 - 21/9", "Khách sạn A, Đà Nẵng. Mã đặt chỗ ABC."),
+        ("Xác nhận đặt chỗ — SGN đi HAN ngày 19/9", "Vietnam Airlines, ghế 12A."),
+    ]:
+        c = classify("meoarc.hcmus@outlook.com.vn", "", tieu_de, than)
+        assert c.category.label != "Học tập", f"{tieu_de} → {c.category.label} ({c.reason})"
+
+
+def test_ten_hang_trong_TEN_NGUOI_GUI_cung_khong_tinh():
+    from app.core.labeling import classify
+    for addr, khong_duoc in [("microsoft.fan@gmail.com", "Cập nhật & Hệ thống"),
+                             ("amazon.deals.vn@gmail.com", "Mua sắm & Ưu đãi"),
+                             ("shopee.review@gmail.com", "Mua sắm & Ưu đãi")]:
+        assert classify(addr, "", "Chào bạn", "").category.label != khong_duoc
+
+
+def test_TEN_MIEN_THAT_van_khop_nhu_cu():
+    """Phép sửa không được làm mất phần vốn đúng."""
+    from app.core.labeling import classify
+    for addr, mong_doi in [("giaovu@fit.hcmus.edu.vn", "Học tập"),
+                           ("noreply@classroom.google.com", "Học tập"),
+                           ("alert@vietcombank.com.vn", "Tài chính"),
+                           ("notify@facebookmail.com", "Mạng xã hội"),
+                           ("noreply@github.com", "Cập nhật & Hệ thống")]:
+        c = classify(addr, "", "", "")
+        assert c.category.label == mong_doi and c.confidence == "high", f"{addr} → {c.category.label}"
+
+
+def test_manh_CO_dau_a_coi_van_neo_vao_ten_nguoi_gui():
+    """`hr@`, `@momo`... được viết ra để neo qua ranh giới địa chỉ — giữ nguyên ý đó."""
+    from app.core.labeling import classify
+    assert classify("hr@fpt.com.vn", "", "", "").category.label == "Công việc"
+    assert classify("tuyendung@vng.com.vn", "", "", "").category.label == "Công việc"
+    assert classify("no-reply@momo.vn", "", "", "").category.label == "Tài chính"
+
+
+def test_khong_ro_thi_confidence_THAP_chu_khong_doan_bua():
+    """Thư đi lại chưa có nhãn riêng nên rơi về mặc định — nhưng phải là 'low'.
+    'low' là tín hiệu cho agent biết chỗ này cần suy luận thêm; một phân loại sai mà
+    mang 'high' thì không ai nghi ngờ nó."""
+    from app.core.labeling import classify
+    c = classify("meoarc.hcmus@outlook.com.vn", "", "Xác nhận đặt chỗ — SGN đi HAN", "")
+    assert c.confidence == "low"
