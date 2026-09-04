@@ -36,6 +36,7 @@ from app.repo import (user_repo, conversation_repo, audit_repo, notification_rep
                       user_preference_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
+from app.core.ngon_ngu import dich, dich_gia_tri
 from app.core import maintenance  # dọn dữ liệu cũ định kỳ (retention)
 from app.core.breaker import CircuitOpen, llm_breaker, provider_breaker
 from app.core import errors  # thu thập lỗi: Sentry khi có DSN, không thì ghi log
@@ -1389,7 +1390,7 @@ def _tim_tool(messages: list, ten: str) -> dict | None:
     return None
 
 
-def _digest_card(messages: list) -> dict | None:
+def _digest_card(messages: list, ngon: str = "vi") -> dict | None:
     """Thẻ 'digest' cho FE từ kết quả tom_tat_ngay.
 
     Số liệu lấy THẲNG từ tool, không nhờ mô hình đọc lại: đây là bảng thống kê, mà một
@@ -1400,16 +1401,20 @@ def _digest_card(messages: list) -> dict | None:
         return None
     return {
         "kind": "digest",
-        "intro": "Đây là báo cáo nhanh hộp thư của bạn:",
+        "intro": dich("the.digest.dan", ngon),
         # Tiêu đề thuần Việt. Giao diện lẫn Anh–Việt bắt người đọc chuyển ngữ giữa
         # chừng, và với bài bảo vệ thì đó là chi tiết người chấm nhìn ra ngay.
-        "title": f"Tóm tắt hộp thư — {d.get('pham_vi') or 'hôm nay'}",
+        "title": (dich("the.digest.tieude", ngon) + " — "
+                  + (d.get("pham_vi") or dich("pham_vi.hom_nay", ngon))),
         "stats": [
-            {"label": "Tổng thư", "value": d.get("tong", 0)},
-            {"label": "Chưa đọc", "value": d.get("chua_doc", 0)},
-            {"label": "Cần xử lý", "value": d.get("can_xu_ly", 0)},
+            {"label": dich("the.digest.tong", ngon), "value": d.get("tong", 0)},
+            {"label": dich("the.digest.chuadoc", ngon), "value": d.get("chua_doc", 0)},
+            {"label": dich("the.digest.canxuly", ngon), "value": d.get("can_xu_ly", 0)},
         ],
-        "breakdown": d.get("theo_nhan") or [],
+        # Nhãn giữ giá trị tiếng Việt CHUẨN suốt đường xử lý, chỉ đổi ở đây —
+        # điểm xuất ra. Xem `dich_gia_tri` để biết vì sao không đổi tận gốc.
+        "breakdown": [{**x, "label": dich_gia_tri(x.get("label", ""), ngon)}
+                      for x in (d.get("theo_nhan") or [])],
         "highlights": d.get("noi_bat") or [],
         # Kèm id thư để FE gắn nút MỞ THƯ cho từng dòng — liệt kê tên thư mà không mở
         # được thì người dùng vẫn phải tự đi tìm lại trong hộp thư.
@@ -1417,16 +1422,22 @@ def _digest_card(messages: list) -> dict | None:
     }
 
 
-def _triage_card(messages: list) -> dict | None:
+def _triage_card(messages: list, ngon: str = "vi") -> dict | None:
     """Thẻ 'triage' cho FE từ kết quả phan_loai_uu_tien."""
     d = _tim_tool(messages, "phan_loai_uu_tien")
     if not d or not d.get("nhom"):
         return None
     return {
         "kind": "triage",
-        "intro": "Mình đã phân loại theo độ ưu tiên kèm gợi ý hành động:",
-        "title": f"Phân loại {d.get('tong', 0)} thư cần theo dõi",
-        "groups": d["nhom"],
+        "intro": dich("the.triage.dan", ngon),
+        "title": dich("the.triage.tieude", ngon, n=d.get("tong", 0)),
+        "groups": [
+            {**g,
+             "label": dich_gia_tri(g.get("label", ""), ngon),
+             "items": [{**i, "suggest": dich_gia_tri(i.get("suggest", ""), ngon)}
+                       for i in (g.get("items") or [])]}
+            for g in d["nhom"]
+        ],
     }
 
 
@@ -1465,7 +1476,7 @@ def ha_the_bia(out: dict, messages: list) -> dict:
     return out
 
 
-def _lich_trinh_card(messages: list) -> dict | None:
+def _lich_trinh_card(messages: list, ngon: str = "vi") -> dict | None:
     """Thẻ 'lichtrinh' — MỘT khuôn dùng chung cho ba tool lịch trình.
 
     ── VÌ SAO PHẢI CÓ ──
@@ -1533,19 +1544,20 @@ def _lich_trinh_card(messages: list) -> dict | None:
         return None
 
     if dl and not ck:
-        tieu_de = f"{len(viec)} việc cần đi xa"
-        intro = "Mình rà trong hộp thư và thấy những việc phải đi xa:"
+        tieu_de = dich("the.lich.tieude_dilai", ngon, n=len(viec))
+        intro = dich("the.lich.dan_dilai", ngon)
     elif ngay:
         _nang = max(ngay, key=lambda d: d.get("phut", 0), default=None)
         _qt = sum(1 for d in ngay if d.get("qua_tai"))
-        tieu_de = f"Áp lực {len(ngay)} ngày tới"
-        intro = ("Không ngày nào quá tải." if not _qt
-                 else f"Có {_qt} ngày quá tải.")
+        tieu_de = dich("the.lich.tieude_apluc", ngon, n=len(ngay))
+        intro = (dich("the.lich.khong_quatai", ngon) if not _qt
+                 else dich("the.lich.co_quatai", ngon, n=_qt))
         if _nang and _nang.get("so_viec"):
-            intro += f" Nặng nhất là {_nang['ngay']} với {_nang['so_viec']} việc."
+            intro += dich("the.lich.nang_nhat", ngon,
+                          ngay=_nang["ngay"], n=_nang["so_viec"])
     else:
-        tieu_de = f"{len(viec)} việc sắp tới"
-        intro = "Đây là những việc bạn đang mắc:"
+        tieu_de = dich("the.lich.tieude_viec", ngon, n=len(viec))
+        intro = dich("the.lich.dan_viec", ngon)
 
     return {
         "kind": "lichtrinh",
@@ -1830,11 +1842,20 @@ async def agent_chat(
             "skill_context": load_skills(message),  # nạp kỹ năng khớp ngữ cảnh
             # Sở thích cá nhân: tên xưng hô, giọng văn, chữ ký, dặn dò riêng.
             # Trả rỗng khi chưa đặt gì — repo tự nuốt lỗi nên không làm hỏng lượt chat.
-            "user_context": user_preference_repo.prompt_context(db, session.user_id),
+            "user_context": user_preference_repo.prompt_context(db, session.user_id),  # noqa: E501
             "pending_confirmation": None,
             "iteration_count": 0,
             "final_output": None,
         }
+        # NGÔN NGỮ NGƯỜI DÙNG — quyết định chữ trên thẻ và trong thông báo lỗi.
+        # Đọc một lần ở đây rồi truyền xuống, thay vì mỗi bộ dựng thẻ tự đi hỏi lại
+        # database: một lượt chat dựng nhiều thẻ, và mỗi lần hỏi lại là một truy vấn
+        # thừa cho một giá trị không đổi trong suốt lượt đó.
+        try:
+            _ngon = user_preference_repo.get_or_create(db, session.user_id).language or "vi"
+        except Exception:
+            _ngon = "vi"   # đọc hỏng thì về mặc định, đừng làm hỏng cả lượt chat
+
         # Graph lo TỪ A-Z: agent (nghĩ) ↔ tools (chạy) → responder (ép thẻ) hoặc dừng (thuần text).
         result = await _AGENT_GRAPH.ainvoke(init_state)
 
@@ -1878,7 +1899,7 @@ async def agent_chat(
 
         # Digest / Triage / Lịch trình: cùng khuôn — thẻ dựng TẤT ĐỊNH từ số liệu tool.
         for _dung in (_digest_card, _triage_card, _lich_trinh_card):
-            _c = _dung(result["messages"])
+            _c = _dung(result["messages"], _ngon)
             if not _c:
                 continue
             # ── THẺ LÀ BẰNG CHỨNG, CÂU TRẢ LỜI VẪN LÀ CÂU TRẢ LỜI ──
