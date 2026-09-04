@@ -73,6 +73,24 @@ class UserPreference(Base):
         """
         dong: list[str] = []
 
+        # ── NGÔN NGỮ TRẢ LỜI ───────────────────────────────────────────────
+        # Cột `language` có trong bảng từ đầu nhưng KHÔNG AI ĐỌC — nên nút "English"
+        # ở màn Cài đặt là một nút chết: bấm xong không có gì đổi.
+        #
+        # Đặt Ở ĐẦU danh sách có chủ ý. System prompt mở đầu bằng "nói TIẾNG VIỆT chỉn
+        # chu", và khối này được nhét vào CUỐI prompt — lời đứng sau thắng lời đứng
+        # trước. Nhưng để nó lẫn giữa các dòng sở thích khác thì mô hình dễ coi nó là
+        # một gợi ý nhỏ; đứng đầu và viết dứt khoát thì nó đọc ra một mệnh lệnh.
+        #
+        # CHỈ thêm dòng khi KHÁC mặc định: người dùng để tiếng Việt thì không cần nhắc,
+        # và một khối prompt thừa vừa tốn token vừa làm loãng những dòng có thật sự cần.
+        if (self.language or "vi") != "vi":
+            dong.append(
+                "- NGÔN NGỮ: người dùng đã chọn tiếng Anh. TRẢ LỜI HOÀN TOÀN BẰNG "
+                "TIẾNG ANH, kể cả khi họ hỏi bằng tiếng Việt. Giữ nguyên tiêu đề và "
+                "nội dung thư gốc (đừng dịch chúng) — chỉ phần LỜI CỦA BẠN là tiếng Anh."
+            )
+
         if self.display_name:
             dong.append(f"- Người dùng tên là {self.display_name}. Xưng hô cho đúng.")
 

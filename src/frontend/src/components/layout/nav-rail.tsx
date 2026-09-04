@@ -14,6 +14,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/ngon-ngu'
 import { LogoMark } from '@/components/logo'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { SettingsDialog } from '@/components/layout/settings-dialog'
@@ -41,21 +42,23 @@ type NavItem = { id: string; label: string; icon: React.ElementType; sangTrang?:
    tiết. Không có dữ liệu thì không vẽ: thà trống còn hơn một cái khung rỗng.
    ══════════════════════════════════════════════════════════════════════════════ */
 const CHINH: NavItem[] = [
-  { id: 'inbox', label: 'Hộp thư', icon: Inbox },
-  { id: 'agent', label: 'Trợ lý', icon: Sparkles },
-  { id: 'lich', label: 'Lịch trình', icon: CalendarDays, sangTrang: '/lich' },
+  // `label` gio la KHOA DICH, khong phai chu hien ra. Doi thang chuoi o day thi
+  // nut do khong bao gio dich duoc — xem src/lib/ngon-ngu.tsx.
+  { id: 'inbox', label: 'nav.inbox', icon: Inbox },
+  { id: 'agent', label: 'nav.assistant', icon: Sparkles },
+  { id: 'lich', label: 'nav.schedule', icon: CalendarDays, sangTrang: '/lich' },
 ]
 
 /** Thư mục — chỗ TÌM LẠI thư, không phải chỗ làm việc hằng ngày. */
 const PHU: NavItem[] = [
-  { id: 'starred', label: 'Gắn sao', icon: Star },
-  { id: 'sent', label: 'Đã gửi', icon: Send },
-  { id: 'drafts', label: 'Nháp', icon: FileEdit },
-  { id: 'archive', label: 'Lưu trữ', icon: Archive },
+  { id: 'starred', label: 'nav.starred', icon: Star },
+  { id: 'sent', label: 'nav.sent', icon: Send },
+  { id: 'drafts', label: 'nav.drafts', icon: FileEdit },
+  { id: 'archive', label: 'nav.archive', icon: Archive },
   // Spam TỪNG THIẾU hẳn, dù nó là thư mục người ta cần nhất khi một lá thư quan
   // trọng "biến mất" — và đó là lúc người dùng hoảng nhất.
-  { id: 'spam', label: 'Thư rác', icon: ShieldAlert },
-  { id: 'trash', label: 'Thùng rác', icon: Trash2 },
+  { id: 'spam', label: 'nav.spam', icon: ShieldAlert },
+  { id: 'trash', label: 'nav.trash', icon: Trash2 },
 ]
 
 
@@ -83,10 +86,11 @@ function MucNav({
   to: boolean
 }) {
   const Icon = item.icon
+  const t = useT()
   return (
     <button
       onClick={onBam}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? t(item.label) : undefined}
       className={cn(
         'group press relative flex items-center rounded-2xl transition-all duration-200 ease-spring',
         collapsed ? 'justify-center' : 'gap-3 px-3',
@@ -111,7 +115,7 @@ function MucNav({
       </span>
       {!collapsed && (
         <span className={cn('truncate leading-none', to ? 'text-[15px] font-semibold' : 'text-sm font-medium')}>
-          {item.label}
+          {t(item.label)}
         </span>
       )}
     </button>
@@ -133,11 +137,12 @@ function OThuMuc({
   onBam: () => void
 }) {
   const Icon = item.icon
+  const t = useT()
   return (
     <button
       onClick={onBam}
-      title={item.label}
-      aria-label={item.label}
+      title={t(item.label)}
+      aria-label={t(item.label)}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'goc-cat-nho goc-cat nhay-bat group relative flex flex-col items-center justify-center gap-1',
@@ -160,7 +165,7 @@ function OThuMuc({
         // Nhãn cực nhỏ, chữ hoa giãn — đủ để đọc mà không tranh sức nặng với ba
         // mục chính ở trên. Bỏ hẳn nhãn thì thành một hàng icon đố chữ.
         <span className="max-w-full truncate px-0.5 font-mono text-[7.5px] uppercase leading-none tracking-[0.08em]">
-          {item.label}
+          {t(item.label)}
         </span>
       )}
     </button>

@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import { api, type Preferences, type PreferenceFields } from '@/lib/api'
 import { useTheme } from '@/components/theme-provider'
+import { useNgonNgu, useT } from '@/lib/ngon-ngu'
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-const LANG_KEY = 'meoarc-lang'
 
 /* Nhãn tiếng Việt cho từng giọng văn. Khoá do backend định nghĩa (nguồn sự thật
    duy nhất ở app/models/user_preference.py); ở đây chỉ dịch để hiển thị. */
@@ -217,14 +217,11 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 export function SettingsDialog() {
   const { theme, setTheme } = useTheme()
   const [tab, setTab] = useState<'general' | 'personal' | 'mcp'>('general')
-  const [lang, setLang] = useState<'vi' | 'en'>(
-    () => (localStorage.getItem(LANG_KEY) as 'vi' | 'en') || 'vi',
-  )
-
-  useEffect(() => {
-    localStorage.setItem(LANG_KEY, lang)
-    document.documentElement.lang = lang
-  }, [lang])
+  // NGÔN NGỮ do lớp dịch dùng chung giữ (src/lib/ngon-ngu.tsx), không phải state
+  // riêng của hộp thoại này — nếu không thì đổi xong đóng hộp thoại là mất, và thanh
+  // điều hướng bên ngoài cũng không biết gì để mà đổi theo.
+  const { ngon: lang, datNgon: setLang } = useNgonNgu()
+  const t = useT()
 
   return (
     <Dialog>
@@ -315,7 +312,19 @@ export function SettingsDialog() {
                   return (
                     <button
                       key={opt.key}
-                      onClick={() => setLang(opt.key as 'vi' | 'en')}
+                      onClick={() => {
+                        const v = opt.key as 'vi' | 'en'
+                        setLang(v)
+                        // LƯU LÊN MÁY CHỦ, không chỉ localStorage.
+                        //
+                        // Trợ lý đọc `language` từ bảng user_preference để biết trả lời
+                        // bằng tiếng gì (xem to_prompt_context). Chỉ lưu ở trình duyệt
+                        // thì nút này đổi được mỗi thuộc tính `lang` của thẻ <html> —
+                        // tức là một nút không làm gì, thứ tệ hơn không có nút.
+                        //
+                        // Nuốt lỗi: đổi ngôn ngữ hiển thị vẫn phải chạy dù mạng hỏng.
+                        void api.updatePreferences({ language: v }).catch(() => {})
+                      }}
                       className={cn(
                         'rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors',
                         active
@@ -328,6 +337,13 @@ export function SettingsDialog() {
                   )
                 })}
               </div>
+              {/* NÓI THẲNG PHẠM VI. Bản này dịch phần KHUNG và đổi ngôn ngữ trợ lý trả
+                  lời; thẻ kết quả và thông báo lỗi vẫn tiếng Việt. Người dùng bấm xong
+                  thấy một nửa đổi một nửa không mà không được báo trước thì họ nghĩ là
+                  hỏng — nói trước thì đó là một giới hạn đã biết. */}
+              <p className="mt-2 text-[11.5px] leading-relaxed text-popover-foreground/55">
+                {t('settings.langNote')}
+              </p>
             </div>
           </div>
         ) : tab === 'personal' ? (
