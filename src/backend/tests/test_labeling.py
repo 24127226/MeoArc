@@ -75,12 +75,18 @@ def test_moi_phan_loai_co_reason_va_confidence():
     assert c.confidence == "high", "khớp tên miền phải là high"
 
 
-def test_taxonomy_khop_7_mau_FE():
-    """7 nhãn ↔ đúng 7 màu chip FE (moss/sea/sun/cherry/sky/terra/wine), không trùng."""
+def test_taxonomy_khop_8_mau_FE():
+    """8 nhãn ↔ đúng 8 màu chip FE, không trùng.
+
+    `jade` (Đi lại) thêm sau khi ĐO: vé máy bay và xác nhận đặt phòng không có nhãn
+    nào để về nên rơi vào "Cá nhân". Danh sách này phải khớp 1-1 với
+    `src/frontend/src/data/categories.ts` — lệch thì chip hiện ra không có màu, hoặc
+    hai nhãn dùng chung một màu và người dùng đọc ra thành một nhóm."""
     colors = [c.color for c in ALL_CATEGORIES]
-    assert sorted(colors) == sorted({"moss", "sea", "sun", "cherry", "sky", "terra", "wine"}), \
+    assert sorted(colors) == sorted({"moss", "sea", "sun", "cherry", "sky", "terra",
+                                     "wine", "jade"}), \
         f"Màu nhãn lệch bảng màu FE: {colors}"
-    assert len(set(colors)) == 7, "Có 2 nhãn trùng màu → FE hiển thị lẫn"
+    assert len(set(colors)) == 8, "Có 2 nhãn trùng màu → FE hiển thị lẫn"
 
 
 # ── Tool categorize_emails + thẻ FE (mạch end-to-end, dữ liệu Gmail GIẢ) ──
@@ -185,12 +191,48 @@ def test_manh_CO_dau_a_coi_van_neo_vao_ten_nguoi_gui():
 
 
 def test_khong_ro_thi_confidence_THAP_chu_khong_doan_bua():
-    """Thư đi lại chưa có nhãn riêng nên rơi về mặc định — nhưng phải là 'low'.
+    """Không đọc ra được gì thì phải là 'low', đừng đoán bừa.
+
     'low' là tín hiệu cho agent biết chỗ này cần suy luận thêm; một phân loại sai mà
-    mang 'high' thì không ai nghi ngờ nó."""
+    mang 'high' thì không ai nghi ngờ nó.
+
+    (Ca cũ ở đây là thư đặt chỗ máy bay — hồi đó chưa có nhãn Đi lại nên nó rơi về
+    mặc định. Nay đã có nhãn thật nên ca đó chuyển xuống dưới, còn chỗ này dùng một
+    lá thư thực sự không có tín hiệu nào.)"""
     from app.core.labeling import classify
-    c = classify("meoarc.hcmus@outlook.com.vn", "", "Xác nhận đặt chỗ — SGN đi HAN", "")
+    c = classify("ai.do@gmail.com", "Ai Đó", "Chào bạn", "Nhắn chút thôi.")
     assert c.confidence == "low"
+
+
+def test_thu_DI_LAI_co_nhan_rieng():
+    """Chính lý do thêm nhãn: bốn thư đi lại trong bộ demo trước đây rơi vào 'Cá nhân'."""
+    from app.core.labeling import classify
+    tu_minh = "meoarc.hcmus@outlook.com.vn"
+    for ten, tieu_de in [
+        ("Vietnam Airlines", "Xác nhận đặt chỗ — SGN đi HAN ngày 19/9"),
+        ("Vietnam Airlines", "THAY ĐỔI LỊCH BAY — mã đặt chỗ XKPQ7M"),
+        ("Booking.com", "Xác nhận đặt phòng của bạn"),
+        ("Hanoi La Siesta Premium", "Xác nhận đặt phòng 19/9 - 21/9"),
+    ]:
+        c = classify(tu_minh, ten, tieu_de, "")
+        assert c.category.label == "Đi lại", f"{ten} → {c.category.label}"
+
+
+def test_DI_LAI_thang_TAI_CHINH_khi_thu_nhac_ca_hai():
+    """Xác nhận đặt phòng gần như luôn nhắc chuyện đã thanh toán. Với người dùng thì
+    đó là CHUYẾN ĐI — biên lai chỉ là mặt phụ."""
+    from app.core.labeling import classify
+    c = classify("ai.do@gmail.com", "Ai Đó", "Xác nhận đặt phòng 19/9",
+                 "Bạn đã thanh toán 1.200.000đ. Mã đặt chỗ ABC123.")
+    assert c.category.label == "Đi lại"
+
+
+def test_DI_LAI_khong_cuop_thu_tai_chinh_thuong():
+    """Ranh giới ngược lại: sao kê ngân hàng không được biến thành chuyến đi."""
+    from app.core.labeling import classify
+    c = classify("ai.do@gmail.com", "Ngân hàng ACB", "Sao kê tài khoản tháng 9",
+                 "Số dư cuối kỳ 5.000.000đ. Xem chi tiết giao dịch.")
+    assert c.category.label == "Tài chính"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

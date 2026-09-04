@@ -107,20 +107,31 @@ async def main() -> int:
                          email_provider="gmail", tier="free", scan_days=30)
     graph = build_graph()
 
-    ket = []
+    # `_chay` TỰ NUỐT ngoại lệ rồi trả False, nên không bắt được "hết hạn mức" bằng
+    # try/except ở đây — lần chạy đầu vì thế đi hết 26 câu để đâm vào cùng một bức
+    # tường 429, và bản tổng kết trông như 17 câu sai logic.
+    #
+    # Dấu hiệu dùng được là CHUỖI TRƯỢT LIÊN TIẾP: một câu trượt thì có thể là mô hình
+    # chọn sai tool, nhưng ba câu liền nhau trượt thì gần như luôn là hạn mức chứ
+    # không phải suy luận. Dừng ở đó, và in sẵn lệnh chạy tiếp phần còn lại.
+    TRUOT_LIEN_TIEP_TOI_DA = 3
+    ket: list[tuple[int, str, bool]] = []
+    lien_tiep = 0
     for so, nhom, cau, mong, gc in chon:
         try:
             ok = await _chay(so, nhom, cau, mong, gc, ctx, graph)
         except Exception as exc:                     # noqa: BLE001
-            print(f"\n[{so}] LỖI: {type(exc).__name__}: {str(exc)[:200]}")
-            # Hết quota thì DỪNG HẲN, đừng đốt tiếp các câu sau vào cùng một bức tường.
-            if any(k in str(exc).lower() for k in
-                   ("quota", "resource_exhausted", "429", "rate limit")):
-                print("→ HẾT HẠN MỨC. Dừng tại đây; chạy lại khi quota hồi.")
-                ket.append((so, mong, False))
-                break
+            print(f"[{so}] LỖI: {type(exc).__name__}: {str(exc)[:200]}")
             ok = False
         ket.append((so, mong, ok))
+        lien_tiep = 0 if ok else lien_tiep + 1
+        if lien_tiep >= TRUOT_LIEN_TIEP_TOI_DA:
+            print(f"\n→ {lien_tiep} câu trượt liên tiếp — gần như chắc chắn HẾT HẠN MỨC.")
+            con = [str(c[0]) for c in chon[len(ket):]]
+            if con:
+                print("  Chạy lại phần còn lại khi quota hồi:")
+                print(f"  ./.venv/Scripts/python.exe scripts/thu_prompt_offline.py {' '.join(con)}")
+            break
 
     print(f"\n{'═' * 76}")
     hong = [s for s, mong, ok in ket if mong != "*" and not ok]

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 # `Literal[...]` = "chỉ được nhận đúng các giá trị này". Nếu lỡ gán
 # category="xyz", Pydantic sẽ BÁO LỖI ngay — chặn dữ liệu rác.
-Category = Literal["moss", "sea", "sun", "cherry", "sky", "terra", "wine"]
+Category = Literal["moss", "sea", "sun", "cherry", "sky", "terra", "wine", "jade"]
 # PA1 §4.2.9 — hai trục tách rời, chỉ gán cho thư mang tính công việc.
 Priority = Literal["High", "Medium", "Low"]
 TaskStatus = Literal["Todo", "Waiting", "Done"]

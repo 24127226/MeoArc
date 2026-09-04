@@ -41,8 +41,12 @@ CA_NHAN   = Category("ca_nhan",  "Cá nhân",            "cherry", "người th�
 MANG_XH   = Category("mang_xh",  "Mạng xã hội",        "sky",    "Facebook/Instagram/TikTok/X/LinkedIn/YouTube")
 MUA_SAM   = Category("mua_sam",  "Mua sắm & Ưu đãi",   "terra",  "Shopee/Lazada/Tiki/khuyến mãi/voucher/bản tin")
 TAI_CHINH = Category("tai_chinh","Tài chính",          "wine",   "ngân hàng/ví điện tử/hoá đơn/thanh toán")
+# Đi lại — thêm sau khi ĐO: vé máy bay và xác nhận đặt phòng không có chỗ nào để về,
+# nên chúng rơi vào "Cá nhân/low". Bảy nhãn kia không nhãn nào nhận chúng mà không
+# sai nghĩa: một chuyến bay không phải mua sắm, và biên lai chỉ là mặt phụ của nó.
+DI_LAI    = Category("di_lai",   "Đi lại",             "jade",   "vé máy bay/khách sạn/đặt chỗ/lịch trình đi lại")
 
-ALL_CATEGORIES = [HOC_TAP, CONG_VIEC, HE_THONG, CA_NHAN, MANG_XH, MUA_SAM, TAI_CHINH]
+ALL_CATEGORIES = [HOC_TAP, CONG_VIEC, HE_THONG, CA_NHAN, MANG_XH, MUA_SAM, TAI_CHINH, DI_LAI]
 _BY_KEY = {c.key: c for c in ALL_CATEGORIES}
 _BY_LABEL = {c.label.lower(): c for c in ALL_CATEGORIES}
 
@@ -88,6 +92,12 @@ _DOMAIN_RULES: list[tuple[list[str], Category, str]] = [
       "banking", "napas"],
      TAI_CHINH, "gửi từ ngân hàng/ví điện tử/cổng thanh toán"),
 
+    # Đi lại — hãng bay, nền tảng đặt phòng/vé
+    (["vietnamairlines", "vietjet", "bambooairways", "vietravel", "booking.com", "agoda",
+      "airbnb", "traveloka", "expedia", "trip.com", "klook", "hotels.com", "marriott",
+      "accor", "vinpearl", "mytour", "vexere", "skyscanner", "kayak.com", "tripadvisor"],
+     DI_LAI, "gửi từ hãng bay/nền tảng đặt chỗ"),
+
     # Mạng xã hội
     (["facebookmail", "facebook.com", "instagram", "tiktok", "twitter.com", "@x.com", "notify.twitter",
       "linkedin.com", "threads.net", "youtube.com", "discord", "reddit", "pinterest", "@zalo"],
@@ -126,12 +136,23 @@ _TEN_RULES: list[tuple[list[str], Category, str]] = [
       "ban tổ chức", "ban to chuc", "ban truyền thông", "học vụ", "hoc vu",
       "trường đh", "đại học", "dai hoc", "ieee", "springer", "elsevier", "acm"],
      HOC_TAP, "tên người gửi cho thấy là đơn vị trong trường/học thuật"),
+    # Tên khách sạn/hãng bay hiếm khi trùng tên miền nào ta biết ("Hanoi La Siesta
+    # Premium"), nên bắt bằng CHỮ trong tên: hotel/resort/homestay/airlines.
+    (["airlines", "airways", "hotel", "resort", "homestay", "hostel", "villa",
+      "khách sạn", "khach san", "hãng hàng không", "du lịch", "travel", "tour "],
+     DI_LAI, "tên người gửi cho thấy là hãng bay/nơi lưu trú"),
 ]
 
 # ── TÍN HIỆU 2: TỪ KHOÁ tiêu đề + nội dung (phụ trợ → confidence medium) ──
 _KEYWORD_RULES: list[tuple[str, Category, str]] = [
     (r"(otp|mã xác (thực|minh)|verification code|one-time|security alert|"
      r"cảnh báo bảo mật|đổi mật khẩu|reset password)", HE_THONG, "chứa mã OTP/cảnh báo bảo mật"),
+    # ĐẶT TRƯỚC tài chính: xác nhận đặt phòng gần như luôn nhắc chuyện đã thanh toán,
+    # mà với người dùng thì đó là CHUYẾN ĐI, biên lai chỉ là mặt phụ. Các cụm ở đây rất
+    # đặc thù (`mã đặt chỗ`, `nhận phòng`) nên gần như không cướp nhầm thư khác.
+    (r"(mã đặt chỗ|đặt chỗ|đặt phòng|nhận phòng|trả phòng|check-?in|booking|reservation|"
+     r"vé máy bay|chuyến bay|lịch bay|hãng bay|boarding|pnr|khách sạn|homestay|"
+     r"flight|hotel)", DI_LAI, "nói về vé/đặt chỗ/chuyến đi"),
     (r"(hoá đơn|hóa đơn|invoice|receipt|biên lai|thanh toán|payment|sao kê|statement|"
      r"số dư|dư nợ|chuyển khoản|giao dịch)", TAI_CHINH, "nói về hoá đơn/thanh toán/giao dịch"),
     (r"(tuyển dụng|internship|thực tập|ứng tuyển|phỏng vấn|interview|offer thư mời|hồ sơ ứng)",
@@ -224,8 +245,13 @@ def classify(sender_email: str, sender_name: str = "",
                 return Classification(cat, "medium", why)
         for needles, cat, why in _DOMAIN_RULES:
             if any(_khop_ten(n, ten_l) for n in needles):
-                return Classification(cat, "medium", f"tên người gửi cho thấy {why[8:]}"
-                                      if why.startswith("gửi từ ") else why)
+                # `removeprefix` chứ không cắt theo chỉ số: đếm tay một tiền tố có dấu
+                # thì lệch một ký tự là ra "cho thấy ãng bay" — đã dính đúng vậy.
+                return Classification(
+                    cat, "medium",
+                    "tên người gửi cho thấy " + why.removeprefix("gửi từ ")
+                    if why.startswith("gửi từ ") else why,
+                )
 
     # 3) Từ khoá tiêu đề/nội dung
     for pat, cat, why in _KEYWORD_RULES:

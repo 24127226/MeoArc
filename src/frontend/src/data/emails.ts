@@ -5,7 +5,7 @@ import { DEMO_QUA_TAI } from '@/data/demo-qua-tai'
 
 /** Category màu của inbox — tên màu lấy từ palette "Provence Meadow".
  *  Bảng màu cụ thể nằm ở email-list.tsx (CATEGORY) để giữ một nguồn duy nhất. */
-export type Category = 'moss' | 'sea' | 'sun' | 'cherry' | 'sky' | 'terra' | 'wine'
+export type Category = 'moss' | 'sea' | 'sun' | 'cherry' | 'sky' | 'terra' | 'wine' | 'jade'
 
 export type Attachment = { name: string; size: string }
 

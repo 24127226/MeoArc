@@ -171,7 +171,7 @@ class CategorizedItem(BaseModel):
     sender: str
     subject: str
     label: str          # tên nhãn ĐỀ XUẤT (chính là tên nhãn sẽ áp lên Gmail)
-    category: str       # màu chip FE: moss/sea/sun/cherry/sky/terra/wine
+    category: str       # màu chip FE: moss/sea/sun/cherry/sky/terra/wine/jade
     confidence: str     # high | medium | low
     reason: str         # vì sao đề xuất nhãn này (để người dùng tin/sửa)
 

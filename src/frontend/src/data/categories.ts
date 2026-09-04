@@ -12,9 +12,14 @@ export const CATEGORY: Record<Category, { bar: string; soft: string; ink: string
   sky: { bar: '#3D5AFE', soft: 'rgba(61, 90, 254, 0.14)', ink: '#1C31C0' },     // Mạng xã hội — Electric Cobalt
   terra: { bar: '#FF8A1E', soft: 'rgba(255, 138, 30, 0.16)', ink: '#A85405' },  // Mua sắm — Toxic Amber
   wine: { bar: '#FFCCF2', soft: 'rgba(255, 204, 242, 0.20)', ink: '#8E2C6B' },  // Tài chính — hồng chân trời
+  // Đi lại — ngọc bích. Bảy sắc kia đã chiếm tím/cyan/xám/magenta/lam/hổ phách/hồng;
+  // XANH LỤC là mảng còn trống duy nhất đủ xa mọi màu đang có. Cyan #87F5F5 (Công việc)
+  // là màu gần nhất, nhưng lệch ~25° sắc độ và đậm hơn hẳn nên phân biệt được cả khi
+  // hai chip nằm cạnh nhau.
+  jade: { bar: '#3EE9A0', soft: 'rgba(62, 233, 160, 0.16)', ink: '#046B4A' },    // Đi lại — ngọc bích
 }
 
-/** 7 nhãn phân loại email (UC006/UC009) — ĐỒNG BỘ 1-1 với labeling engine
+/** 8 nhãn phân loại email (UC006/UC009) — ĐỒNG BỘ 1-1 với labeling engine
  *  backend (app/core/labeling.py) và tài liệu Design. Đổi ở đây là đổi mọi nơi. */
 export const CATEGORY_OPTIONS: { key: Category; label: string }[] = [
   { key: 'moss', label: 'Học tập' },
@@ -24,4 +29,5 @@ export const CATEGORY_OPTIONS: { key: Category; label: string }[] = [
   { key: 'sky', label: 'Mạng xã hội' },
   { key: 'terra', label: 'Mua sắm & Ưu đãi' },
   { key: 'wine', label: 'Tài chính' },
+  { key: 'jade', label: 'Đi lại' },
 ]
