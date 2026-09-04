@@ -782,3 +782,64 @@ async def test_model_go_KHONG_bi_quy_tac_ca_day_go_mat(monkeypatch):
         await LLMDuPhong(
             [_Model("A1", MODEL_GO), _Model("A2", MODEL_GO)], nhan).ainvoke("x")
     assert _dang_nghi("mA · khoá #1"), "đánh dấu model-bị-gỡ KHÔNG được gỡ bỏ"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 499 CANCELLED và 504 DEADLINE_EXCEEDED — đo được khi chạy đủ 36 câu (03/09/2026)
+#
+# Ba câu chết vì chúng: Q8 (499), Q10 và Q11 (504). Không phải trả lời sai — là KHÔNG
+# TRẢ LỜI ĐƯỢC, vì hai mã đó không nằm trong danh sách lỗi được phép rơi nên chúng
+# giết cả yêu cầu thay vì sang model kế. Mà đây đúng là loại lỗi đổi bậc cứu được:
+# cùng câu hỏi, model khác, thường chạy được ngay.
+# ══════════════════════════════════════════════════════════════════════════════
+
+CANCELLED = RuntimeError(
+    "Error calling model 'gemini-3.5-flash' (CANCELLED): 499 CANCELLED. "
+    "{'error': {'code': 499, 'message': 'The operation was cancelled.', "
+    "'status': 'CANCELLED'}}"
+)
+QUA_HAN = RuntimeError(
+    "504 DEADLINE_EXCEEDED. {'error': {'code': 504, 'message': 'Deadline expired "
+    "before operation could complete.', 'status': 'DEADLINE_EXCEEDED'}}"
+)
+
+
+def test_nhan_dung_499_cancelled():
+    assert _la_loi_qua_tai_nhat_thoi(CANCELLED) is True
+    assert _nen_doi_bac(CANCELLED) is True
+
+
+def test_nhan_dung_504_deadline():
+    assert _la_loi_qua_tai_nhat_thoi(QUA_HAN) is True
+    assert _nen_doi_bac(QUA_HAN) is True
+
+
+def test_hai_ma_moi_KHONG_bi_coi_la_het_quota():
+    """Phải rơi sang bậc kế NHƯNG không được treo bậc đó: model không mất gì cả,
+    chỉ là lượt gọi đó trục trặc."""
+    assert _la_loi_het_quota(CANCELLED) is False
+    assert _la_loi_het_quota(QUA_HAN) is False
+
+
+@pytest.mark.asyncio
+async def test_499_thi_ROI_sang_bac_ke_va_KHONG_treo(monkeypatch):
+    """Đúng ca Q8 đã gặp."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    assert await LLMDuPhong([_Model("A", CANCELLED), _Model("B")], ["A", "B"]).ainvoke("x") == "B"
+    assert not _dang_nghi("A")
+
+
+@pytest.mark.asyncio
+async def test_504_thi_ROI_sang_bac_ke_va_KHONG_treo(monkeypatch):
+    """Đúng ca Q10/Q11 đã gặp."""
+    monkeypatch.setattr("app.core.llm.settings.quota_cooldown_min", 15)
+    assert await LLMDuPhong([_Model("A", QUA_HAN), _Model("B")], ["A", "B"]).ainvoke("x") == "B"
+    assert not _dang_nghi("A")
+
+
+def test_KHONG_bat_bang_con_so_tran():
+    """Lặp lại bài học từ "429" và "404": bắt bằng ba ký tự số thì id, URL hay lịch sử
+    thử lại cũng khớp. Ở đây chỉ khớp TÊN MÃ, nên một chuỗi có số 504/499 lẫn trong id
+    không được nhận nhầm."""
+    assert _la_loi_qua_tai_nhat_thoi(RuntimeError("tool call id ab504cd failed")) is False
+    assert _la_loi_qua_tai_nhat_thoi(RuntimeError("thread 499xyz not found")) is False

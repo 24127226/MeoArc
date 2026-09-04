@@ -115,6 +115,19 @@ def _la_loi_qua_tai_nhat_thoi(e: BaseException) -> bool:
     return (
         "unavailable" in t or "overloaded" in t or "high demand" in t
         or "503" in t or "internal error" in t or "500" in t
+        # ── THÊM 03/09/2026: hai mã nữa, cùng bản chất "phía Google trục trặc" ──
+        # Chạy đủ 36 câu prompt trên hệ thật thì ba câu chết vì chúng:
+        #   Q8       → 499 CANCELLED
+        #   Q10, Q11 → 504 DEADLINE_EXCEEDED
+        # Không nằm trong danh sách nên chúng GIẾT cả yêu cầu thay vì sang model kế —
+        # trong khi đây đúng là loại lỗi mà đổi bậc cứu được: cùng câu hỏi, model khác,
+        # thường là chạy được ngay.
+        #
+        # Khớp bằng TÊN MÃ chứ không phải con số. Bắt "504"/"499" trần là lặp lại đúng
+        # cái bẫy đã vấp với "429" và "404": ba ký tự số nằm trong id hay URL cũng khớp,
+        # và một lần dán nhãn sai làm cả buổi đi tìm lỗi ở chỗ không có lỗi.
+        or "deadline_exceeded" in t or "deadline expired" in t
+        or "cancelled" in t or "canceled" in t
     )
 
 
