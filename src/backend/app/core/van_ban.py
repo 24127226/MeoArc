@@ -47,16 +47,11 @@ def sua_xuong_dong(s: str) -> str:
     return _THOAT.sub(lambda m: _DOI[m.group(1)], s)
 
 
-# Tham số tool chứa VĂN XUÔI cho người đọc. Cố ý là danh sách hẹp: một truy vấn Gmail
-# (`q="from:a\\nb"`) hay một mã thư không bao giờ được đụng tới.
-TRUONG_VAN_XUOI = ("body", "instructions")
-
-
-def don_args(args: dict) -> dict:
-    """Dọn các trường văn xuôi trong args tool. Trả về dict MỚI, không sửa tại chỗ."""
-    if not isinstance(args, dict):
-        return args
-    return {
-        k: (sua_xuong_dong(v) if k in TRUONG_VAN_XUOI and isinstance(v, str) else v)
-        for k, v in args.items()
-    }
+# Nối vào đường đi bằng `field_validator` ở `tools/schemas.py`
+# (`SendEmailInput.body`, `ReplyEmailInput.instructions`) chứ không bằng một hàm dọn
+# args riêng: validator chạy TỰ ĐỘNG cho cả LangGraph lẫn MCP — hai lối vào đều qua
+# `tool_registry.call` — nên không ai phải NHỚ gọi nó. Một hàm dọn phải gọi tay là
+# một chỗ để quên, và chỗ quên đó gửi thư đi cho người thật.
+#
+# Danh sách trường cố ý HẸP: chỉ văn xuôi cho người đọc. Một truy vấn Gmail
+# (`q="from:a\nb"`) hay một mã thư không bao giờ được đụng tới.

@@ -5,7 +5,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Annotated, Any, Literal
 
-from app.tools.van_ban import go_chuoi_thoat
+from app.core.van_ban import sua_xuong_dong
 
 
 # =========================================================
@@ -368,8 +368,8 @@ class SendEmailInput(BaseModel):
 
     # Mô hình hay viết ra HAI KÝ TỰ `\` và `n` thay vì xuống dòng thật khi phải đặt
     # một chuỗi nhiều dòng vào tham số JSON. Thư gửi đi rồi thì không rút lại được,
-    # nên chặn ở đây chứ không chỉ dặn thêm trong prompt. Xem `tools/van_ban.py`.
-    _go_thoat_body = field_validator("body", mode="before")(go_chuoi_thoat)
+    # nên chặn ở đây chứ không chỉ dặn thêm trong prompt. Xem `core/van_ban.py`.
+    _go_thoat_body = field_validator("body", mode="before")(sua_xuong_dong)
 
 
 class SendEmailOutput(ToolResult):
@@ -392,7 +392,7 @@ class ReplyEmailInput(BaseModel):
 
     # `instructions` được gửi đi NGUYÊN VĂN làm thân thư trả lời (xem docstring của
     # tool `reply_email`), nên chịu đúng lỗi chuỗi thoát như `SendEmailInput.body`.
-    _go_thoat_instructions = field_validator("instructions", mode="before")(go_chuoi_thoat)
+    _go_thoat_instructions = field_validator("instructions", mode="before")(sua_xuong_dong)
 
 
 class ReplyEmailOutput(ToolResult):

@@ -31,14 +31,14 @@ from __future__ import annotations
 import pytest
 
 from app.tools.schemas import ReplyEmailInput, SendEmailInput
-from app.tools.van_ban import go_chuoi_thoat
+from app.core.van_ban import sua_xuong_dong
 
 
 # ── Chính lỗi người dùng gặp ─────────────────────────────────────────────────
 
 def test_than_thu_toan_chuoi_thoat_thi_thanh_xuong_dong_that():
     goc = "Dạ em chào thầy,\\n\\nEm gửi thầy báo cáo ạ.\\n\\nTrân trọng,\\nQuân"
-    ra = go_chuoi_thoat(goc)
+    ra = sua_xuong_dong(goc)
     assert "\\n" not in ra
     assert ra.count("\n") == 5
     assert ra.startswith("Dạ em chào thầy,\n\nEm gửi")
@@ -55,13 +55,25 @@ def test_di_qua_ca_schema_reply_email():
     assert inp.instructions == "Chào anh,\n\nEm đồng ý ạ."
 
 
-def test_thoat_hai_lan_cung_go_duoc():
-    """`\\\\n` xuất hiện khi chuỗi bị escape hai lượt trên đường đi."""
-    assert go_chuoi_thoat("A\\\\nB") == "A\nB"
+def test_cheo_nguoc_DA_THOAT_thi_giu_nguyen():
+    """`\\\\n` là dấu chéo ngược ĐÃ ĐƯỢC THOÁT — người viết thật sự muốn nói tới ký tự
+    chéo ngược, không phải xuống dòng. Đây là chỗ bản dùng chung CỐ Ý khác với bản
+    đầu tôi viết: đổi nó đi là sửa một cái sai thành một cái sai khác, mà lần này
+    người dùng không ngờ tới."""
+    assert sua_xuong_dong("A\\\\nB") == "A\\\\nB"
 
 
 def test_xuong_dong_kieu_windows():
-    assert go_chuoi_thoat("A\\r\\nB") == "A\nB"
+    assert sua_xuong_dong("A\\r\\nB") == "A\r\nB"
+
+
+def test_tab_chi_duoc_go_KHI_da_chac_chan_la_chuoi_thoat():
+    """`\\t` một mình KHÔNG đủ để kết luận. Dấu vân tay của lỗi là `\\n`/`\\r`: cả thân
+    thư nằm trên một dòng vì mô hình viết chuỗi thoát thay cho xuống dòng. Có dấu đó
+    rồi thì `\\t` đi cùng cũng là chuỗi thoát; không có nó thì một chuỗi chỉ chứa `\\t`
+    là mơ hồ, và để nguyên là lựa chọn ít hại hơn."""
+    assert sua_xuong_dong("Cột 1\\tCột 2") == "Cột 1\\tCột 2"
+    assert sua_xuong_dong("Bảng:\\nCột 1\\tCột 2") == "Bảng:\nCột 1\tCột 2"
 
 
 # ── Ranh giới: KHÔNG được đụng vào ───────────────────────────────────────────
@@ -69,30 +81,30 @@ def test_xuong_dong_kieu_windows():
 def test_da_co_xuong_dong_that_thi_KHONG_dung_vao():
     """Có xuống dòng thật nghĩa là mô hình biết xuống dòng — `\\n` còn lại là chữ thật."""
     goc = "Xem thư mục:\nC:\\new\\bao-cao.docx\nCảm ơn anh."
-    assert go_chuoi_thoat(goc) == goc
+    assert sua_xuong_dong(goc) == goc
 
 
 def test_khong_co_chuoi_thoat_thi_tra_ve_nguyen_xi():
     goc = "Chào anh, em xác nhận tham dự ạ."
-    assert go_chuoi_thoat(goc) is goc or go_chuoi_thoat(goc) == goc
+    assert sua_xuong_dong(goc) is goc or sua_xuong_dong(goc) == goc
 
 
 def test_dau_cheo_nguoc_khong_di_kem_chu_n_thi_giu_nguyen():
     """Chỉ gỡ chuỗi thoát xuống dòng. Mọi dấu chéo ngược khác giữ nguyên."""
     goc = "Đường dẫn D:\\tai-lieu\\bao-cao.docx nhé anh."
-    assert go_chuoi_thoat(goc) == goc
+    assert sua_xuong_dong(goc) == goc
 
 
 @pytest.mark.parametrize("rong", ["", "   "])
 def test_chuoi_rong_khong_gay_loi(rong):
-    assert go_chuoi_thoat(rong) == rong
+    assert sua_xuong_dong(rong) == rong
 
 
 def test_khong_phai_chuoi_thi_tra_ve_nguyen_xi():
     """Validator chạy ở mode='before' nên có thể nhận kiểu lạ — không được ném lỗi
     ở đây, để Pydantic báo lỗi kiểu bằng thông điệp của chính nó."""
-    assert go_chuoi_thoat(None) is None
-    assert go_chuoi_thoat(12) == 12
+    assert sua_xuong_dong(None) is None
+    assert sua_xuong_dong(12) == 12
 
 
 def test_nguoi_dung_tu_go_KHONG_di_qua_lop_nay():
@@ -100,6 +112,6 @@ def test_nguoi_dung_tu_go_KHONG_di_qua_lop_nay():
     người dùng (`/emails/send` → `SendReq`) là model KHÁC, và phải giữ nguyên như thế."""
     from app.api.app import SendReq
     assert not hasattr(SendReq, "__pydantic_decorators__") or all(
-        "go_chuoi_thoat" not in str(getattr(d, "func", ""))
+        "sua_xuong_dong" not in str(getattr(d, "func", ""))
         for d in SendReq.__pydantic_decorators__.field_validators.values()
     )
