@@ -159,3 +159,46 @@ test('tiếng Việt vẫn chạy y như cũ — không đánh đổi', () => {
   assert.equal(doDieuHuong('cho tôi xem lịch trình')?.duong_dan, '/lich')
   assert.equal(doDieuHuong('tuần này lịch trình tôi thế nào?'), null)
 })
+
+/* ── GÕ THIẾU DẤU (lỗi telex) VẪN PHẢI HIỂU ────────────────────────────────────
+ *
+ * Đo được trước khi sửa: `mo hop thu` (không dấu hẳn) khớp, `mở hộp thư` (đủ dấu)
+ * khớp, nhưng `mở hộp thu` và `mơ hôp thư` thì TRƯỢT. Mà thiếu dấu LẺ TẺ mới đúng là
+ * lỗi telex hay gặp nhất — gõ `w` không ăn, `j` rơi mất — chứ không ai gõ sai đều
+ * đặn cả câu.
+ *
+ * Trượt ở đây không phải thảm hoạ (câu rơi xuống agent, mô hình vẫn hiểu), nhưng nó
+ * đổi một phản hồi TỨC THÌ lấy một lượt gọi model — mà hạn mức free chỉ 20 lượt/ngày.
+ */
+test('gõ thiếu dấu / sai dấu vẫn nhận ra lệnh điều hướng', () => {
+  for (const cau of ['mo hop thu', 'mở hộp thu', 'mơ hôp thư', 'MO HOP THU', 'Mở Hộp Thư']) {
+    assert.equal(doDieuHuong(cau)?.duong_dan, '/app', cau)
+  }
+  for (const cau of ['chuyen sang lich trinh', 'cho tôi xem lich trình']) {
+    assert.equal(doDieuHuong(cau)?.duong_dan, '/lich', cau)
+  }
+})
+
+/* ── `\b` TRONG CHUỖI NHÁY ĐƠN PHẢI VIẾT HAI DẤU CHÉO ──────────────────────────
+ *
+ * Một dấu thì JavaScript hiểu là ký tự BACKSPACE, không phải ranh giới từ — và cả
+ * năm từ hành động tiếng Anh IM LẶNG không bao giờ khớp. Đo được: câu
+ * "go to inbox and mark all as read" bị lối tắt nuốt và trả lời "đang mở Hộp thư",
+ * tức là một câu đòi TÁC ĐỘNG không hề tới được agent, nơi có guardrail và cổng duyệt.
+ *
+ * Test cũ về hành động tiếng Anh VẪN QUA trong lúc lỗi này còn đó — vì các câu nó thử
+ * đều thiếu động từ điều hướng nên bị chặn ở nhánh khác. Qua vì lý do sai còn nguy
+ * hơn trượt: nó cho ta niềm tin mà không cho ta sự bảo đảm. Nên ca dưới đây CỐ Ý có
+ * đủ cả động từ lẫn đích đến, để thứ duy nhất chặn được nó là TAC_DONG.
+ */
+test('câu có ĐỦ động từ + đích đến mà đòi tác động thì vẫn phải xuống agent', () => {
+  for (const cau of [
+    'go to inbox and mark all as read',
+    'go to inbox and empty it',
+    'open my mailbox and label them',
+    'open my mailbox and remove spam',
+    'mo hop thu roi xoa het',
+  ]) {
+    assert.equal(doDieuHuong(cau), null, cau)
+  }
+})

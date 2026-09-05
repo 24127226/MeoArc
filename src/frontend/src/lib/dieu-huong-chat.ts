@@ -30,7 +30,7 @@ export type DichDen = { duong_dan: string; ten: string }
 
 const DICH: { re: RegExp; dich: DichDen }[] = [
   {
-    re: /(lịch trình|lich trinh|lịch của tôi|lich cua toi|thời khoá biểu|thoi khoa bieu|deadline của tôi|calendar|schedule|timetable|my deadlines)/i,
+    re: /(lịch trình|lich trinh|lịch của tôi|lich cua toi|thời khoá biểu|thoi khoa bieu|deadline của tôi|deadline cua toi|calendar|schedule|timetable|my deadlines)/i,
     dich: { duong_dan: '/lich', ten: 'Lịch trình' },
   },
   {
@@ -47,7 +47,7 @@ const DONG_TU_DI = new RegExp(
     // của tôi" bị nuốt thành lệnh mở Hộp thư, nên nó KHÔNG BAO GIỜ tới được agent và
     // guardrail chống prompt-injection không có cơ hội chạy. Trước mặt người chấm,
     // nhìn ra đúng như trợ lý đã ngoan ngoãn làm theo câu tấn công.
-    'dẫn (tôi|toi|mình|minh|tớ|tới|đến|den|qua|sang|về|ve)|' +
+    'd[âẫa]n (tôi|toi|mình|minh|tớ|tới|toi|đến|den|qua|sang|về|ve)|' +
     'qua (phần|phan|màn|man|trang)|vào (phần|phan|màn|man|trang)|vao (phan|man|trang)|' +
     'cho (tôi|toi|mình|minh|tớ) (xem|coi|tới|toi|đến|den)|đưa (tôi|toi|mình|minh)|dua (toi|minh)|' +
     'xem (phần|phan|màn|man|trang)|quay (lại|lai) (phần|phan|màn|man|trang)|' +
@@ -71,8 +71,13 @@ const TAC_DONG = new RegExp(
     'chuyen tiep|lưu trữ|luu tru|archive|đánh dấu|danh dau|gắn nhãn|gan nhan|spam|' +
     'dọn sạch|don sach|dọn dẹp|don dep|' +
     'bỏ qua (mọi|moi|các|cac|tất cả|tat ca)|bo qua (moi|cac|tat ca)|' +
-    'ignore (all|previous|prior)|disregard|\bmark\b|\blabel\b|clean ?up|clear out|' +
-    '\bremove\b|\btrash\b|\bempty\b)',
+    // `\\b` PHẢI hai dấu chéo trong chuỗi nháy đơn. Một dấu thì JavaScript hiểu là ký
+    // tự BACKSPACE chứ không phải ranh giới từ, và cả năm từ dưới đây IM LẶNG không
+    // bao giờ khớp. Đo được: "go to inbox and mark all as read" bị lối tắt nuốt và
+    // trả lời "đang mở Hộp thư" — tức câu đòi TÁC ĐỘNG không hề tới được agent, đúng
+    // thứ khối chú thích trên đầu hàm này sinh ra để ngăn.
+    'ignore (all|previous|prior)|disregard|\\bmark\\b|\\blabel\\b|clean ?up|clear out|' +
+    '\\bremove\\b|\\btrash\\b|\\bempty\\b)',
   'i',
 )
 
@@ -87,9 +92,30 @@ const DAI_TOI_DA = 60
  * Trả đích đến nếu câu này RÕ RÀNG là lệnh điều hướng, ngược lại trả null để
  * nhường cho agent.
  */
+/** Bỏ dấu tiếng Việt để so khớp. KHÔNG đụng tới chữ hiện ra — chỉ dùng lúc dò.
+ *
+ *  ── VÌ SAO CẦN ──
+ *  Đo được: `mo hop thu` (không dấu hẳn) khớp, `mở hộp thư` (đủ dấu) khớp, nhưng
+ *  `mở hộp thu` và `mơ hôp thư` thì TRƯỢT. Mà thiếu dấu lẻ tẻ mới đúng là lỗi telex
+ *  hay gặp nhất — gõ `w` không ăn, `j` rơi mất — chứ không ai gõ sai đều đặn cả câu.
+ *
+ *  Chuẩn hoá một lần ở đây rẻ hơn hẳn việc liệt kê mọi biến thể sai chính tả vào
+ *  từng mẫu; và các mẫu vốn đã có sẵn dạng không dấu nên không phải sửa gì thêm.
+ *
+ *  Tiện thể chữa luôn một bẫy khác: `\b` của JavaScript chỉ hiểu ASCII, nên nó hụt
+ *  với mọi từ có dấu. Sau khi bỏ dấu thì chuỗi thuần ASCII và `\b` chạy đúng. */
+function boDau(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+}
+
 export function doDieuHuong(text: string): DichDen | null {
-  const s = (text || '').trim()
-  if (!s || s.length > DAI_TOI_DA) return null
+  const goc = (text || '').trim()
+  if (!goc || goc.length > DAI_TOI_DA) return null
+  // So khớp trên bản BỎ DẤU. Cả ba lớp chặn bên dưới cũng phải dùng bản này — chặn
+  // trên chữ có dấu mà nhận diện trên chữ không dấu thì một câu gõ thiếu dấu sẽ lọt
+  // qua lớp bảo vệ rồi vẫn được nhận, tức là mở toang đúng cửa mình vừa khoá.
+  const s = boDau(goc)
+  if (!s) return null
   // LỐI TẮT NÀY CHỈ ĐƯỢC LÀM VIỆC ĐỌC. Câu nào đòi TÁC ĐỘNG thì phải xuống agent —
   // đó mới là nơi có guardrail và cổng xác nhận. Nuốt ở đây là vừa bỏ qua lớp bảo
   // vệ, vừa trả lời người dùng một câu vui vẻ ("đang mở Hộp thư") cho một yêu cầu
