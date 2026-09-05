@@ -261,6 +261,8 @@ function doneText(op: PlanOp): string {
       return t('ch.doneArchive', { n: op.ids.length })
     case 'delete':
       return t('ch.doneDelete', { n: op.ids.length })
+    case 'restore':
+      return t('ch.doneRestore', { n: op.ids.length })
     case 'markRead':
       return t('ch.doneRead', { n: op.ids.length })
     case 'label':
@@ -1654,6 +1656,7 @@ export function ChatPanel({
 
   const execOp = (op: PlanOp) => {
     if (op.type === 'archive' || op.type === 'delete') actions.removeEmails(op.ids, op.type)
+    else if (op.type === 'restore') actions.restoreEmails(op.ids)
     else if (op.type === 'markRead') actions.markRead(op.ids, op.read)
     else if (op.type === 'label') actions.applyLabel(op.ids, op.category, op.label)
     else if (op.type === 'autoLabel')
@@ -2908,6 +2911,15 @@ function AgentMessage({
   const running = exec?.id === message.id
   const spotCls = spotlight ? 'ring-2 ring-spark/50 shadow-float' : ''
 
+  /* ── THƯ NÀO SẼ BỊ ĐỤNG TỚI — CHỌN SẴN HẾT, BỎ TICK ĐƯỢC ──────────────────
+     `null` = người dùng chưa đụng vào, tức đang chọn HẾT. Giữ `null` thay vì
+     dựng sẵn một Set từ props để không phải đồng bộ state với props mỗi lần thẻ
+     vẽ lại — đồng bộ kiểu đó là chỗ lệch âm thầm quen thuộc.
+
+     Hook phải nằm ở ĐẦU component: bên dưới toàn `if (reply.kind === …) return`,
+     đặt hook trong nhánh là vi phạm quy tắc hook và React sẽ vỡ khi loại thẻ đổi. */
+  const [boChon, setBoChon] = useState<Set<string> | null>(null)
+
   if (reply.kind === 'text') {
     return (
       <AgentRow>
@@ -3051,6 +3063,11 @@ function AgentMessage({
   }
 
   if (reply.kind === 'plan') {
+    const dsThu = reply.emails ?? []
+    // `null` = chưa đụng vào = chọn HẾT. Đây là mặc định đúng: người dùng vừa nói
+    // "xoá thư từ X" nên ý định của họ là cả nhóm; ô tick sinh ra để LOẠI TRỪ, không
+    // phải để bắt họ chọn lại từ đầu thứ mình vừa yêu cầu.
+    const daChon = boChon ?? new Set(dsThu.map((e) => e.id))
     const stepStatus = (i: number): 'done' | 'running' | 'pending' => {
       if (running) {
         if (i < exec!.current) return 'done'
@@ -3147,20 +3164,67 @@ function AgentMessage({
                 Thẻ chỉ ghi "Xoá 2 thư" là bắt người dùng DUYỆT MÙ một hành động không
                 hoàn tác. Câu cảnh báo "kiểm tra kỹ trước khi duyệt" mà không cho thấy
                 cái gì để kiểm thì chỉ là chữ, không phải một lớp bảo vệ. */}
-            {reply.emails && reply.emails.length > 0 && !running && (
-              <div className="space-y-1 rounded-xl bg-popover-foreground/5 p-2">
-                <p className="px-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {(reply.emails ?? []).length} thư sẽ bị đụng tới
-                </p>
-                {(reply.emails ?? []).map((e) => (
-                  <div key={e.id} className="flex min-w-0 gap-2 px-1 text-[12px]">
-                    <span className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                    <span className="min-w-0">
-                      <span className="text-muted-foreground">{e.sender}: </span>
-                      <span className="text-foreground/90">{e.subject}</span>
-                    </span>
-                  </div>
-                ))}
+            {dsThu.length > 0 && !running && (
+              <div className="space-y-0.5 rounded-xl bg-popover-foreground/5 p-2">
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                    {daChon.size}/{dsThu.length} thư sẽ bị đụng tới
+                  </p>
+                  <button
+                    onClick={() =>
+                      setBoChon(daChon.size === dsThu.length ? new Set() : new Set(dsThu.map((e) => e.id)))
+                    }
+                    className="font-mono text-[9px] uppercase tracking-[0.14em] text-active hover:underline"
+                  >
+                    {daChon.size === dsThu.length ? t('mail.deselectAll') : t('mail.selectAll')}
+                  </button>
+                </div>
+                {/* Cuộn được: danh sách không còn bị cắt ở 20, mà một thẻ cao mãi thì
+                    nút Duyệt bị đẩy khỏi tầm mắt — người dùng cuộn tìm nút thay vì đọc
+                    danh sách, tức là mất đúng thứ danh sách này sinh ra để làm. */}
+                <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                  {dsThu.map((e) => {
+                    const chon = daChon.has(e.id)
+                    return (
+                      <div
+                        key={e.id}
+                        className={cn(
+                          'flex min-w-0 items-start gap-2 rounded-lg px-1 py-1 text-[12px] transition-opacity',
+                          !chon && 'opacity-45',
+                        )}
+                      >
+                        {/* Ô TICK — mặc định chọn hết. Bỏ tick là LOẠI thư đó khỏi thao
+                            tác, không phải chỉ ẩn đi: `ids` gửi đi được lọc theo đúng
+                            tập này ở nút Duyệt bên dưới. */}
+                        <input
+                          type="checkbox"
+                          checked={chon}
+                          onChange={() => {
+                            const n = new Set(daChon)
+                            if (n.has(e.id)) n.delete(e.id)
+                            else n.add(e.id)
+                            setBoChon(n)
+                          }}
+                          aria-label={`${chon ? t('mail.deselectAll') : t('mail.selectAll')} — ${e.subject}`}
+                          className="mt-[3px] size-3.5 shrink-0 accent-[var(--active)]"
+                        />
+                        {/* MỞ ĐƯỢC THƯ. Bắt duyệt một danh sách mà không cho đọc từng lá
+                            là vẫn duyệt mù — tiêu đề thôi không đủ để biết có nên xoá. */}
+                        <button
+                          onClick={() => onOpenEmail?.(e.id)}
+                          disabled={!onOpenEmail}
+                          className="min-w-0 flex-1 text-left disabled:cursor-default"
+                          title={onOpenEmail ? t('mail.openThis') : undefined}
+                        >
+                          <span className="text-muted-foreground">{e.sender}: </span>
+                          <span className={cn('text-foreground/90', onOpenEmail && 'hover:underline')}>
+                            {e.subject}
+                          </span>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
             {reply.warn && !running && (
@@ -3183,10 +3247,26 @@ function AgentMessage({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => onApprove(message.id, reply.op, (reply.steps ?? []).length)}
+                  // Bỏ tick sạch thì KHÔNG cho duyệt. Chạy một thao tác trên danh sách
+                  // rỗng rồi báo "đã xoá 0 thư" là một câu trả lời vô nghĩa cho một cú
+                  // bấm có chủ đích — thà chặn nút và để người dùng thấy vì sao.
+                  disabled={dsThu.length > 0 && daChon.size === 0}
+                  onClick={() =>
+                    onApprove(
+                      message.id,
+                      // Gửi đi ĐÚNG tập đã tick. `autoLabel` không có `ids` (nó dùng
+                      // `items`) nên để nguyên — lọc bừa vào đó là làm hỏng thẻ khác.
+                      'ids' in reply.op ? { ...reply.op, ids: [...daChon] } : reply.op,
+                      (reply.steps ?? []).length,
+                    )
+                  }
                 >
                   <Check className="size-4" />
-                  {reply.confirmLabel}
+                  {/* Nhãn phải theo số thư CÒN TICK, không theo số ban đầu. Bỏ tick 3
+                      trong 5 mà nút vẫn ghi "Xoá 5 thư" thì nút đang nói dối. */}
+                  {dsThu.length > 0 && daChon.size !== dsThu.length
+                    ? `${reply.confirmLabel.replace(/\d+/, String(daChon.size))}`
+                    : reply.confirmLabel}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => onReject(message.id)}>
                   <X className="size-4" />

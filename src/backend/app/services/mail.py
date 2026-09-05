@@ -72,6 +72,12 @@ def trash(provider: str, token: str, ids: list[str]) -> int:
     return gmail_actions.trash(token, ids)
 
 
+def untrash(provider: str, token: str, ids: list[str]) -> int:
+    if _ms(provider):
+        return outlook_service.untrash(token, ids)
+    return gmail_actions.untrash(token, ids)
+
+
 def apply_label(provider: str, token: str, ids: list[str], label: str) -> int:
     if _ms(provider):
         return outlook_service.apply_category(token, ids, label)

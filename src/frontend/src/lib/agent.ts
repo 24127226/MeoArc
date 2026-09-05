@@ -6,6 +6,10 @@ import type { Category, Email } from '@/data/emails'
 export type PlanOp =
   | { type: 'archive'; ids: string[] }
   | { type: 'delete'; ids: string[] }
+  // Đường lùi cho `delete`. Xoá là xoá MỀM (vào thùng rác) nên luôn cứu được —
+  // nhưng chỉ khi có ai đó gọi được lệnh khôi phục. Trợ lý xoá hộ thì phải hoàn
+  // tác hộ được, không thì "hoàn tác được" chỉ đúng trên giấy.
+  | { type: 'restore'; ids: string[] }
   | { type: 'markRead'; ids: string[]; read: boolean }
   | { type: 'label'; ids: string[]; category: Category; label: string }
   | { type: 'autoLabel'; items: { id: string; category: Category; label: string }[] }
@@ -546,6 +550,14 @@ export function interpretCommand(raw: string, emails: Email[]): AgentReply {
       op: isDelete
         ? { type: 'delete', ids: t.map((e) => e.id) }
         : { type: 'archive', ids: t.map((e) => e.id) },
+      // ĐÍNH KÈM thư đích danh, ĐÚNG như backend thật làm. Bản mock trước bỏ trống
+      // trường này, nên ô tick và nút "mở thư" không có gì để vẽ — và mọi phép kiểm
+      // trên trình duyệt ở chế độ mock đều báo xanh cho một màn hình rỗng.
+      // Mock lệch hình dạng với thật thì nó không còn là phép thử, chỉ là một bức tranh.
+      emails: t.map((e) => ({
+        id: e.id, sender: e.sender, initial: e.senderInitial,
+        subject: e.subject, snippet: e.preview, unread: e.unread,
+      })),
     }
   }
 

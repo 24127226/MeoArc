@@ -21,6 +21,7 @@ from app.services import gmail_service  # để gọi invalidate_cache sau khi g
 #   /modify → thêm/bớt nhãn cho 1 thư    ·   /trash → chuyển 1 thư vào thùng rác
 GMAIL_MODIFY = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}/modify"
 GMAIL_TRASH = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}/trash"
+GMAIL_UNTRASH = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}/untrash"
 GMAIL_LABELS = "https://gmail.googleapis.com/gmail/v1/users/me/labels"  # liệt kê/tạo nhãn
 
 
@@ -118,6 +119,31 @@ def apply_label(access_token: str, ids: list[str], label_name: str) -> int:
                 GMAIL_MODIFY.format(id=mid), headers=headers,
                 json={"addLabelIds": [label_id]},
             )
+            if r.status_code == 403:
+                raise GmailPermissionError()
+            if r.status_code == 200:
+                affected += 1
+    gmail_service.invalidate_cache(access_token)
+    return affected
+
+
+def untrash(access_token: str, ids: list[str]) -> int:
+    """Đưa thư TỪ thùng rác trở lại hộp thư.
+
+    ── VÌ SAO CẦN ──
+    Xoá đã là xoá MỀM (vào thùng rác) nên về lý thuyết luôn cứu được — nhưng chỉ khi
+    người dùng biết vào Gmail mà bới. Trợ lý xoá hộ thì cũng phải hoàn tác hộ được,
+    nếu không thì "hoàn tác được" chỉ đúng trên giấy.
+
+    Đây là thao tác AN TOÀN: nó chỉ THÊM thư trở lại, không mất gì. Vì vậy nó KHÔNG
+    đi qua cổng xác nhận — bắt duyệt để hoàn tác là dựng thêm một hàng rào ở đúng
+    lúc người dùng đang hoảng vì vừa lỡ tay.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    affected = 0
+    with httpx.Client(timeout=15) as client:
+        for mid in ids:
+            r = client.post(GMAIL_UNTRASH.format(id=mid), headers=headers)
             if r.status_code == 403:
                 raise GmailPermissionError()
             if r.status_code == 200:

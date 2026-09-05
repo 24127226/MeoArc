@@ -39,6 +39,10 @@ class BulkAction(str, Enum):
     MARK_UNMARKED = "mark_unread"
     APPLY_LABEL = "apply_label"
     REMOVE_LABEL = "remove_label"
+    # Xoá đã là xoá MỀM (vào thùng rác) nên luôn cứu được — nhưng chỉ khi người dùng
+    # tự vào Gmail bới. Trợ lý xoá hộ thì phải hoàn tác hộ được, nếu không thì
+    # "hoàn tác được" chỉ đúng trên giấy.
+    RESTORE = "restore"
 
 
 # =========================================================
@@ -439,8 +443,9 @@ class BulkActionInput(BaseModel):
     )]
 
     action: Annotated[BulkAction, Field(
-        description="Action to perform: 'delete', 'mark_read', 'mark_unread', "
-                    "'apply_label', 'remove_label'.",
+        description="Action to perform: 'delete', 'restore', 'mark_read', 'mark_unread', "
+                    "'apply_label', 'remove_label'. Use 'restore' to bring messages "
+                    "back from Trash after a delete.",
     )]
 
     label_name: Annotated[str | None, Field(

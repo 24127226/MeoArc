@@ -239,6 +239,11 @@ def trash(access_token: str, ids: list[str]) -> int:
     return _move(access_token, ids, "deleteditems")
 
 
+def untrash(access_token: str, ids: list[str]) -> int:
+    """Đưa thư từ Deleted Items về Inbox — bản Outlook của `gmail_actions.untrash`."""
+    return _move(access_token, ids, "inbox")
+
+
 def archive(access_token: str, ids: list[str]) -> int:
     return _move(access_token, ids, "archive")
 

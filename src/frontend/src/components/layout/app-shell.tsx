@@ -251,6 +251,12 @@ export function AppShell() {
       setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, category, label } : e)))
       if (apiBaseUrlDaCauHinh) api.applyLabel(ids, category, label).catch(resync) // tạo/gắn nhãn Gmail thật
     },
+    restoreEmails: (ids) => {
+      // Thư đang ở thùng rác nên KHÔNG có trong danh sách hiện tại — không lọc gì cả,
+      // chỉ gọi máy chủ rồi nạp lại. Tự chèn tay vào state thì thứ hiện ra là thứ mình
+      // đoán, chứ không phải thứ Gmail thật sự đã khôi phục.
+      if (apiBaseUrlDaCauHinh) api.restoreEmails(ids).then(resync).catch(resync)
+    },
     removeEmails: (ids, mode = 'delete') => {
       setEmails((prev) => prev.filter((e) => !ids.includes(e.id)))
       if (openedId && ids.includes(openedId)) setOpenedId(null)

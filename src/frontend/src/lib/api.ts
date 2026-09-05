@@ -162,6 +162,8 @@ export interface MeoArcApi {
   applyLabel(ids: string[], category: Category, label: string): Promise<void>
   archiveEmails(ids: string[]): Promise<void>
   deleteEmails(ids: string[]): Promise<void>
+  /** Khôi phục thư từ thùng rác về hộp thư. */
+  restoreEmails(ids: string[]): Promise<void>
 
   // Soạn & gửi — UC010
   sendEmail(input: SendEmailInput): Promise<{ id: string }>
@@ -399,6 +401,7 @@ export function createMockApi(): MeoArcApi {
     async applyLabel() {},
     async archiveEmails() {},
     async deleteEmails() {},
+    async restoreEmails() {},
 
     async sendEmail() {
       await delay(300)
@@ -566,6 +569,7 @@ export function createHttpApi(baseUrl: string): MeoArcApi {
       post<void>('/emails/actions/label', { ids, category, label }),
     archiveEmails: (ids) => post<void>('/emails/actions/archive', { ids }),
     deleteEmails: (ids) => post<void>('/emails/actions/delete', { ids }),
+    restoreEmails: (ids) => post<void>('/emails/actions/restore', { ids }),
 
     sendEmail: (input) => post<{ id: string }>('/emails/send', input),
 

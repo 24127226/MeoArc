@@ -899,6 +899,25 @@ def action_delete(req: IdsReq, token: str = Depends(get_gmail_token),
     return result
 
 
+@app.post("/emails/actions/restore", response_model=ActionResult)
+def action_restore(req: IdsReq, token: str = Depends(get_gmail_token),
+                   provider: str = Depends(get_provider),
+                   session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    """Đưa thư TỪ thùng rác trở lại hộp thư — đường lùi cho nút Xoá.
+
+    Xoá vốn đã là xoá MỀM nên luôn cứu được, nhưng chỉ khi người dùng biết tự vào
+    Gmail mà bới. Trợ lý xoá hộ thì phải hoàn tác hộ được, không thì "hoàn tác được"
+    chỉ đúng trên giấy.
+
+    KHÔNG cần cổng xác nhận: thao tác này chỉ THÊM thư trở lại, không mất gì. Dựng
+    thêm một hàng rào ở đúng lúc người dùng đang hoảng vì lỡ tay là đặt nhầm chỗ."""
+    result = _write(lambda: mail.untrash(provider, token, req.ids))
+    _wt(lambda: email_store_repo.move_folder(db, session.user_id, provider, req.ids, "inbox"))
+    _record(db, session.user_id, action="restore", ids=req.ids, tool_name="bulk_action",
+            notify=f"Đã khôi phục {len(req.ids)} thư về hộp thư.", notify_type="success")
+    return result
+
+
 @app.post("/emails/actions/label", response_model=ActionResult)
 def action_label(req: LabelReq, token: str = Depends(get_gmail_token),
                  provider: str = Depends(get_provider),
@@ -1723,14 +1742,16 @@ def _confirm_card(messages: list) -> dict | None:
             ids = [str(x) for x in (args.get("email_ids") or [])]
             act = str(args.get("action") or "").lower()
             op = None
-            if "delete" in act:
+            if "restore" in act:
+                op = {"type": "restore", "ids": ids}
+            elif "delete" in act:
                 op = {"type": "delete", "ids": ids}
             elif "unread" in act:
                 op = {"type": "markRead", "ids": ids, "read": False}
             elif "read" in act:
                 op = {"type": "markRead", "ids": ids, "read": True}
             if op:
-                verb = {"delete": "Xoá", "markRead": "Đánh dấu"}[op["type"]]
+                verb = {"delete": "Xoá", "markRead": "Đánh dấu", "restore": "Khôi phục"}[op["type"]]
                 card = {
                     "kind": "plan",
                     "intro": "Mình đã lên kế hoạch — bạn duyệt là chạy ngay:",
@@ -1751,7 +1772,11 @@ def _confirm_card(messages: list) -> dict | None:
                 # lại y hệt khi mở app, nên một khoá lúc có lúc không nghĩa là dữ liệu
                 # cũ và mã mới có thể lệch nhau — và lệch kiểu đó đã làm ĐEN cả giao
                 # diện một lần rồi (`.map` trên `undefined`, React tháo sạch cây).
-                card["emails"] = _ds[:20]
+                # KHÔNG cắt bớt. Người dùng sắp BỎ TICK từng thư trên chính danh sách
+                # này, nên hiện 20 mà thao tác trên 25 là để họ bỏ tick một danh sách
+                # rồi hệ thống xoá một danh sách khác — tệ hơn hẳn không cho tick.
+                # `email_ids` vốn đã bị chặn ở 100 nên danh sách không thể phình vô hạn.
+                card["emails"] = _ds
                 if op["type"] == "delete":
                     card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
                 card["_tool"] = "bulk_action"

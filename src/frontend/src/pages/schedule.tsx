@@ -515,7 +515,7 @@ const KHONG_LAM_GI: EmailActions = {
   markRead: () => {},
   setImportant: () => {},
   applyLabel: () => {},
-  removeEmails: () => {},
+  removeEmails: () => {}, restoreEmails: () => {},
 }
 
 /* ── Lịch nhỏ ở cột trái ─────────────────────────────────────────────────── */

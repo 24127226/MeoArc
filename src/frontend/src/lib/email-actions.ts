@@ -9,4 +9,6 @@ export type EmailActions = {
    *  'archive' = bỏ nhãn INBOX (thư vẫn còn); 'delete' = chuyển vào thùng rác.
    *  Mặc định 'delete' để các nút Xoá cũ vẫn đúng nếu chưa truyền mode. */
   removeEmails: (ids: string[], mode?: 'archive' | 'delete') => void
+  /** Đưa thư từ thùng rác trở lại hộp thư — đường lùi cho `removeEmails('delete')`. */
+  restoreEmails: (ids: string[]) => void
 }

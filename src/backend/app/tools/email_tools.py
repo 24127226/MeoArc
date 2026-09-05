@@ -315,6 +315,8 @@ async def bulk_action(inp: BulkActionInput, ctx: RequestContext) -> BulkActionOu
     p, tok, ids = ctx.email_provider, ctx.access_token, inp.email_ids
     if a == BulkAction.DELETE:
         n = await asyncio.to_thread(mail.trash, p, tok, ids)
+    elif a == BulkAction.RESTORE:
+        n = await asyncio.to_thread(mail.untrash, p, tok, ids)
     elif a == BulkAction.MARK_READ:
         n = await asyncio.to_thread(mail.set_read, p, tok, ids, True)
     elif a == BulkAction.MARK_UNMARKED:

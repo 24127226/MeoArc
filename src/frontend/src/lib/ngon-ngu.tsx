@@ -444,6 +444,7 @@ const TU_DIEN: Record<string, { vi: string; en: string }> = {
   'tm.now': { vi: 'Bây giờ', en: 'Now' },
   'ch.resultShort': { vi: 'Kết quả…', en: 'Result…' },
   'ch.doneArchive': { vi: 'Đã lưu trữ {n} thư. Hộp thư gọn hơn rồi ✨', en: 'Archived {n} messages. Tidier already ✨' },
+  'ch.doneRestore': { vi: 'Đã khôi phục {n} thư về hộp thư.', en: 'Restored {n} messages to the inbox.' },
   'ch.doneDelete': { vi: 'Đã xoá {n} thư.', en: 'Deleted {n} messages.' },
   'ch.doneRead': { vi: 'Đã đánh dấu đã đọc {n} thư.', en: 'Marked {n} messages as read.' },
   'ch.doneLabel': { vi: 'Đã gắn nhãn “{nhan}” cho {n} thư.', en: 'Labelled {n} messages “{nhan}”.' },
