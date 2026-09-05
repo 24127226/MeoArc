@@ -543,7 +543,7 @@ function DiLaiWidget({ reply }: { reply: Extract<AgentReply, { kind: 'dilai' }> 
       </CardHeader>
       <CardContent className="pt-2">
         <div className="flex flex-col gap-1.5">
-          {reply.items.map((k, i) => (
+          {(reply.items ?? []).map((k, i) => (
             <div key={i} className="goc-cat-nho goc-cat den-vien flex items-center gap-3 px-3 py-2">
               {reply.loai === 'bay' ? <DongBay k={k} /> : <DongPhong k={k} />}
             </div>
@@ -595,7 +595,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
               Tham gia
             </p>
             <div className="mt-1.5 space-y-1.5">
-              {reply.attendees.map((a) => (
+              {(reply.attendees ?? []).map((a) => (
                 <div key={a.name} className="flex items-center gap-2">
                   <MiniAvatar initial={a.initial} />
                   <span className="truncate text-xs text-foreground">{a.name}</span>
@@ -608,10 +608,10 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
         {/* Checklist action items (tick được) */}
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Việc cần làm · {done.size}/{reply.actions.length}
+            Việc cần làm · {done.size}/{(reply.actions ?? []).length}
           </p>
           <div className="space-y-1">
-            {reply.actions.map((a, i) => {
+            {(reply.actions ?? []).map((a, i) => {
               const checked = done.has(i)
               return (
                 <button
@@ -645,7 +645,7 @@ function BriefWidget({ reply }: { reply: Extract<AgentReply, { kind: 'brief' }> 
 
         {/* Điểm chính */}
         <div className="space-y-1 border-t border-border/40 pt-2.5">
-          {reply.points.map((p, i) => (
+          {(reply.points ?? []).map((p, i) => (
             <div key={i} className="flex gap-2 text-sm text-foreground/90">
               <span className="mt-1 size-1.5 shrink-0 rounded-full bg-active" />
               <span className="min-w-0">{p}</span>
@@ -694,7 +694,7 @@ function TriageWidget({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-2">
-        {reply.groups.map((g) => (
+        {(reply.groups ?? []).map((g) => (
           <div key={g.label}>
             <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <span
@@ -703,10 +703,10 @@ function TriageWidget({
                   g.level === 'high' ? 'cherry-dot' : 'bg-muted-foreground/50',
                 )}
               />
-              {g.label} · {g.items.length}
+              {g.label} · {(g.items ?? []).length}
             </p>
             <div className="space-y-1.5">
-              {g.items.map((it, i) => {
+              {(g.items ?? []).map((it, i) => {
                 const key = `${g.label}-${i}`
                 const checked = done.has(key)
                 return (
@@ -768,7 +768,7 @@ function DigestWidget({ reply, onOpenEmail }: {
   reply: Extract<AgentReply, { kind: 'digest' }>
   onOpenEmail?: (id: string) => void
 }) {
-  const max = Math.max(1, ...reply.breakdown.map((b) => b.count))
+  const max = Math.max(1, ...(reply.breakdown ?? []).map((b) => b.count))
   return (
     <Card className="overflow-hidden rose-glass shadow-float">
       <CardHeader>
@@ -780,7 +780,7 @@ function DigestWidget({ reply, onOpenEmail }: {
       <CardContent className="space-y-3 pt-2">
         {/* Tiles số liệu */}
         <div className="grid grid-cols-3 gap-2">
-          {reply.stats.map((s) => (
+          {(reply.stats ?? []).map((s) => (
             <div
               key={s.label}
               className="ripe rounded-xl bg-popover-foreground/5 p-2.5 text-center"
@@ -792,9 +792,9 @@ function DigestWidget({ reply, onOpenEmail }: {
           ))}
         </div>
         {/* Phân bổ theo nhãn */}
-        {reply.breakdown.length > 0 && (
+        {(reply.breakdown ?? []).length > 0 && (
           <div className="space-y-1.5">
-            {reply.breakdown.map((b) => (
+            {(reply.breakdown ?? []).map((b) => (
               <div key={b.label} className="flex items-center gap-2 text-xs">
                 <span className="w-20 shrink-0 truncate text-muted-foreground">{b.label}</span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-popover-foreground/10">
@@ -811,12 +811,12 @@ function DigestWidget({ reply, onOpenEmail }: {
           </div>
         )}
         {/* Nổi bật */}
-        {reply.highlights.length > 0 && (
+        {(reply.highlights ?? []).length > 0 && (
           <div className="space-y-1 border-t border-border/40 pt-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Nổi bật
             </p>
-            {reply.highlights.map((h, i) => (
+            {(reply.highlights ?? []).map((h, i) => (
               <div key={i} className="flex gap-2 text-sm text-foreground/90">
                 <span className="mt-1 size-1.5 shrink-0 cherry-dot rounded-full" />
                 <span className="min-w-0 truncate">{h}</span>
@@ -832,7 +832,7 @@ function DigestWidget({ reply, onOpenEmail }: {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Mở nhanh
             </p>
-            {reply.emails.map((e) => (
+            {(reply.emails ?? []).map((e) => (
               <button
                 key={e.id}
                 onClick={() => onOpenEmail(e.id)}
@@ -1048,9 +1048,9 @@ function TheDuDinh({
   onDuyet: () => void
   onBoQua: () => void
 }) {
-  const capCao = Math.max(...reply.buoc.map((b) => b.mucRuiRo)) as 1 | 2 | 3
-  const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
-  const coTienThat = reply.buoc.some((b) => b.mucRuiRo === 3)
+  const capCao = Math.max(1, ...(reply.buoc ?? []).map((b) => b.mucRuiRo)) as 1 | 2 | 3
+  const tong = (reply.buoc ?? []).reduce((s, b) => s + (b.tien ?? 0), 0)
+  const coTienThat = (reply.buoc ?? []).some((b) => b.mucRuiRo === 3)
 
   return (
     <div
@@ -1070,14 +1070,14 @@ function TheDuDinh({
           {coTienThat ? t('ch.noUndoMoney') : t('ch.needApproval')}
         </span>
         <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--rr)' }}>
-          {reply.buoc.length} bước
+          {(reply.buoc ?? []).length} bước
         </span>
       </div>
 
       <h3 className="text-[15px] font-semibold leading-snug text-foreground">{reply.title}</h3>
 
       <div className="flex flex-col">
-        {reply.buoc.map((b, i) => (
+        {(reply.buoc ?? []).map((b, i) => (
           <div key={i}
             className="grid grid-cols-[14px_1fr_auto] items-center gap-2.5 border-t border-foreground/[0.07] py-2.5 first:border-t-0">
             <span className={cn('cham-rr', `c${b.mucRuiRo}`)} aria-hidden />
@@ -1700,7 +1700,7 @@ export function ChatPanel({
   ) => {
     if (dangDuyetId) return          // khoá: một cú bấm không được thành hai đơn
     setDangDuyetId(id)
-    const tong = reply.buoc.reduce((s, b) => s + (b.tien ?? 0), 0)
+    const tong = (reply.buoc ?? []).reduce((s, b) => s + (b.tien ?? 0), 0)
     try {
       let ma = ''
       if (reply.confirmationId) {
@@ -2653,7 +2653,7 @@ function DraftCard({
                 tệp gì thì cái nút duyệt đó không bảo vệ được gì cả. */}
             {reply.attachments && reply.attachments.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {reply.attachments.map((ten) => (
+                {(reply.attachments ?? []).map((ten) => (
                   <span key={ten}
                         className="flex items-center gap-1.5 rounded-lg border border-[var(--spark)]/35 bg-[var(--spark)]/10 px-2 py-1 text-[11.5px]">
                     <Paperclip className="size-3 shrink-0 text-[var(--spark)]" />
@@ -2745,7 +2745,7 @@ function CategorizeWidget({
   onApply: (id: string, items: { id: string; category: Category; label: string }[]) => void
   onReject: (id: string) => void
 }) {
-  const [rows, setRows] = useState(reply.items.map((it) => ({ ...it })))
+  const [rows, setRows] = useState((reply.items ?? []).map((it) => ({ ...it })))
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
 
   const cycleLabel = (rid: string) =>
@@ -2946,7 +2946,7 @@ function AgentMessage({
               <EmailRefList emails={reply.emails} onOpen={onOpenEmail} />
             ) : (
               <div className="space-y-2">
-                {reply.lines.map((l, i) => (
+                {(reply.lines ?? []).map((l, i) => (
                   <div key={i} className="flex min-w-0 gap-2 text-sm text-foreground">
                     <span className="text-muted-foreground">•</span>
                     <span className="min-w-0 break-words">{l}</span>
@@ -3070,9 +3070,9 @@ function AgentMessage({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
-            {reply.steps.length > 1 && (
+            {(reply.steps ?? []).length > 1 && (
               <div className="flex items-center px-1 pb-1">
-                {reply.steps.map((_s, i) => {
+                {(reply.steps ?? []).map((_s, i) => {
                   const st = stepStatus(i)
                   return (
                     <Fragment key={i}>
@@ -3094,7 +3094,7 @@ function AgentMessage({
                           i + 1
                         )}
                       </span>
-                      {i < reply.steps.length - 1 && (
+                      {i < (reply.steps ?? []).length - 1 && (
                         <span
                           className={cn(
                             'h-px flex-1 border-t border-dashed transition-colors',
@@ -3108,7 +3108,7 @@ function AgentMessage({
               </div>
             )}
             <ol className="space-y-2">
-              {reply.steps.map((s, i) => {
+              {(reply.steps ?? []).map((s, i) => {
                 const st = stepStatus(i)
                 return (
                   <li key={i} className="flex items-start gap-2.5 text-sm text-foreground">
@@ -3150,9 +3150,9 @@ function AgentMessage({
             {reply.emails && reply.emails.length > 0 && !running && (
               <div className="space-y-1 rounded-xl bg-popover-foreground/5 p-2">
                 <p className="px-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {reply.emails.length} thư sẽ bị đụng tới
+                  {(reply.emails ?? []).length} thư sẽ bị đụng tới
                 </p>
-                {reply.emails.map((e) => (
+                {(reply.emails ?? []).map((e) => (
                   <div key={e.id} className="flex min-w-0 gap-2 px-1 text-[12px]">
                     <span className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
                     <span className="min-w-0">
@@ -3183,7 +3183,7 @@ function AgentMessage({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => onApprove(message.id, reply.op, reply.steps.length)}
+                  onClick={() => onApprove(message.id, reply.op, (reply.steps ?? []).length)}
                 >
                   <Check className="size-4" />
                   {reply.confirmLabel}

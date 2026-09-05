@@ -1747,8 +1747,11 @@ def _confirm_card(messages: list) -> dict | None:
                 # rồi lọc đúng những id sắp bị thao tác.
                 _tap = set(ids)
                 _ds = [e for e in _emails_from_search(messages, cap=60) if e.get("id") in _tap]
-                if _ds:
-                    card["emails"] = _ds[:20]
+                # LUÔN đặt khoá, kể cả rỗng. Thẻ được LƯU NGUYÊN VĂN xuống DB rồi dựng
+                # lại y hệt khi mở app, nên một khoá lúc có lúc không nghĩa là dữ liệu
+                # cũ và mã mới có thể lệch nhau — và lệch kiểu đó đã làm ĐEN cả giao
+                # diện một lần rồi (`.map` trên `undefined`, React tháo sạch cây).
+                card["emails"] = _ds[:20]
                 if op["type"] == "delete":
                     card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
                 card["_tool"] = "bulk_action"
