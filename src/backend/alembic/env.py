@@ -35,6 +35,7 @@ import app.models.connected_account  # noqa: E402,F401
 import app.models.conversation  # noqa: E402,F401
 import app.models.dat_cho  # noqa: E402,F401
 import app.models.email_store  # noqa: E402,F401
+import app.models.mcp_token  # noqa: E402,F401
 import app.models.notification  # noqa: E402,F401
 import app.models.session  # noqa: E402,F401
 import app.models.session_provider  # noqa: E402,F401

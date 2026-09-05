@@ -270,6 +270,20 @@ class Settings(BaseSettings):
     #   trên Redis (chia sẻ được giữa nhiều worker khi scale). ĐỂ TRỐNG = in-memory như cũ.
     redis_url: str = ""
 
+    # ── MCP QUA HTTP (agent ngoài kết nối từ MÁY KHÁC) ──
+    # mcp_http_enabled ← MCP_HTTP_ENABLED : gắn MCP server vào /mcp/rpc của chính app này.
+    #   MẶC ĐỊNH TẮT, và đó là chủ ý chứ không phải quên bật. Qua stdio, agent chạy cùng
+    #   máy với backend nên "ai chạy được tiến trình thì vốn đã có quyền" — không cần xác
+    #   thực. Mở HTTP là ném tiền đề đó đi: địa chỉ nằm trên Internet. Đường HTTP vì thế
+    #   BẮT BUỘC đi qua thẻ Bearer trong bảng `mcp_tokens` (băm khi lưu, có hạn, thu hồi
+    #   được), và mỗi thẻ buộc chặt vào đúng một người dùng.
+    #   Bật thì phải chạy sau HTTPS. Thẻ Bearer đi qua HTTP trần là gửi chìa khoá dạng chữ
+    #   thường qua mạng — app tự chặn trường hợp đó, xem `mcp_http_cho_phep_khong_tls`.
+    mcp_http_enabled: bool = False
+    #   mcp_http_cho_phep_khong_tls ← MCP_HTTP_CHO_PHEP_KHONG_TLS : chỉ để chạy thử ở
+    #   localhost. KHÔNG bật trên máy chủ thật.
+    mcp_http_cho_phep_khong_tls: bool = False
+
     # ── EMAIL STORE-OF-RECORD (đọc-từ-DB, chống rate-limit) ──
     # mailbox_store_enabled ← MAILBOX_STORE_ENABLED : BẬT thì /emails và /emails/{id} đọc
     #   thẳng từ DB đã đồng bộ (không gọi Gmail lúc user mở web). ĐỂ TẮT (mặc định) = giữ

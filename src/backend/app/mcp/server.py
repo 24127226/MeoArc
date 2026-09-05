@@ -31,9 +31,11 @@
 import logging
 import os
 import time
+from contextvars import ContextVar
 from datetime import datetime, timezone, timedelta
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_access_token
 from sqlalchemy import select
 
 from app.core.db import SessionLocal
@@ -45,7 +47,13 @@ from app.tools.registry import tool_registry, RequestContext
 import app.tools.email_tools  # noqa: F401 — import ĐỂ các tool tự đăng ký vào registry
 
 logger = logging.getLogger("app.mcp")
-mcp = FastMCP("MeoArc")
+
+# Cửa xác thực chỉ có tác dụng trên đường HTTP — FastMCP không hỏi Bearer khi chạy stdio.
+# Nên gắn sẵn không làm hỏng lối stdio đang dùng, mà lại bảo đảm KHÔNG có cách nào bật
+# HTTP lên mà quên cắm xác thực: cùng một đối tượng `mcp` phục vụ cả hai đường.
+from app.mcp.xac_thuc import XacThucBangThe  # noqa: E402  (đặt sau logger cho dễ đọc)
+
+mcp = FastMCP("MeoArc", auth=XacThucBangThe())
 
 
 def _utcnow() -> datetime:
@@ -55,34 +63,66 @@ def _utcnow() -> datetime:
 # ── NFR-Speed: CACHE "thẻ ra vào" (agent ngoài thường gọi 3-10 tool liên tiếp; ─────
 # không cache thì MỖI tool = 1 lần mở DB + có thể 1 lần refresh token → chậm vô ích).
 # TTL 45s < biên làm mới token (60s) nên không bao giờ dùng token sắp chết.
-_CTX_CACHE: dict = {"ctx": None, "ts": 0.0}
+# Cache PHẢI khoá theo NGƯỜI DÙNG. Bản trước là một ô nhớ duy nhất, đúng khi cả tiến
+# trình chỉ phục vụ một người qua stdio — nhưng qua HTTP thì hai người gọi gần nhau sẽ
+# dùng chung ô đó, và người thứ hai thao tác hộp thư của người thứ nhất. Đây là loại lỗi
+# không bao giờ lộ ra lúc tự thử một mình.
+_CTX_CACHE: dict[str, tuple[RequestContext, float]] = {}
 _CTX_TTL = 45.0
+
+# Ngữ cảnh của ĐÚNG lượt gọi đang chạy. `_audit_mcp` trước đây đọc ô cache toàn cục để
+# biết ghi nhật ký cho ai — dưới HTTP đồng thời thì nó ghi nhầm người, tức nhật ký kiểm
+# toán nói dối, mà nhật ký nói dối còn tệ hơn không có nhật ký. ContextVar đi theo từng
+# tác vụ async nên không lẫn giữa các lượt.
+_CTX_HIEN_TAI: ContextVar[RequestContext | None] = ContextVar("meoarc_mcp_ctx", default=None)
+
+
+def _uid_tu_http() -> int | None:
+    """user_id của thẻ Bearer đang gọi, hoặc None nếu đang chạy stdio (không có HTTP)."""
+    try:
+        at = get_access_token()
+    except Exception:
+        return None
+    sub = getattr(at, "subject", None) if at else None
+    return int(sub) if sub and str(sub).isdigit() else None
 
 
 def _resolve_ctx() -> RequestContext:
-    """Lấy 'thẻ ra vào' (access_token Gmail) cho agent ngoài — có cache 45s.
+    """Lấy 'thẻ ra vào' (access_token Gmail) cho agent ngoài — có cache 45s theo người.
 
-    DEMO 1 người dùng: ưu tiên env MEOARC_ACCESS_TOKEN; không có thì lấy PHIÊN ĐĂNG NHẬP
-    MỚI NHẤT trong DB (user đã đăng nhập web) và TỰ LÀM MỚI token nếu sắp hết hạn.
-    (Production nhiều người dùng: auth riêng theo từng kết nối MCP.)
+    HAI ĐƯỜNG VÀO, HAI LUẬT KHÁC HẲN NHAU:
+    • Qua HTTP: thẻ Bearer đã được `XacThucBangThe` kiểm và cho biết user_id. Phục vụ
+      ĐÚNG người đó, không ai khác.
+    • Qua stdio: agent chạy cùng máy với backend nên ai chạy được tiến trình thì vốn đã
+      có quyền trên máy. Giữ nguyên lối cũ — env MEOARC_ACCESS_TOKEN, hoặc phiên đăng
+      nhập mới nhất trong DB.
     """
-    env_token = os.getenv("MEOARC_ACCESS_TOKEN")
-    if env_token:
-        # Demo env: cho ép provider qua MEOARC_PROVIDER ('microsoft' để test Outlook), mặc định google.
-        return RequestContext(user_id="env", access_token=env_token,
-                              email_provider=os.getenv("MEOARC_PROVIDER", "google"))
+    uid = _uid_tu_http()
 
+    # Lối tắt env CHỈ dành cho stdio. Qua HTTP mà vẫn nhận nó thì đặt một biến môi trường
+    # là mọi người mang thẻ khác nhau đều rơi vào chung một hộp thư — biến cả lớp xác
+    # thực vừa dựng thành hình thức.
+    env_token = os.getenv("MEOARC_ACCESS_TOKEN")
+    if env_token and uid is None:
+        # Demo env: cho ép provider qua MEOARC_PROVIDER ('microsoft' để test Outlook), mặc định google.
+        ctx = RequestContext(user_id="env", access_token=env_token,
+                             email_provider=os.getenv("MEOARC_PROVIDER", "google"))
+        _CTX_HIEN_TAI.set(ctx)
+        return ctx
+
+    khoa = str(uid) if uid is not None else "stdio:moi-nhat"
     now = time.monotonic()
-    if _CTX_CACHE["ctx"] is not None and now - _CTX_CACHE["ts"] < _CTX_TTL:
-        return _CTX_CACHE["ctx"]
+    da_co = _CTX_CACHE.get(khoa)
+    if da_co is not None and now - da_co[1] < _CTX_TTL:
+        _CTX_HIEN_TAI.set(da_co[0])
+        return da_co[0]
 
     db = SessionLocal()
     try:
-        s = db.scalars(
-            select(AuthSession)
-            .where(AuthSession.google_access_token.isnot(None))
-            .order_by(AuthSession.expires_at.desc())
-        ).first()
+        dk = select(AuthSession).where(AuthSession.google_access_token.isnot(None))
+        if uid is not None:
+            dk = dk.where(AuthSession.user_id == uid)
+        s = db.scalars(dk.order_by(AuthSession.expires_at.desc())).first()
         if s is None:
             raise RuntimeError("Chưa có phiên đăng nhập nào — hãy đăng nhập trên web trước đã.")
         # Lấy token từ KẾT NỐI hộp thư — cùng nguồn với web (deps.get_gmail_token).
@@ -112,7 +152,8 @@ def _resolve_ctx() -> RequestContext:
         ctx = RequestContext(user_id=str(s.user_id), access_token=token,
                              email_provider=provider, tier=_sub.tier,
                              scan_days=subscription_repo.scan_days_of(_sub))
-        _CTX_CACHE.update(ctx=ctx, ts=now)
+        _CTX_CACHE[khoa] = (ctx, now)
+        _CTX_HIEN_TAI.set(ctx)
         return ctx
     finally:
         db.close()
@@ -128,7 +169,7 @@ def _audit_mcp(action: str, tool_name: str, ids: list[str] | None, res,
     """Ghi 1 dòng AuditLog actor_type='mcp' cho hành động GHI do agent NGOÀI gọi qua MCP
     (accountability đồng nhất với web/agent nội bộ). Chỉ ghi khi biết user_id thật của phiên
     (bỏ qua demo env token vì user_id='env' không phải FK users.id). Nuốt mọi lỗi phụ trợ."""
-    ctx = _CTX_CACHE.get("ctx")
+    ctx = _CTX_HIEN_TAI.get()
     uid = getattr(ctx, "user_id", None) if ctx else None
     if not (uid and str(uid).isdigit()):
         return
@@ -159,7 +200,10 @@ async def _call(name: str, args: dict) -> dict:
         logger.info("MCP tool %s OK (%.0fms)", name, (time.perf_counter() - t0) * 1000)
         return out
     except Exception as exc:
-        _CTX_CACHE["ctx"] = None  # token có thể là thủ phạm → lần sau lấy tươi
+        # Token có thể là thủ phạm → bỏ cache CỦA ĐÚNG NGƯỜI này, lần sau lấy tươi.
+        # Xoá sạch cả bảng thì một người gặp lỗi làm chậm lây sang mọi người còn lại.
+        _uid = _uid_tu_http()
+        _CTX_CACHE.pop(str(_uid) if _uid is not None else "stdio:moi-nhat", None)
         logger.warning("MCP tool %s FAILED: %s", name, exc)
         return {"success": False, "error": str(exc),
                 "hint": "Đọc 'error' và giải thích cho người dùng; thử sửa tham số rồi gọi lại."}

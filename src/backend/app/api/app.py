@@ -19,6 +19,7 @@ from app.services.email_service import list_emails  # logic lấy email (tầng 
 
 # --- Nấc 3: database (ORM) ---
 from fastapi import Depends, HTTPException, status, UploadFile, File, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.core.db import Base, engine, get_db
 from app.core.config import settings  # cờ tính năng (vd mailbox_store_enabled) dùng ở nhiều route
@@ -31,9 +32,10 @@ from app.models.subscription import Subscription  # noqa: F401 — tạo bảng 
 from app.models.dat_cho import DonDatCho  # noqa: F401 — Giai đoạn 3: bảng don_dat_cho (chống trùng)
 from app.models.session_provider import SessionProvider  # noqa: F401 — tạo bảng session_providers (Gmail/Outlook)
 from app.models.email_store import StoredEmail, MailboxSync  # noqa: F401 — tạo bảng emails + mailbox_sync (store-of-record)
+from app.models.mcp_token import McpToken  # noqa: F401 — tạo bảng mcp_tokens (thẻ MCP-HTTP)
 from app.repo import (user_repo, conversation_repo, audit_repo, notification_repo,
                       subscription_repo, email_store_repo, confirmation_repo,
-                      user_preference_repo)
+                      user_preference_repo, mcp_token_repo)
 from app.core import plans  # danh mục gói + hạn mức token (một nguồn duy nhất)
 from app.core import limits  # NFR-Scalability: trần tài nguyên + số liệu vận hành
 from app.core.ngon_ngu import dich, dich_gia_tri
@@ -43,7 +45,15 @@ from app.core import errors  # thu thập lỗi: Sentry khi có DSN, không thì
 from app.core.kv import kv   # kho key-value dùng chung (Redis khi có, không thì in-memory)
 import logging
 import re
-from app.schemas.user import UserCreate, UserOut
+
+# File này vốn không có `logger` cấp module — mỗi chỗ tự gọi logging.getLogger(...) tại
+# chỗ. Nhưng nhánh lỗi của "Làm mới" (đồng bộ nhanh thất bại) lại gọi thẳng `logger`,
+# nên nó là NameError NẰM CHỜ: đúng lúc đồng bộ hỏng thì chính khối `except` nổ, biến
+# một lỗi phục hồi được thành 500 ở màn hộp thư. Chỉ lộ ra khi có sự cố — tức đúng lúc
+# tệ nhất. Khai báo ở đây để nhánh đó chạy đúng ý người viết.
+logger = logging.getLogger("app.api")
+
+from app.schemas.user import UserCreate, UserOut  # noqa: E402
 from app.schemas.conversation import ConversationSummary, ConversationDetail, UpdateConversationReq
 
 # --- Nấc 4b: đăng nhập ---
@@ -210,6 +220,134 @@ def health(db: Session = Depends(get_db)):
 #
 # Nay endpoint đọc THẲNG từ `app.mcp.server`, nên danh sách không thể lệch: thêm/bớt
 # tool ở đó là màn hình đổi theo.
+# ══════════════ MCP QUA HTTP — thẻ ra vào cho agent ở MÁY KHÁC ══════════════
+# Gắn thẳng vào app này thay vì mở một tiến trình + cổng riêng: thừa hưởng luôn HTTPS,
+# tên miền và cấu hình đã triển khai. Một cổng nữa là một bề mặt nữa phải tự bảo vệ.
+_MCP_HTTP_DA_MOUNT = False
+_MCP_HTTP_APP = None          # ASGI app con, giữ lại để chạy vòng đời của nó
+_MCP_HTTP_STACK = None        # AsyncExitStack đang giữ vòng đời đó
+
+
+def _gan_mcp_http() -> None:
+    """Mount MCP lên /mcp/rpc — CHỈ khi bật cờ, và chỉ khi có TLS."""
+    global _MCP_HTTP_DA_MOUNT
+    if not settings.mcp_http_enabled:
+        return
+    # Thẻ Bearer đi qua HTTP trần là gửi chìa khoá dạng chữ thường cho bất kỳ ai trên
+    # đường truyền. Thà không mở còn hơn mở một cách vô nghĩa — nên chặn ngay ở đây,
+    # không trông chờ người triển khai nhớ đặt HTTPS.
+    if not (settings.mcp_http_cho_phep_khong_tls or _sau_tls()):
+        logger.warning("MCP-HTTP: BỎ QUA — chưa thấy HTTPS. Đặt MCP_HTTP_CHO_PHEP_KHONG_TLS=true "
+                       "nếu đang chạy thử ở localhost.")
+        return
+    global _MCP_HTTP_APP
+    try:
+        from app.mcp.server import mcp as _mcp_server
+        # path="/" để MCP phục vụ NGAY tại gốc chỗ mount; bỏ nó thì đường thật thành
+        # /mcp/rpc/mcp và client nhận 404 mà không hiểu vì sao.
+        _MCP_HTTP_APP = _mcp_server.http_app(path="/", transport="http", stateless_http=True)
+        app.mount("/mcp/rpc", _MCP_HTTP_APP)
+        _MCP_HTTP_DA_MOUNT = True
+        logger.info("MCP-HTTP: đã mở tại /mcp/rpc (xác thực bằng thẻ Bearer)")
+    except Exception:
+        logger.warning("MCP-HTTP: không mount được — giữ nguyên stdio", exc_info=True)
+
+
+# App con của MCP có vòng đời riêng (quản lý phiên streamable-http) và Starlette KHÔNG
+# tự chạy vòng đời của app được mount. Bỏ qua thì mount xong vẫn hỏng ngay lượt gọi hợp
+# lệ đầu tiên — "Task group is not initialized".
+#
+# Cách chính thống là truyền lifespan vào constructor của app cha, nhưng app này đang
+# dùng @app.on_event(...) ở nhiều chỗ, mà đặt `lifespan=` thì FastAPI BỎ QUA hết các
+# handler đó — sửa một chỗ làm hỏng lặng lẽ mấy chỗ khác. Nên nối vào đúng startup/shutdown.
+@app.on_event("startup")
+async def _mcp_http_khoi_dong() -> None:
+    global _MCP_HTTP_STACK
+    if not _MCP_HTTP_DA_MOUNT or _MCP_HTTP_APP is None:
+        return
+    from contextlib import AsyncExitStack
+    try:
+        _MCP_HTTP_STACK = AsyncExitStack()
+        await _MCP_HTTP_STACK.enter_async_context(_MCP_HTTP_APP.lifespan(_MCP_HTTP_APP))
+    except Exception:
+        _MCP_HTTP_STACK = None
+        logger.warning("MCP-HTTP: không khởi động được vòng đời", exc_info=True)
+
+
+@app.on_event("shutdown")
+async def _mcp_http_dung() -> None:
+    global _MCP_HTTP_STACK
+    if _MCP_HTTP_STACK is None:
+        return
+    try:
+        await _MCP_HTTP_STACK.aclose()
+    except Exception:
+        logger.info("MCP-HTTP: lỗi khi đóng vòng đời", exc_info=True)
+    finally:
+        _MCP_HTTP_STACK = None
+
+
+def _sau_tls() -> bool:
+    """Có dấu hiệu app đang chạy sau HTTPS không (Azure/Nginx đều đặt biến này)."""
+    import os as _os
+    # Azure App Service dựng sẵn WEBSITE_HOSTNAME và luôn phục vụ qua HTTPS; các nền
+    # tảng khác đặt FORWARDED_PROTO/X_FORWARDED_PROTO khi đứng sau proxy TLS.
+    if _os.getenv("WEBSITE_HOSTNAME"):
+        return True
+    return (_os.getenv("FORWARDED_PROTO") or _os.getenv("X_FORWARDED_PROTO") or "") == "https"
+
+
+class TaoTheReq(BaseModel):
+    ten: str = Field("", max_length=80)          # "Claude Desktop máy nhà"
+    so_ngay: int = Field(30, ge=1, le=365)
+
+
+@app.post("/mcp/tokens")
+def mcp_tao_the(req: TaoTheReq, session: AuthSession = Depends(get_current_session),
+                db: Session = Depends(get_db)):
+    """Phát 1 thẻ MCP cho CHÍNH người đang đăng nhập. Thẻ gốc trả về ĐÚNG MỘT LẦN.
+
+    Không có đường nào đọc lại thẻ sau lượt này — DB chỉ giữ bản băm. Mất thì thu hồi
+    và tạo cái khác; đó là đánh đổi có chủ ý để một lần lộ CSDL không thành một lần lộ
+    mọi hộp thư.
+    """
+    row, raw = mcp_token_repo.tao(db, session.user_id, req.ten, req.so_ngay)
+    _record(db, session.user_id, action="mcp_token_create", tool_name="mcp_tokens",
+            ids=[], notify=f"Đã tạo thẻ MCP “{row.ten or row.tien_to}”.", notify_type="warning")
+    return {
+        "id": row.id, "ten": row.ten, "tien_to": row.tien_to,
+        "het_han": row.expires_at.isoformat(),
+        "token": raw,
+        "luu_y": "Chép ngay — thẻ này không hiện lại lần nào nữa.",
+    }
+
+
+@app.get("/mcp/tokens")
+def mcp_liet_ke_the(session: AuthSession = Depends(get_current_session),
+                    db: Session = Depends(get_db)):
+    """Danh sách thẻ của chính mình. KHÔNG có trường nào chứa thẻ gốc."""
+    return {"items": [
+        {"id": r.id, "ten": r.ten, "tien_to": r.tien_to,
+         "tao_luc": r.created_at.isoformat() if r.created_at else None,
+         "het_han": r.expires_at.isoformat() if r.expires_at else None,
+         "da_thu_hoi": r.revoked,
+         "dung_gan_nhat": r.last_used_at.isoformat() if r.last_used_at else None}
+        for r in mcp_token_repo.liet_ke(db, session.user_id)
+    ]}
+
+
+@app.delete("/mcp/tokens/{token_id}")
+def mcp_thu_hoi_the(token_id: int, session: AuthSession = Depends(get_current_session),
+                    db: Session = Depends(get_db)):
+    """Thu hồi NGAY. Thẻ đã thu hồi thì lượt gọi kế tiếp bị từ chối, không chờ hết hạn."""
+    ok = mcp_token_repo.thu_hoi(db, session.user_id, token_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Không có thẻ đó, hoặc đã thu hồi rồi.")
+    _record(db, session.user_id, action="mcp_token_revoke", tool_name="mcp_tokens", ids=[],
+            notify="Đã thu hồi một thẻ MCP.", notify_type="info")
+    return {"ok": True}
+
+
 @app.get("/mcp/thong-tin")
 def mcp_thong_tin():
     """Khai báo THẬT của MCP server: transport, cách kết nối, tool/prompt đang mở."""
@@ -228,14 +366,25 @@ def mcp_thong_tin():
         _mcp.bulk_action, _mcp.liet_ke_cam_ket, _mcp.ap_luc_lich_trinh,
         _mcp.de_xuat_di_lai, _mcp.tim_chuyen_bay, _mcp.tim_khach_san,
     ))
+    # Đường HTTP chỉ được coi là ĐANG MỞ khi cờ bật VÀ mount thành công. Báo "có" theo
+    # mỗi biến môi trường là kiểu khai báo từng làm màn này ghi ra một URL không tồn tại.
+    http_bat = bool(getattr(settings, "mcp_http_enabled", False) and _MCP_HTTP_DA_MOUNT)
     return {
         "san_sang": True,
-        # stdio, KHÔNG phải HTTP. Bật transport từ xa mà chưa có xác thực thì bất kỳ ai
-        # có đường dẫn cũng đọc và gửi được thư — nên nó cố ý chưa bật, và màn hình
-        # phải nói đúng như vậy thay vì vẽ ra một URL.
-        "transport": "stdio",
+        # stdio LUÔN có; HTTP là tuỳ chọn phải bật tay. Transport từ xa mà không xác thực
+        # thì bất kỳ ai có đường dẫn cũng đọc và gửi được thư — nên đường HTTP bắt buộc
+        # mang thẻ Bearer, và màn hình phải nói đúng nó đang ở trạng thái nào.
+        "transport": "stdio+http" if http_bat else "stdio",
         "lenh_chay": "uv run python -m app.mcp.server",
         "cau_hinh_mau": "_claude_config_READY.json (ở gốc repo)",
+        "http": {
+            "dang_mo": http_bat,
+            "duong_dan": "/mcp/rpc" if http_bat else None,
+            "xac_thuc": "Bearer — thẻ tạo ở POST /mcp/tokens, băm khi lưu, có hạn, thu hồi được",
+            "vi_sao_tat": None if http_bat else (
+                "Cố ý tắt mặc định. Bật bằng MCP_HTTP_ENABLED=true, và chỉ chạy sau HTTPS."
+            ),
+        },
         "tools": tools,
         "prompts": ["daily_digest", "triage_inbox", "meeting_brief"],
         "resources": ["meoarc://whoami"],
@@ -2432,5 +2581,9 @@ async def upload_file(
 # Nhờ vậy Vercel vẫn là đường chính (đúng sơ đồ PA2 §1.1), còn đây là đường dự
 # phòng khi cần một URL duy nhất.
 from app.api.spa import gan_frontend  # noqa: E402
+
+# MCP-HTTP mount TRƯỚC bộ bắt-tất-cả của SPA, cùng lý do như trên: đăng ký sau thì
+# /mcp/rpc bị SPA nuốt và trả về trang HTML thay vì giao thức MCP.
+_gan_mcp_http()
 
 gan_frontend(app, settings.frontend_dist or None)
