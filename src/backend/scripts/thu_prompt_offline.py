@@ -32,7 +32,8 @@ from app.core import labeling                                # noqa: E402
 from app.schemas.email import Email                          # noqa: E402
 from app.tools.registry import RequestContext                # noqa: E402
 from scripts import bo_quay_demo                             # noqa: E402
-from scripts.thu_prompt_demo import CAU_HOI, _chay           # noqa: E402
+from scripts.thu_prompt_demo import CAU_HOI, _chay            # noqa: E402
+from scripts.tom_ket import tom_ket                          # noqa: E402
 
 
 def _hop_thu() -> list[Email]:
@@ -107,39 +108,40 @@ async def main() -> int:
                          email_provider="gmail", tier="free", scan_days=30)
     graph = build_graph()
 
-    # `_chay` TỰ NUỐT ngoại lệ rồi trả False, nên không bắt được "hết hạn mức" bằng
-    # try/except ở đây — lần chạy đầu vì thế đi hết 26 câu để đâm vào cùng một bức
-    # tường 429, và bản tổng kết trông như 17 câu sai logic.
+    # DỪNG khi liên tiếp KHÔNG GỌI NỔI mô hình.
     #
-    # Dấu hiệu dùng được là CHUỖI TRƯỢT LIÊN TIẾP: một câu trượt thì có thể là mô hình
-    # chọn sai tool, nhưng ba câu liền nhau trượt thì gần như luôn là hạn mức chứ
-    # không phải suy luận. Dừng ở đó, và in sẵn lệnh chạy tiếp phần còn lại.
-    TRUOT_LIEN_TIEP_TOI_DA = 3
-    ket: list[tuple[int, str, bool]] = []
+    # Đếm theo trạng thái 'loi' chứ không theo "trượt": một câu LỆCH THẺ là chuyện của
+    # phần mềm và không có lý do gì để bỏ dở phần còn lại; còn ba câu liền nhau không
+    # gọi nổi mô hình thì gần như luôn là hạn mức, và chạy tiếp chỉ tổ in thêm 23 khối
+    # lỗi giống hệt nhau — đúng thứ đã xảy ra ngày 05/09.
+    LOI_LIEN_TIEP_TOI_DA = 3
+    ket: list[tuple[int, str]] = []
     lien_tiep = 0
     for so, nhom, cau, mong, gc in chon:
         try:
-            ok = await _chay(so, nhom, cau, mong, gc, ctx, graph)
+            trang = await _chay(so, nhom, cau, mong, gc, ctx, graph)
         except Exception as exc:                     # noqa: BLE001
             print(f"[{so}] LỖI: {type(exc).__name__}: {str(exc)[:200]}")
-            ok = False
-        ket.append((so, mong, ok))
-        lien_tiep = 0 if ok else lien_tiep + 1
-        if lien_tiep >= TRUOT_LIEN_TIEP_TOI_DA:
-            print(f"\n→ {lien_tiep} câu trượt liên tiếp — gần như chắc chắn HẾT HẠN MỨC.")
+            trang = "loi"
+        ket.append((so, trang))
+        lien_tiep = lien_tiep + 1 if trang == "loi" else 0
+        if lien_tiep >= LOI_LIEN_TIEP_TOI_DA:
+            print(f"\n→ {lien_tiep} câu liên tiếp KHÔNG gọi nổi mô hình — gần như chắc"
+                  " chắn hết hạn mức.")
             con = [str(c[0]) for c in chon[len(ket):]]
             if con:
-                print("  Chạy lại phần còn lại khi quota hồi:")
+                print("  Dừng ở đây. Chạy lại đúng phần còn lại khi hạn mức hồi:")
                 print(f"  ./.venv/Scripts/python.exe scripts/thu_prompt_offline.py {' '.join(con)}")
             break
 
     print(f"\n{'═' * 76}")
-    hong = [s for s, mong, ok in ket if mong != "*" and not ok]
-    print(f"Đã chạy {len(ket)}/{len(chon)} câu · {len(ket) - len(hong)} đạt · {len(hong)} chưa đạt")
-    if hong:
-        print(f"Chưa đạt: {hong}")
-    return 0
+    # Dùng CHUNG `tom_ket` với bộ chạy kia — hai bảng đếm khác nhau cho cùng một thứ là
+    # cách chắc chắn để hai con số dần lệch nhau mà không ai biết.
+    print(tom_ket(ket))
+    return 1 if any(t == "lech" for _, t in ket) else 0
 
 
 if __name__ == "__main__":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     raise SystemExit(asyncio.run(main()))

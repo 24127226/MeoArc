@@ -31,7 +31,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# Bọc stdout CHỈ khi chạy như một script. Bọc lúc import thì bất kỳ test nào lỡ
+# import file này sẽ giật mất luồng ghi pytest đã bắt — đã xảy ra: 471 test đổ với
+# "I/O operation on closed file", không test nào trong số đó có lỗi gì cả.
+if __name__ == "__main__":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from langchain_core.messages import HumanMessage        # noqa: E402
 
@@ -46,6 +50,7 @@ from app.core.db import SessionLocal                    # noqa: E402
 from app.models.user import User                        # noqa: E402
 from app.services.sync_service import _token_for_user   # noqa: E402
 from app.tools.registry import RequestContext           # noqa: E402
+from scripts.tom_ket import tom_ket                     # noqa: E402
 
 # (số, nhóm, câu hỏi, thẻ CHẤP NHẬN ĐƯỢC, ghi chú để tự chấm)
 #
@@ -190,7 +195,23 @@ def _tom_tat(the: dict) -> str:
     return str(the.get("text") or the.get("intro") or "")[:300]
 
 
-async def _chay(so, nhom, cau, mong, ghi_chu, ctx, graph) -> bool:
+async def _chay(so, nhom, cau, mong, ghi_chu, ctx, graph) -> str:
+    """Chạy MỘT câu, trả về TRẠNG THÁI chứ không phải đúng/sai.
+
+    ── VÌ SAO BA TRẠNG THÁI, KHÔNG PHẢI BOOL ──
+    Bản trước trả bool, và bảng tổng kết đếm "đạt = tổng trừ hỏng" trong khi danh sách
+    hỏng lại LOẠI HẲN các câu `mong == "*"`. Hệ quả đo được ngày 05/09: lần chạy hết
+    sạch hạn mức, 24/26 câu mô hình không đáp nổi một chữ, mà bảng in ra "9 đạt" — bảy
+    trong số đó là câu `*` đã BÁO LỖI. Một bản báo xanh giả ngay trước buổi bảo vệ là
+    thứ tệ nhất có thể xảy ra: nó nói rằng thứ chưa hề chạy đã chạy tốt.
+
+    Ba trạng thái tách đúng ba câu hỏi khác nhau:
+      'dat'     — gọi được mô hình VÀ ra đúng thẻ mong đợi.
+      'lech'    — gọi được mô hình nhưng ra sai thẻ. ĐÂY mới là lỗi của ta.
+      'loi'     — không gọi nổi mô hình (hết hạn mức, 503, 504). Không nói lên điều gì
+                  về phần mềm; gộp nó vào "sai" là tự vu cho mình.
+      'tu_cham' — gọi được, nhưng đề bài không ràng buộc thẻ nên phải ĐỌC câu trả lời.
+    """
     print(f"\n{'═' * 76}\nQ{so} [{nhom}]  {cau}")
     if ghi_chu:
         print(f"        ↳ {ghi_chu}")
@@ -211,7 +232,7 @@ async def _chay(so, nhom, cau, mong, ghi_chu, ctx, graph) -> bool:
             lich_su = list(r0["messages"])
         except Exception as exc:
             print(f"  LỖI ở lượt trước: {str(exc)[:160]}")
-            return False
+            return "loi"
     try:
         result = await graph.ainvoke({
             "messages": [*lich_su, HumanMessage(content=cau)],
@@ -224,20 +245,21 @@ async def _chay(so, nhom, cau, mong, ghi_chu, ctx, graph) -> bool:
         })
     except Exception as exc:
         print(f"  LỖI: {str(exc)[:200]}")
-        return False
+        return "loi"
 
     tools = [getattr(m, "name", "?") for m in result["messages"]
              if getattr(m, "type", None) == "tool"]
     the = _the(result)
     kind = the.get("kind", "?")
-    ok = mong == "*" or kind in mong.split("|")
+    trang_thai = "tu_cham" if mong == "*" else (
+        "dat" if kind in mong.split("|") else "lech")
 
     print(f"  tool  : {', '.join(tools) or '(KHÔNG GỌI TOOL NÀO)'}")
     print(f"  thẻ   : {kind}" + ("" if mong == "*" else f"   (chờ: {mong})"))
     print(f"  ra    : {_tom_tat(the)}")
-    print("  → " + ("TỰ CHẤM (đọc dòng 'ra')" if mong == "*"
-                    else ("OK" if ok else "*** LỆCH THẺ ***")))
-    return ok
+    print("  → " + {"tu_cham": "TỰ CHẤM (đọc dòng 'ra')",
+                    "dat": "OK", "lech": "*** LỆCH THẺ ***"}[trang_thai])
+    return trang_thai
 
 
 async def main() -> int:
@@ -294,18 +316,13 @@ async def main() -> int:
 
         ket = []
         for so, nhom, cau, mong, gc in chon:
-            ket.append((so, mong, await _chay(so, nhom, cau, mong, gc, ctx, graph)))
+            ket.append((so, await _chay(so, nhom, cau, mong, gc, ctx, graph)))
 
         print(f"\n{'═' * 76}")
-        hong = [s for s, mong, ok in ket if mong != "*" and not ok]
-        tu_cham = [s for s, mong, _ in ket if mong == "*"]
-        if tu_cham:
-            print("Tự chấm bằng mắt: " + ", ".join(f"Q{s}" for s in tu_cham))
-        if hong:
-            print(f"LỆCH THẺ ở {len(hong)} câu: " + ", ".join(f"Q{s}" for s in hong))
-            return 1
-        print("Mọi câu có ràng buộc thẻ đều ĐÚNG.")
-        return 0
+        print(tom_ket(ket))
+        # Chỉ LỆCH THẺ mới là lỗi của ta. Trả mã lỗi vì hết hạn mức là biến một sự cố
+        # bên ngoài thành một lần "build đỏ", rồi người ta học được cách bỏ qua màu đỏ.
+        return 1 if any(t == "lech" for _, t in ket) else 0
     finally:
         db.close()
 
