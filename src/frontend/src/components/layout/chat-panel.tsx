@@ -3188,16 +3188,16 @@ function AgentMessage({
                 hoàn tác. Câu cảnh báo "kiểm tra kỹ trước khi duyệt" mà không cho thấy
                 cái gì để kiểm thì chỉ là chữ, không phải một lớp bảo vệ. */}
             {dsThu.length > 0 && !running && (
-              <div className="space-y-0.5 rounded-xl bg-popover-foreground/5 p-2">
-                <div className="flex items-center justify-between px-1 pb-1">
-                  <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="space-y-1.5 rounded-2xl bg-popover-foreground/5 p-2.5">
+                <div className="flex items-center justify-between px-0.5">
+                  <p className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">
                     {daChon.size}/{dsThu.length} thư sẽ bị đụng tới
                   </p>
                   <button
                     onClick={() =>
                       setBoChon(daChon.size === dsThu.length ? new Set() : new Set(dsThu.map((e) => e.id)))
                     }
-                    className="font-mono text-[9px] uppercase tracking-[0.14em] text-active hover:underline"
+                    className="rounded-md px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.16em] text-active transition-colors hover:bg-active/10"
                   >
                     {daChon.size === dsThu.length ? t('mail.deselectAll') : t('mail.selectAll')}
                   </button>
@@ -3205,20 +3205,23 @@ function AgentMessage({
                 {/* Cuộn được: danh sách không còn bị cắt ở 20, mà một thẻ cao mãi thì
                     nút Duyệt bị đẩy khỏi tầm mắt — người dùng cuộn tìm nút thay vì đọc
                     danh sách, tức là mất đúng thứ danh sách này sinh ra để làm. */}
-                <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                <div className="fade-y max-h-64 space-y-1 overflow-y-auto pr-0.5">
                   {dsThu.map((e) => {
                     const chon = daChon.has(e.id)
                     return (
-                      <div
+                      <label
                         key={e.id}
                         className={cn(
-                          'flex min-w-0 items-start gap-2 rounded-lg px-1 py-1 text-[12px] transition-opacity',
-                          !chon && 'opacity-45',
+                          'flex cursor-pointer items-center gap-2.5 rounded-xl bg-popover-foreground/5 p-2 transition-all',
+                          'hover:bg-popover-foreground/10',
+                          !chon && 'opacity-40',
                         )}
                       >
                         {/* Ô TICK — mặc định chọn hết. Bỏ tick là LOẠI thư đó khỏi thao
-                            tác, không phải chỉ ẩn đi: `ids` gửi đi được lọc theo đúng
-                            tập này ở nút Duyệt bên dưới. */}
+                            tác, không phải chỉ làm mờ: `ids` gửi đi được lọc theo đúng
+                            tập này ở nút Duyệt bên dưới.
+                            Bọc trong <label> để bấm cả hàng cũng tick được — ô 14px là
+                            đích quá nhỏ, nhất là trên máy có màn cảm ứng. */}
                         <input
                           type="checkbox"
                           checked={chon}
@@ -3228,23 +3231,30 @@ function AgentMessage({
                             else n.add(e.id)
                             setBoChon(n)
                           }}
-                          aria-label={`${chon ? t('mail.deselectAll') : t('mail.selectAll')} — ${e.subject}`}
-                          className="mt-[3px] size-3.5 shrink-0 accent-[var(--active)]"
+                          className="size-4 shrink-0 accent-[var(--active)]"
                         />
+                        <MiniAvatar initial={e.initial} />
                         {/* MỞ ĐƯỢC THƯ. Bắt duyệt một danh sách mà không cho đọc từng lá
-                            là vẫn duyệt mù — tiêu đề thôi không đủ để biết có nên xoá. */}
+                            là vẫn duyệt mù — tiêu đề thôi không đủ để biết có nên xoá.
+                            `stopPropagation` để bấm mở thư KHÔNG kéo theo tick/bỏ tick. */}
                         <button
-                          onClick={() => onOpenEmail?.(e.id)}
+                          type="button"
                           disabled={!onOpenEmail}
-                          className="min-w-0 flex-1 text-left disabled:cursor-default"
+                          onClick={(ev) => {
+                            ev.preventDefault()
+                            ev.stopPropagation()
+                            onOpenEmail?.(e.id)
+                          }}
                           title={onOpenEmail ? t('mail.openThis') : undefined}
+                          className="min-w-0 flex-1 text-left disabled:cursor-default"
                         >
-                          <span className="text-muted-foreground">{e.sender}: </span>
-                          <span className={cn('text-foreground/90', onOpenEmail && 'hover:underline')}>
-                            {e.subject}
-                          </span>
+                          <p className="truncate text-sm font-medium text-foreground">{e.sender}</p>
+                          <p className="truncate text-xs text-muted-foreground">{e.subject}</p>
                         </button>
-                      </div>
+                        {onOpenEmail && (
+                          <ArrowUpRight className="size-3.5 shrink-0 text-[var(--spark)] opacity-60" />
+                        )}
+                      </label>
                     )
                   })}
                 </div>

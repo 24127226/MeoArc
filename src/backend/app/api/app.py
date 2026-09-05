@@ -1760,10 +1760,24 @@ def _confirm_card(messages: list) -> dict | None:
                 op = {"type": "markRead", "ids": ids, "read": True}
             if op:
                 verb = {"delete": "Xoá", "markRead": "Đánh dấu", "restore": "Khôi phục"}[op["type"]]
+                # Tổng số thư tool đã soát ở lượt này — để nói thẳng phạm vi đã xem.
+                # PHẢI tính trước khi dựng `card`: bản đầu tôi đặt nó xuống dưới, và
+                # `card` tham chiếu một biến chưa gán → UnboundLocalError làm chết cả
+                # thẻ duyệt. Test tự viết bắt được ngay.
+                _tong_soat = len(_emails_from_search(messages, cap=1000))
                 card = {
                     "kind": "plan",
                     "intro": "Mình đã lên kế hoạch — bạn duyệt là chạy ngay:",
-                    "steps": [f"Chọn {len(ids)} thư theo yêu cầu", f"{verb} {len(ids)} thư"],
+                    # NÓI RÕ ĐÃ SOÁT BAO NHIÊU. "Chọn 2 thư theo yêu cầu" đọc ra
+                    # thành "nhóm này có 2 thư", trong khi sự thật có thể là "2 trong
+                    # số 20 thư gần nhất mình xem tới". Người dùng duyệt xong rồi mở
+                    # hộp thư ra thấy còn mười lá nữa — và không hiểu vì sao.
+                    "steps": [
+                        (f"Chọn {len(ids)} thư theo yêu cầu"
+                         + (f" (đã soát {_tong_soat} thư gần nhất)"
+                            if _tong_soat > len(ids) else "")),
+                        f"{verb} {len(ids)} thư",
+                    ],
                     "confirmLabel": f"{verb} {len(ids)} thư",
                     "op": op,
                 }

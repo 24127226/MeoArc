@@ -160,8 +160,15 @@ class CategorizeEmailsInput(BaseModel):
     KHÔNG áp nhãn ngay: chỉ trả đề xuất để người dùng duyệt (human-in-the-loop)."""
 
     limit: Annotated[int, Field(
-        ge=1, le=50,
-        description="Số thư gần nhất cần phân loại. Mặc định 20.",
+        ge=1, le=100,
+        # Trần cũ là 50. Người dùng nói "xoá các thư Cá nhân" thì họ muốn nói CẢ NHÓM,
+        # nhưng tool chỉ soát 20 thư gần nhất nên thẻ hiện ra "Xoá 2 thư" — và họ tưởng
+        # nhóm đó chỉ có 2. Đo trên hộp thư 68 thư: nhóm Cá nhân có 12, thẻ báo 2.
+        # Mặc định vẫn 20 cho câu hỏi thường (rẻ, nhanh); thao tác trên CẢ NHÓM thì
+        # agent được dặn nâng lên — xem mục tương ứng trong system prompt.
+        description="Số thư gần nhất cần phân loại. Mặc định 20. Khi người dùng muốn "
+                    "thao tác trên CẢ MỘT NHÓM (vd 'xoá các thư Cá nhân'), đặt 100 "
+                    "để không bỏ sót.",
     )] = 20
 
     query: Annotated[str, Field(
