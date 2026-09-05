@@ -262,8 +262,19 @@ def test_ten_hien_thi_phan_loai_duoc_khi_dia_chi_KHONG_noi_gi():
 def test_ten_nguoi_THAT_van_la_ca_nhan():
     """Ranh giới quan trọng: đọc tên không được biến bạn bè thành thông báo hệ thống."""
     from app.core.labeling import classify
-    for ten in ["Phạm Thu Trang", "Mẹ", "Lê Anh Đức", "Nguyễn Văn Sơn (GVHD)"]:
+    for ten in ["Phạm Thu Trang", "Mẹ", "Lê Anh Đức", "Nguyễn Hoàng Nam"]:
         assert classify("quanpta.meoarc@gmail.com", ten, "hihi", "").category.label == "Cá nhân"
+
+
+def test_GVHD_la_viec_HOC_chu_khong_phai_ca_nhan():
+    """ĐẢO LẠI quyết định hôm qua: bản test trước xếp "Nguyễn Văn Sơn (GVHD)" vào
+    Cá nhân, lấy lý do đó là người thật. Đúng là người thật — nhưng thứ người dùng cần
+    thấy khi thầy hướng dẫn nhắn về chương khoá luận là VIỆC HỌC, không phải một lá thư
+    bạn bè. "GVHD" là cách xưng chỉ có trong thư trường lớp nên rất an toàn để nhận."""
+    from app.core.labeling import classify
+    c = classify("quanpta.meoarc@gmail.com", "Nguyễn Văn Sơn (GVHD)",
+                 "Về bản chỉnh sửa chương 3", "Thầy đã xem qua chương 3.")
+    assert c.category.label == "Học tập"
 
 
 def test_ten_hien_thi_chi_dat_MEDIUM_khong_phai_HIGH():

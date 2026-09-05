@@ -134,6 +134,10 @@ _TEN_RULES: list[tuple[list[str], Category, str]] = [
     (["giáo vụ", "giao vu", "phòng đào tạo", "phong dao tao", "phòng ctsv", "phong ctsv",
       "thư ký khoa", "thu ky khoa", "khoa cntt", "câu lạc bộ", "cau lac bo", "clb ",
       "ban tổ chức", "ban to chuc", "ban truyền thông", "học vụ", "hoc vu",
+      # "GVHD" (giảng viên hướng dẫn) là cách xưng chỉ có trong thư trường lớp. Thiếu
+      # nó thì thầy hướng dẫn bàn về chương khoá luận bị xếp vào "Cá nhân" — đúng là
+      # người thật, nhưng thứ người dùng cần thấy là VIỆC HỌC.
+      "gvhd", "giảng viên", "giang vien",
       "trường đh", "đại học", "dai hoc", "ieee", "springer", "elsevier", "acm"],
      HOC_TAP, "tên người gửi cho thấy là đơn vị trong trường/học thuật"),
     # Tên khách sạn/hãng bay hiếm khi trùng tên miền nào ta biết ("Hanoi La Siesta

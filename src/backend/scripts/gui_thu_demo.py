@@ -624,6 +624,10 @@ def main() -> int:
                     help="Gửi THÊM ~50 thư dồn cục để xem màn Lịch trình dưới tải "
                          "thật (xếp làn, chip +N, bảng ngày). Hộp thư sẽ rất lộn xộn "
                          "sau đó — đọc kỹ cảnh báo khi xem trước.")
+    ap.add_argument("--phan-loai", action="store_true",
+                    help="Gửi RIÊNG 22 thư mới phủ đủ 8 nhãn, để thấy rõ phân loại "
+                         "chạy đúng. KHÔNG trùng với bộ --quay-demo đã gửi trước đó, "
+                         "nên cộng thêm được vào hộp thư sẵn có.")
     args = ap.parse_args()
 
     db = SessionLocal()
@@ -685,7 +689,14 @@ def main() -> int:
         if bo_qua:
             print(f"(Bỏ qua {len(bo_qua)} tài khoản không dùng được: {', '.join(bo_qua)})\n")
 
-        if args.quay_demo:
+        if args.phan_loai:
+            # RIÊNG, không trộn: bộ này để soi PHÂN LOẠI, và 46 thư kia đã ở trong
+            # hộp thư rồi — gửi lại là hàng đôi, mà hàng đôi thì mọi con số đếm được
+            # (chưa đọc, số việc) đều sai theo một cách rất khó nhận ra.
+            from bo_quay_demo import bo_phan_loai as _bo_pl
+            bo = list(_bo_pl())
+            thanh_phan = [f"{len(bo)} thư phân loại"]
+        elif args.quay_demo:
             # DÙNG RIÊNG, không trộn. Bộ quay demo được cân đúng để mỗi câu hỏi trong
             # kịch bản có dữ liệu đỡ; trộn thêm thư khác vào là phá mất cân đó — nhất
             # là ngày quá tải, chỉ cần thêm vài việc nữa là các ngày khác cũng đỏ và
@@ -698,11 +709,11 @@ def main() -> int:
             thanh_phan = [f"{len(THU_DEMO)} gốc"]
         # Bộ kịch bản đi kèm --bo-day, và cũng bật riêng được bằng --kich-ban: có lúc
         # chỉ cần dữ liệu ĐA DẠNG để thử agent, không cần hộp thư quá tải.
-        if (args.kich_ban or args.bo_day) and not args.quay_demo:
+        if (args.kich_ban or args.bo_day) and not (args.quay_demo or args.phan_loai):
             bo += _THU_KICH_BAN + _THU_KHO
             thanh_phan.append(f"{len(_THU_KICH_BAN)} kịch bản")
             thanh_phan.append(f"{len(_THU_KHO)} khó")
-        if args.bo_day and not args.quay_demo:
+        if args.bo_day and not (args.quay_demo or args.phan_loai):
             day = _dung_bo_day()
             bo += day
             thanh_phan.append(f"{len(day)} dày")

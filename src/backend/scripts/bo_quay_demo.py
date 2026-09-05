@@ -57,6 +57,118 @@ def bo_day_du(moc: datetime | None = None) -> list[tuple[str, str, str]]:
     return [*nen[:-1], *list(g._THU_KHO), nen[-1]]
 
 
+def bo_phan_loai(moc: datetime | None = None) -> list[tuple[str, str, str]]:
+    """22 thư THÊM, dựng riêng để cho thấy PHÂN LOẠI chạy đúng — phủ đủ 8 nhãn.
+
+    ── VÌ SAO LÀ BỘ RIÊNG, KHÔNG NHÉT VÀO `bo_day_du` ──
+    46 thư kia đã nằm trong hộp thư rồi. Gộp vào là gửi trùng, và một hộp thư có hai
+    bản của cùng một lá thư thì mọi con số đếm được (bao nhiêu chưa đọc, bao nhiêu
+    việc) đều sai theo, mà sai một cách rất khó nhận ra.
+
+    ── ĐIỀU KIỆN ĐỂ NÓ CHẠY ĐÚNG ──
+    Thư tự gửi cho chính mình nên ĐỊA CHỈ người gửi không mang tín hiệu nào — mọi thư
+    cùng một địa chỉ. Toàn bộ sức phân loại nằm ở TÊN HIỂN THỊ, và `gui_thu_demo.py`
+    giữ được tên đó bằng `from_addr='"Tên" <địa@chỉ>'`. Gửi tay từ giao diện Gmail thì
+    tên hiển thị thành tên tài khoản bạn, và bộ này mất tác dụng.
+
+    ── CÓ CHỦ Ý ĐẶT MẤY CA KHÓ ──
+    · Agoda nhắc "đã thanh toán 1.850.000đ" → phải là ĐI LẠI, không phải Tài chính:
+      với người dùng thì đó là chuyến đi, biên lai chỉ là mặt phụ.
+    · Vietcombank báo biến động số dư CỦA CHÍNH giao dịch đó → phải là TÀI CHÍNH.
+      Hai thư nói về một việc mà về hai nhãn khác nhau, và cả hai đều đúng.
+    · "EduMax Academy" bán khoá học → MUA SẮM, không phải Học tập. Mảnh `edu` quá
+      ngắn nên cố ý không được khớp tên hiển thị (xem `_DAI_TOI_THIEU_TEN`).
+    · "Nguyễn Văn Sơn (GVHD)" → HỌC TẬP dù là người thật.
+    · "Mẹ", "Phạm Thu Trang" → CÁ NHÂN. Không phải thư nào cũng phải có nhãn kêu.
+    """
+    n = moc or _moc()
+
+    def d(k: int) -> str:
+        return (n + timedelta(days=k)).strftime("%d/%m")
+
+    return [
+        # ── ĐI LẠI (nhãn thứ 8) ──────────────────────────────────────────
+        ("Vietjet Air", f"Xác nhận đặt chỗ VJ162 — SGN đi HAN ngày {d(21)}",
+         f"Cảm ơn bạn đã đặt vé. Mã đặt chỗ: QT9R2K. Chuyến VJ162 khởi hành 07:15 "
+         f"ngày {d(21)} từ Tân Sơn Nhất, hạ cánh Nội Bài 09:25. Vui lòng có mặt tại "
+         f"quầy làm thủ tục trước giờ bay 60 phút."),
+        ("Agoda", f"Đặt phòng đã xác nhận — Hanoi Old Quarter Hotel, {d(21)} - {d(23)}",
+         f"Đặt phòng của bạn đã được xác nhận. Nhận phòng 14:00 ngày {d(21)}, trả "
+         f"phòng 12:00 ngày {d(23)}. Bạn đã thanh toán 1.850.000đ. Huỷ miễn phí "
+         f"trước ngày {d(19)}."),
+        ("Traveloka", f"THAY ĐỔI GIỜ BAY — chuyến VN214 ngày {d(21)}",
+         f"Hãng vừa thông báo đổi giờ khởi hành chuyến VN214 từ 06:00 sang 09:45 "
+         f"ngày {d(21)}. Mã đặt chỗ XKPQ7M. Bạn không cần làm gì thêm."),
+        ("Vexere", f"Vé xe khách Sài Gòn - Đà Lạt ngày {d(28)}",
+         f"Vé của bạn đã đặt thành công. Nhà xe Phương Trang, giường nằm, khởi hành "
+         f"22:00 ngày {d(28)} tại bến xe Miền Đông. Mã đặt chỗ VX88231."),
+
+        # ── TÀI CHÍNH ─────────────────────────────────────────────────────
+        ("Vietcombank", "Biến động số dư tài khoản 0071xxxx",
+         "Tài khoản của bạn vừa ghi nợ 1.850.000đ. Số dư hiện tại 4.320.000đ. "
+         "Nội dung: thanh toan dat phong khach san."),
+        ("MoMo", "Hoá đơn tiền điện tháng này đã thanh toán thành công",
+         "Giao dịch thanh toán hoá đơn tiền điện số tiền 412.000đ đã hoàn tất. "
+         "Mã giao dịch MM20260905."),
+
+        # ── HỌC TẬP ───────────────────────────────────────────────────────
+        ("Giáo vụ HCMUS", f"[Hạn chót {d(7)}] Nộp phiếu đăng ký đề tài khoá luận",
+         f"Sinh viên nộp phiếu đăng ký đề tài khoá luận trước 17:00 ngày {d(7)} tại "
+         f"văn phòng khoa hoặc qua hệ thống. Quá hạn xem như không đăng ký."),
+        ("Phòng CTSV", f"Đăng ký xét học bổng khuyến khích học kỳ 1",
+         f"Sinh viên có điểm trung bình từ 8.0 nộp hồ sơ xét học bổng trước ngày "
+         f"{d(15)}. Hồ sơ gồm bảng điểm và đơn theo mẫu."),
+        ("CLB Học thuật FIT", f"Mời tham gia workshop Machine Learning {d(9)}",
+         f"CLB tổ chức workshop về Machine Learning lúc 8h30 ngày {d(9)} tại phòng "
+         f"E203. Bạn xác nhận tham dự trước ngày {d(7)} nhé."),
+        ("IEEE Xplore", "Your manuscript requires revision",
+         "Dear author, the reviewers have requested revisions to your submission. "
+         "Please upload the revised manuscript within two weeks."),
+        ("Nguyễn Văn Sơn (GVHD)", "Về bản chỉnh sửa chương 3",
+         "Thầy đã xem qua chương 3. Phần đặc tả còn thiếu ràng buộc phi chức năng, "
+         "em bổ sung rồi gửi lại thầy nhé."),
+
+        # ── CÔNG VIỆC ─────────────────────────────────────────────────────
+        ("TopCV", "3 việc làm Intern Backend phù hợp với hồ sơ của bạn",
+         f"Chúng tôi tìm thấy 3 vị trí thực tập backend phù hợp. Hạn ứng tuyển sớm "
+         f"nhất là ngày {d(13)}."),
+        ("HR VNG Corporation", "Thư mời phỏng vấn vị trí Intern Software Engineer",
+         f"Chúng tôi mời bạn tham dự buổi phỏng vấn lúc 14:00 ngày {d(12)} tại toà "
+         f"nhà Z06. Vui lòng xác nhận trước ngày {d(10)}."),
+
+        # ── MẠNG XÃ HỘI ───────────────────────────────────────────────────
+        ("LinkedIn", "Nguyễn Minh Tuấn và 4 người khác đã xem hồ sơ của bạn",
+         "Hồ sơ của bạn được xem 5 lần trong tuần qua. Xem ai đã quan tâm đến bạn."),
+        ("Facebook", "Bạn có 3 lời mời kết bạn đang chờ",
+         "Có 3 người muốn kết bạn với bạn. Đăng nhập để xem chi tiết."),
+
+        # ── CẬP NHẬT & HỆ THỐNG ───────────────────────────────────────────
+        ("GitHub", "[meoarc-integration] CI failed on branch integration",
+         "The workflow Deploy to Azure failed at step webapps-deploy. "
+         "View the run log for details."),
+        ("Google", "Cảnh báo bảo mật: thiết bị mới đăng nhập vào tài khoản",
+         "Một thiết bị Windows vừa đăng nhập vào tài khoản của bạn. Nếu không phải "
+         "bạn, hãy đổi mật khẩu ngay."),
+        ("Azure", "Your App Service plan is approaching its quota",
+         "The App Service meoarc has used 82% of its monthly compute quota."),
+
+        # ── MUA SẮM & ƯU ĐÃI ──────────────────────────────────────────────
+        ("Shopee", "Săn deal 9.9 — giảm đến 50% toàn sàn",
+         "Flash sale 9.9 bắt đầu lúc 0h. Voucher giảm 50% cho đơn từ 99k, "
+         "số lượng có hạn."),
+        ("EduMax Academy", "Khoá học Python MIỄN PHÍ 100% — ưu đãi cuối cùng",
+         "Đăng ký ngay hôm nay để nhận khoá học Python trị giá 2.990.000đ hoàn toàn "
+         "miễn phí. Ưu đãi kết thúc sau 2 ngày."),
+
+        # ── CÁ NHÂN ───────────────────────────────────────────────────────
+        ("Mẹ", "con nhớ ăn uống đầy đủ",
+         "Mẹ gửi con ít tiền tiêu vặt rồi nhé. Nhớ ăn sáng đầy đủ, đừng thức khuya "
+         "quá con nhé."),
+        ("Phạm Thu Trang", "chiều nay đi cà phê không",
+         "Rảnh chiều nay không, đi cà phê chỗ cũ đi. Mình có chuyện muốn kể."),
+    ]
+
+
 def bo_thu(moc: datetime | None = None) -> list[tuple[str, str, str]]:
     """Trả (tên người gửi, tiêu đề, thân thư). Thứ tự = thứ tự GỬI.
 
