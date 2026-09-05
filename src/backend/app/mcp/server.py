@@ -454,15 +454,36 @@ def meeting_brief() -> str:
 
 @mcp.resource("meoarc://whoami")
 def whoami() -> str:
-    """Đang thao tác trên hộp thư Gmail của ai (lấy từ phiên đăng nhập mới nhất)."""
+    """Đang thao tác trên hộp thư của ai.
+
+    ── CHỖ NÀY TỪNG BỊ SÓT ──
+    Khi mở đường HTTP, `_resolve_ctx` đã được sửa để đi theo user_id của thẻ Bearer.
+    Nhưng resource này vẫn giữ nguyên lối stdio cũ: "lấy phiên đăng nhập MỚI NHẤT trong
+    CSDL", không lọc theo ai. Qua HTTP thì nó trả về email + user_id của NGƯỜI KHÁC —
+    người vừa đăng nhập web — cho bất kỳ ai có một thẻ hợp lệ của chính mình.
+
+    Hai hậu quả, và cái thứ hai mới là cái tệ:
+    1. Rò rỉ email và user_id nội bộ của người dùng khác.
+    2. Các tool thì được phân quyền ĐÚNG (thao tác trên hộp thư của người gọi), nên
+       resource này nói với agent một danh tính khác hẳn hộp thư nó đang đụng vào. Agent
+       ký tên, xưng danh, hay suy luận "địa chỉ của tôi" đều dựa trên người thứ ba.
+       Một câu trả lời sai còn nguy hơn không trả lời.
+
+    Nên nó dùng CHUNG `_uid_tu_http()` với `_resolve_ctx` — một nguồn xác định người dùng
+    duy nhất, để lần sau không lệch được nữa.
+    """
+    uid = _uid_tu_http()
     db = SessionLocal()
     try:
         from app.models.user import User
-        s = db.scalars(select(AuthSession).order_by(AuthSession.expires_at.desc())).first()
-        if s is None:
+        if uid is None:
+            # stdio: agent chạy cùng máy, giữ nguyên lối cũ.
+            s = db.scalars(select(AuthSession).order_by(AuthSession.expires_at.desc())).first()
+            uid = s.user_id if s else None
+        if uid is None:
             return "Chưa ai đăng nhập web MeoArc."
-        u = db.get(User, s.user_id)
-        return f"Hộp thư đang thao tác: {u.email if u else '?'} (user_id={s.user_id})."
+        u = db.get(User, uid)
+        return f"Hộp thư đang thao tác: {u.email if u else '?'} (user_id={uid})."
     finally:
         db.close()
 

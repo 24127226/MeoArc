@@ -30,6 +30,11 @@ def _mem_db():
     from app.core.db import Base
     import app.models.user  # noqa: F401
     import app.models.mcp_token  # noqa: F401
+    # PHẢI import ở đây, không trông chờ test khác đã import hộ. Thiếu dòng này thì bảng
+    # `sessions` chỉ tồn tại khi một test chạy trước đã kéo `app.mcp.server` vào — chạy
+    # cả file thì xanh, chạy riêng một test thì vỡ. Một bộ test đổi kết quả theo thứ tự
+    # chạy là bộ test không nói lên điều gì.
+    import app.models.session  # noqa: F401
 
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False},
                         poolclass=StaticPool)
@@ -297,3 +302,46 @@ def test_HTTP_the_dung_thi_vao_duoc(db, monkeypatch):
         r = _goi(c, raw)
         assert r.status_code == 200, r.text
         assert "MeoArc" in r.text
+
+
+# ── whoami phải nói về NGƯỜI GỌI, không phải người đăng nhập gần nhất ────────
+
+def test_whoami_tra_ve_dung_NGUOI_GOI(db, monkeypatch):
+    """Sót một chỗ là đủ hỏng: `_resolve_ctx` đã lọc theo thẻ, nhưng resource này thì
+    chưa, nên qua HTTP nó trả email + user_id của NGƯỜI KHÁC.
+
+    Hậu quả nặng hơn cả rò rỉ: các tool phân quyền ĐÚNG (thao tác hộp thư người gọi),
+    nên resource nói với agent một danh tính khác hẳn hộp thư nó đang đụng vào — agent
+    ký tên và xưng danh bằng người thứ ba.
+    """
+    from app.mcp import server as S
+    from app.models.session import AuthSession
+
+    # Người 1 đăng nhập SAU → là "phiên mới nhất" trong CSDL.
+    db.add(AuthSession(user_id=1, token="t1", google_access_token="g1",
+                       expires_at=datetime.utcnow() + timedelta(days=9)))
+    db.add(AuthSession(user_id=2, token="t2", google_access_token="g2",
+                       expires_at=datetime.utcnow() + timedelta(days=1)))
+    db.commit()
+    monkeypatch.setattr(S, "SessionLocal", lambda: db)
+
+    monkeypatch.setattr(S, "_uid_tu_http", lambda: 2)
+    ra = S.whoami.fn() if hasattr(S.whoami, "fn") else S.whoami()
+    assert "b@example.com" in ra and "user_id=2" in ra, (
+        "phải nói về người mang thẻ, không phải người đăng nhập gần nhất"
+    )
+    assert "a@example.com" not in ra, "KHÔNG được lộ email người dùng khác"
+
+
+def test_whoami_stdio_van_giu_loi_cu(db, monkeypatch):
+    """Không có thẻ HTTP = đang chạy stdio cùng máy → giữ nguyên hành vi cũ."""
+    from app.mcp import server as S
+    from app.models.session import AuthSession
+
+    db.add(AuthSession(user_id=1, token="t1", google_access_token="g1",
+                       expires_at=datetime.utcnow() + timedelta(days=9)))
+    db.commit()
+    monkeypatch.setattr(S, "SessionLocal", lambda: db)
+    monkeypatch.setattr(S, "_uid_tu_http", lambda: None)
+    ra = S.whoami.fn() if hasattr(S.whoami, "fn") else S.whoami()
+    assert "a@example.com" in ra
