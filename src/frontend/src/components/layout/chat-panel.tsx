@@ -2084,6 +2084,7 @@ export function ChatPanel({
               ) : (
                 <AgentMessage
                   message={m}
+                  hopThu={emails}
                   exec={exec}
                   executed={executedIds.has(m.id)}
                   spotlight={pendingConfirmId === m.id}
@@ -2855,6 +2856,7 @@ function CategorizeWidget({
 
 function AgentMessage({
   message,
+  hopThu,
   exec,
   executed,
   spotlight,
@@ -2873,6 +2875,8 @@ function AgentMessage({
   onBoQuaDuDinh,
 }: {
   message: Extract<Message, { role: 'agent' }>
+  /** Hộp thư đang mở — để dựng lại danh sách thư khi backend không đính kèm được. */
+  hopThu: Email[]
   exec: { id: string; current: number } | null
   executed: boolean
   spotlight: boolean
@@ -3063,7 +3067,26 @@ function AgentMessage({
   }
 
   if (reply.kind === 'plan') {
-    const dsThu = reply.emails ?? []
+    /* ── DANH SÁCH THƯ: BACKEND ĐÍNH KÈM, THIẾU THÌ TỰ TRA ────────────────────
+       Backend chỉ rút được danh sách từ kết quả của vài tool. Câu "xoá các thư ưu
+       đãi, mua sắm" đi qua `categorize_emails`, và trước khi sửa thì thẻ hiện ra
+       trống trơn: "Xoá 2 thư" mà không nói hai thư nào — tức là vẫn bắt duyệt mù,
+       đúng thứ cả thẻ này sinh ra để chống.
+       Sửa ở backend là chữa đúng ca đó. Lưới này chữa MỌI ca còn lại: id đã nằm sẵn
+       trong `op`, và hộp thư thì trình duyệt đang giữ — không việc gì phải hỏi lại
+       máy chủ để biết một lá thư mình vừa hiển thị tên. */
+    const dsThu: EmailRef[] =
+      reply.emails && reply.emails.length > 0
+        ? reply.emails
+        : 'ids' in reply.op
+          ? reply.op.ids
+              .map((id) => hopThu.find((e) => e.id === id))
+              .filter((e): e is Email => !!e)
+              .map((e) => ({
+                id: e.id, sender: e.sender, initial: e.senderInitial,
+                subject: e.subject, snippet: e.preview, unread: e.unread,
+              }))
+          : []
     // `null` = chưa đụng vào = chọn HẾT. Đây là mặc định đúng: người dùng vừa nói
     // "xoá thư từ X" nên ý định của họ là cả nhóm; ô tick sinh ra để LOẠI TRỪ, không
     // phải để bắt họ chọn lại từ đầu thứ mình vừa yêu cầu.

@@ -1390,7 +1390,15 @@ def _emails_from_search(messages: list, cap: int = 15) -> list:
                       if getattr(m, "type", None) == "human"), default=0)
     for m in reversed(messages[last_human:]):
         # semantic_search trả CÙNG khuôn dữ liệu → thẻ bấm-được dùng chung
-        if getattr(m, "type", None) == "tool" and getattr(m, "name", None) in ("search_emails", "semantic_search"):
+        # ── PHẢI XÉT CẢ `categorize_emails` ──
+        # Câu "xoá các thư ưu đãi, mua sắm" không đi qua `search_emails`: agent phải
+        # PHÂN LOẠI mới biết thư nào thuộc nhóm đó. Bản trước chỉ đọc hai tool tìm
+        # kiếm, nên đúng những lệnh xoá theo NHÓM — loại nguy hiểm nhất — lại là loại
+        # KHÔNG hiện được danh sách. Đo được trên bản triển khai: thẻ chỉ ghi "Xoá 2
+        # thư", không một dòng nào cho biết hai thư đó là thư gì.
+        if getattr(m, "type", None) == "tool" and getattr(m, "name", None) in (
+            "search_emails", "semantic_search", "categorize_emails",
+        ):
             try:
                 data = json.loads(m.content)
             except Exception:
@@ -1778,7 +1786,16 @@ def _confirm_card(messages: list) -> dict | None:
                 # `email_ids` vốn đã bị chặn ở 100 nên danh sách không thể phình vô hạn.
                 card["emails"] = _ds
                 if op["type"] == "delete":
-                    card["warn"] = "Xoá hàng loạt không hoàn tác được — kiểm tra kỹ trước khi duyệt."
+                    # NÓI ĐÚNG SỰ THẬT. Câu cũ ghi "không hoàn tác được" — sai kể từ
+                    # khi có `bulk_action(restore)`: thư vào Thùng rác và lấy lại được.
+                    # Một cảnh báo sai làm hỏng chính nó: người dùng xoá thử, thấy khôi
+                    # phục được, rồi từ đó không tin bất kỳ cảnh báo nào của app nữa.
+                    #
+                    # Rủi ro THẬT của xoá hàng loạt không phải mất vĩnh viễn, mà là xoá
+                    # nhầm mà KHÔNG BIẾT — nên câu cảnh báo phải chỉ vào đúng chỗ đó.
+                    card["warn"] = ("Thư sẽ vào Thùng rác và khôi phục lại được, nhưng "
+                                    "sẽ biến khỏi hộp thư — soát danh sách bên trên "
+                                    "trước khi duyệt.")
                 card["_tool"] = "bulk_action"
                 card["_args"] = dict(args)
                 return card
