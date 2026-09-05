@@ -57,6 +57,17 @@ jobs:
       - name: Cài dependencies (khoá phiên bản theo uv.lock)
         run: uv sync --frozen
 
+      # Sinh khoá mã hoá dùng-một-lần cho lần chạy này — giống hệt workflow "Kiểm thử".
+      # THIẾU BƯỚC NÀY LÀ LÝ DO CI ĐỎ TỪ 31/08: không có khoá thì `EncryptedStr` tự tắt
+      # mã hoá, và nhóm phép thử SEC-TC05 báo hỏng ĐÚNG — nó tồn tại để bắt đúng tình
+      # huống "hệ thống đang lưu token trần". Cách sửa SAI ở đây là cho test tự skip:
+      # phép thử khẳng định "khoá phải được cấu hình" mà bỏ qua khi không có khoá thì
+      # nó chỉ còn là một dòng xanh vô nghĩa.
+      # Sinh tại chỗ thay vì gõ cứng: repo không chứa chuỗi nào trông giống khoá thật.
+      - name: Sinh khoá mã hoá cho lần chạy này
+        run: |
+          echo "TOKEN_ENCRYPTION_KEY=$(uv run python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+
       - name: Chạy bộ test khách quan
         run: uv run pytest tests/ -v --ignore=tests/test_live_e2e.py
 

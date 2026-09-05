@@ -29,6 +29,11 @@ on:
       - 'docs/**'
       - '**.md'
       - '.gitignore'
+      # Sua file workflow KHONG doi thu app phuc vu — cung mot ly do nhu tai lieu.
+      # Chinh cai bay nay vua dinh: sua ci.yml cho xanh lai, va cu push do se lam
+      # web 503 vai phut ma khong them mot dong chuc nang nao. Workflow moi tu ap
+      # dung cho lan push THAT ke tiep, khong can khoi dong lai may chu de "co hieu luc".
+      - '.github/**'
   workflow_dispatch:          # cho phep bam chay tay tu tab Actions
 
 # ── XEP HANG, KHONG CHAY CHONG NHAU ──────────────────────────────────────────
