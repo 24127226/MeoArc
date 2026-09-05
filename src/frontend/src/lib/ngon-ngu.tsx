@@ -99,6 +99,7 @@ const TU_DIEN: Record<string, { vi: string; en: string }> = {
   'act.markUnread': { vi: 'Đánh dấu chưa đọc', en: 'Mark as unread' },
   'act.refresh': { vi: 'Làm mới', en: 'Refresh' },
   'act.rename': { vi: 'Đổi tên', en: 'Rename' },
+  'act.restore': { vi: 'Khôi phục về hộp thư', en: 'Restore to inbox' },
   'act.rerun': { vi: 'Chạy lại', en: 'Run again' },
   'act.skip': { vi: 'Bỏ qua', en: 'Skip' },
   'auth.login': { vi: 'Đăng nhập MeoArc', en: 'Sign in to MeoArc' },
@@ -254,6 +255,8 @@ const TU_DIEN: Record<string, { vi: string; en: string }> = {
   'fld.archive': { vi: 'Lưu trữ', en: 'Archive' },
   'fld.trash': { vi: 'Thùng rác', en: 'Trash' },
   'toast.unstarred': { vi: 'Đã bỏ quan trọng', en: 'Removed from important' },
+  'toast.restored': { vi: 'Đã khôi phục {n} thư về hộp thư', en: 'Restored {n} messages to the inbox' },
+  'toast.restoredOne': { vi: 'Đã khôi phục thư về hộp thư', en: 'Message restored to the inbox' },
   'toast.starred': { vi: 'Đã đánh dấu quan trọng', en: 'Marked important' },
   'toast.markedRead': { vi: 'Đã đánh dấu {n} thư là đã đọc', en: 'Marked {n} messages as read' },
   'toast.markedUnread': { vi: 'Đã đánh dấu {n} thư là chưa đọc', en: 'Marked {n} messages as unread' },
@@ -281,8 +284,23 @@ const TU_DIEN: Record<string, { vi: string; en: string }> = {
   'mail.tryOther': { vi: 'Thử đổi từ khoá hoặc bỏ bớt bộ lọc đang áp dụng.', en: 'Try another keyword or drop a filter.' },
   'mail.nothingHere': { vi: 'Chưa có thư nào ở đây.', en: 'Nothing here yet.' },
   'mail.clearFilter': { vi: 'Xoá bộ lọc', en: 'Clear filters' },
-  'mail.theseMsgs': { vi: 'Các thư', en: 'These messages' },
-  'mail.thisMsg': { vi: 'Thư', en: 'Message' },
+  'mail.delTitle': { vi: 'Xoá {n} thư?', en: 'Delete {n} messages?' },
+  // Câu cũ ghi "Bạn không thể hoàn tác thao tác này" — SAI kể từ khi có nút Khôi phục
+  // ở Thùng rác. Một cảnh báo sai làm hỏng mọi cảnh báo còn lại: người dùng học được
+  // rằng chữ đỏ nói quá, rồi bỏ qua đúng lúc nó nói thật.
+  'mail.delDescOne': {
+    vi: 'Thư sẽ vào Thùng rác — vẫn khôi phục lại được, nhưng sẽ biến khỏi hộp thư.',
+    en: 'The message goes to Trash — still restorable, but it leaves your inbox.',
+  },
+  'mail.delDescMany': {
+    vi: 'Các thư sẽ vào Thùng rác — vẫn khôi phục lại được, nhưng sẽ biến khỏi hộp thư.',
+    en: 'The messages go to Trash — still restorable, but they leave your inbox.',
+  },
+  'det.delTitle': { vi: 'Xoá thư này?', en: 'Delete this message?' },
+  'det.delDesc': {
+    vi: 'Thư “{tieuDe}” sẽ vào Thùng rác — vẫn khôi phục lại được, nhưng sẽ biến khỏi hộp thư.',
+    en: '“{tieuDe}” goes to Trash — still restorable, but it leaves your inbox.',
+  },
   'mail.prioTitle': { vi: 'Độ ưu tiên: {muc}', en: 'Priority: {muc}' },
   'det.unstar': { vi: 'Bỏ quan trọng', en: 'Unmark important' },
   'det.star': { vi: 'Đánh dấu quan trọng', en: 'Mark important' },

@@ -21,6 +21,7 @@ import {
   Send,
   SquarePen,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { t } from '@/lib/ngon-ngu'
@@ -144,6 +145,8 @@ function EmailCard({
   onArchive,
   onStar,
   onDelete,
+  onRestore,
+  trongThungRac,
 }: {
   email: Email
   selected: boolean
@@ -156,6 +159,10 @@ function EmailCard({
   onArchive: () => void
   onStar: () => void
   onDelete: () => void
+  /** Đang ở Thùng rác → đổi bộ nút nhanh. "Xoá" ở đây vô nghĩa (thư đã ở thùng rác
+   *  rồi) còn thứ người ta cần là lấy lại — mà trước đây KHÔNG có nút nào làm được. */
+  onRestore?: () => void
+  trongThungRac?: boolean
 }) {
   const c = CATEGORY[email.category]
   // Nền thẻ HẠ RẤT SÂU (từ 35 ≈ 21% xuống 14 ≈ 8%).
@@ -207,9 +214,16 @@ function EmailCard({
 
       {!selectionActive && (
         <span className="absolute right-2 top-2 z-10 hidden items-center gap-0.5 rounded-lg bg-popover/85 p-0.5 shadow-subtle backdrop-blur-sm group-hover:flex">
-          <CardAction icon={Archive} title={t('act.archive')} onClick={onArchive} />
-          <CardAction icon={Star} title={t('act.important')} onClick={onStar} />
-          <CardAction icon={Trash2} title={t('act.delete')} danger onClick={onDelete} />
+          {trongThungRac ? (
+            /* Trong Thùng rác thì chỉ còn một việc đáng làm: lấy thư về. */
+            <CardAction icon={RotateCcw} title={t('act.restore')} onClick={() => onRestore?.()} />
+          ) : (
+            <>
+              <CardAction icon={Archive} title={t('act.archive')} onClick={onArchive} />
+              <CardAction icon={Star} title={t('act.important')} onClick={onStar} />
+              <CardAction icon={Trash2} title={t('act.delete')} danger onClick={onDelete} />
+            </>
+          )}
         </span>
       )}
 
@@ -526,6 +540,10 @@ export function EmailList({
     node?.scrollIntoView({ block: 'nearest' })
   }, [kbActive])
 
+  const quickRestore = (id: string) => {
+    actions.restoreEmails([id])
+    toast(t('toast.restoredOne'), 'success')
+  }
   const quickArchive = (id: string) => {
     actions.removeEmails([id], 'archive')
     toast('Đã lưu trữ thư', 'success')
@@ -818,7 +836,19 @@ export function EmailList({
             <IconBtn icon={Mail} title={t('act.markUnread')} onClick={() => doMarkRead(false)} />
             <IconBtn icon={Star} title={t('act.markImportant')} onClick={doImportant} />
             <IconBtn icon={Tag} title={t('act.label')} onClick={() => setLabelOpen(true)} />
-            <IconBtn icon={Trash2} title={t('act.delete')} onClick={() => setDeleteIds(ids)} danger />
+            {folder === 'trash' ? (
+              <IconBtn
+                icon={RotateCcw}
+                title={t('act.restore')}
+                onClick={() => {
+                  actions.restoreEmails(ids)
+                  toast(t('toast.restored', { n: ids.length }), 'success')
+                  clearSel()
+                }}
+              />
+            ) : (
+              <IconBtn icon={Trash2} title={t('act.delete')} onClick={() => setDeleteIds(ids)} danger />
+            )}
             <IconBtn icon={X} title={t('act.clear')} onClick={clearSel} />
           </div>
         </div>
@@ -878,6 +908,8 @@ export function EmailList({
                   kbActive={kbActive === i}
                   onSelect={() => onOpen(email.id)}
                   onToggleCheck={() => toggleOne(email.id)}
+                  trongThungRac={folder === 'trash'}
+                  onRestore={() => quickRestore(email.id)}
                   onArchive={() => quickArchive(email.id)}
                   onStar={() => quickStar(email)}
                   onDelete={() => setDeleteIds([email.id])}
@@ -943,20 +975,19 @@ export function EmailList({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash2 className="size-5 text-destructive" />
-              Xoá {deleteIds?.length ?? 0} thư?
+              {t('mail.delTitle', { n: deleteIds?.length ?? 0 })}
             </DialogTitle>
             <DialogDescription>
-              {t((deleteIds?.length ?? 0) > 1 ? 'mail.theseMsgs' : 'mail.thisMsg')} sẽ bị xoá khỏi hộp thư. Bạn không thể
-              hoàn tác thao tác này.
+              {t((deleteIds?.length ?? 0) > 1 ? 'mail.delDescMany' : 'mail.delDescOne')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteIds(null)}>
-              Huỷ
+              {t('act.cancel')}
             </Button>
             <Button variant="destructive" onClick={doDelete}>
               <Trash2 className="size-4" />
-              Xoá
+              {t('act.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -421,26 +421,26 @@ export function EmailDetail({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash2 className="size-5 text-destructive" />
-              Xoá thư này?
+              {t('det.delTitle')}
             </DialogTitle>
             <DialogDescription>
-              Thư “{email.subject}” sẽ bị xoá khỏi hộp thư. Bạn không thể hoàn tác thao tác này.
+              {t('det.delDesc', { tieuDe: email.subject })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-              Huỷ
+              {t('act.cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={() => {
                 setConfirmDelete(false)
                 actions.removeEmails([id], 'delete') // vào thùng rác
-                toast('Đã xoá thư', 'destructive')
+                toast(t('toast.deleted', { n: 1 }), 'destructive')
               }}
             >
               <Trash2 className="size-4" />
-              Xoá
+              {t('act.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

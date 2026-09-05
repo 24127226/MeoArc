@@ -11,7 +11,7 @@ import { emails as seedEmails } from '@/data/emails'
 import { CommitmentsView } from '@/components/layout/commitments-view'
 import { cn } from '@/lib/utils'
 import { AlertOverlay } from '@/components/layout/alert-overlay'
-import type { EmailActions } from '@/lib/email-actions'
+import { apDungSuaLacQuan, THU_MUC_DICH, type EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { trichCamKet, apLucTheoNgay } from '@/lib/cam-ket'
 import { chuyenCanh } from '@/lib/chuyen-canh'
@@ -235,30 +235,50 @@ export function AppShell() {
     api.listEmails({ folder }).then((r) => setEmails(r.items)).catch(() => {})
   }
 
+  // Sửa lạc quan phải áp cho CẢ `folderCache`, không riêng danh sách đang hiện. Cache
+  // là stale-while-revalidate: bỏ qua nó thì xoá một thư ở Hộp thư rồi quay lại Hộp thư
+  // sẽ thấy thư đó HIỆN LẠI một nhịp trước khi bản mới về — người xem chỉ kịp thấy nó
+  // nhấp nháy và kết luận là app xoá hụt.
+  // `boCache` xoá hẳn entry của thư mục ĐÍCH: thư vừa chuyển tới không có trong bản
+  // cache cũ của nó, mà đoán thêm vào thì lại là bịa — thà nạp lại cho đúng.
+  const suaThu = (
+    ids: string[],
+    sua: (e: (typeof seedEmails)[number]) => (typeof seedEmails)[number],
+    boCache?: string,
+  ) => setEmails(apDungSuaLacQuan(folderCache.current, ids, sua, boCache))
+
   // Hành động quản lý email (UC006) — nhận mảng id để dùng được cho cả bulk.
   // CHIẾN LƯỢC "lạc quan": đổi giao diện NGAY cho mượt, rồi mới gọi backend ngầm;
   // lỗi thì resync() kéo trạng thái thật về. Mock mode (không có apiBaseUrlDaCauHinh) chỉ đổi cục bộ.
   const actions: EmailActions = {
     markRead: (ids, read) => {
-      setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, unread: !read } : e)))
+      suaThu(ids, (e) => ({ ...e, unread: !read }))
       if (apiBaseUrlDaCauHinh) api.markRead(ids, read).catch(resync)
     },
     setImportant: (ids, value) => {
-      setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, starred: value } : e)))
+      suaThu(ids, (e) => ({ ...e, starred: value }))
       if (apiBaseUrlDaCauHinh) api.setImportant(ids, value).catch(resync)
     },
     applyLabel: (ids, category, label) => {
-      setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, category, label } : e)))
+      suaThu(ids, (e) => ({ ...e, category, label }))
       if (apiBaseUrlDaCauHinh) api.applyLabel(ids, category, label).catch(resync) // tạo/gắn nhãn Gmail thật
     },
     restoreEmails: (ids) => {
-      // Thư đang ở thùng rác nên KHÔNG có trong danh sách hiện tại — không lọc gì cả,
-      // chỉ gọi máy chủ rồi nạp lại. Tự chèn tay vào state thì thứ hiện ra là thứ mình
-      // đoán, chứ không phải thứ Gmail thật sự đã khôi phục.
+      // Thư trong thùng rác VẪN nằm trong mảng `emails` — EmailList lọc theo
+      // `email.folder`, đó chính là cách thư mục Thùng rác hiện ra nó. Nên khôi phục
+      // là đổi `folder` về 'inbox', y như các hành động khác ở khối này. Bản trước
+      // chỉ gọi máy chủ mà không đụng state: ở chế độ mock thư đứng nguyên trong
+      // thùng rác trong khi toast đã báo "đã khôi phục" — báo xanh giả.
+      suaThu(ids, (e) => ({ ...e, folder: THU_MUC_DICH.restore }), THU_MUC_DICH.restore)
       if (apiBaseUrlDaCauHinh) api.restoreEmails(ids).then(resync).catch(resync)
     },
     removeEmails: (ids, mode = 'delete') => {
-      setEmails((prev) => prev.filter((e) => !ids.includes(e.id)))
+      // CHUYỂN thư mục, không xoá khỏi mảng. Lọc bỏ hẳn thì thư biến mất khỏi hộp thư
+      // ĐÚNG như mong muốn, nhưng cũng không bao giờ hiện ra ở Thùng rác/Lưu trữ —
+      // nên vòng "xoá rồi khôi phục" đứt ngay ở giữa. Chuyển folder cho cùng một kết
+      // quả ở hộp thư (EmailList lọc `e.folder === folder`) mà giữ được đường lùi.
+      const dich = mode === 'archive' ? THU_MUC_DICH.archive : THU_MUC_DICH.delete
+      suaThu(ids, (e) => ({ ...e, folder: dich }), dich)
       if (openedId && ids.includes(openedId)) setOpenedId(null)
       // archive → bỏ nhãn INBOX; delete → vào thùng rác. Gọi đúng endpoint theo mode.
       if (apiBaseUrlDaCauHinh) {
