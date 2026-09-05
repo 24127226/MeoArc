@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { apDungSuaLacQuan, THU_MUC_DICH } from './email-actions.ts'
+import { apDungSuaLacQuan, ghimLenDau, THU_MUC_DICH } from './email-actions.ts'
 
 type Thu = { id: string; folder: string; unread?: boolean }
 const thu = (id: string, folder: string): Thu => ({ id, folder, unread: true })
@@ -65,4 +65,29 @@ test('vòng lùi khép kín: xoá vào Thùng rác, khôi phục về Hộp thư
 test('lưu trữ đi lối riêng, KHÔNG rơi vào Thùng rác', () => {
   assert.equal(THU_MUC_DICH.archive, 'archive')
   assert.notEqual(THU_MUC_DICH.archive, THU_MUC_DICH.delete)
+})
+
+test('ghim thư vừa khôi phục lên ĐẦU danh sách', () => {
+  const ds = [thu('n1', 'inbox'), thu('n2', 'inbox')]
+  const ra = ghimLenDau(ds, [thu('cu', 'inbox')])
+  assert.deepEqual(ra.map((e) => e.id), ['cu', 'n1', 'n2'])
+})
+
+test('ghim KHÔNG làm thư hiện hai lần', () => {
+  // Thư khôi phục đủ mới thì máy chủ cũng trả nó trong trang đầu — không khử trùng
+  // theo id là danh sách có hai dòng y hệt nhau.
+  const ds = [thu('a', 'inbox'), thu('b', 'inbox')]
+  const ra = ghimLenDau(ds, [thu('a', 'inbox')])
+  assert.deepEqual(ra.map((e) => e.id), ['a', 'b'])
+})
+
+test('không ghim gì thì trả về ĐÚNG mảng cũ, không dựng mảng mới', () => {
+  const ds = [thu('a', 'inbox')]
+  assert.equal(ghimLenDau(ds, []), ds, 'giữ tham chiếu để useMemo phía dưới không chạy lại oan')
+})
+
+test('ghim giữ nguyên thứ tự máy chủ cho phần còn lại', () => {
+  const ds = [thu('n1', 'inbox'), thu('n2', 'inbox'), thu('n3', 'inbox')]
+  const ra = ghimLenDau(ds, [thu('n2', 'inbox')])
+  assert.deepEqual(ra.map((e) => e.id), ['n2', 'n1', 'n3'])
 })

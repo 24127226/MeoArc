@@ -11,7 +11,7 @@ import { emails as seedEmails } from '@/data/emails'
 import { CommitmentsView } from '@/components/layout/commitments-view'
 import { cn } from '@/lib/utils'
 import { AlertOverlay } from '@/components/layout/alert-overlay'
-import { apDungSuaLacQuan, THU_MUC_DICH, type EmailActions } from '@/lib/email-actions'
+import { apDungSuaLacQuan, ghimLenDau, THU_MUC_DICH, type EmailActions } from '@/lib/email-actions'
 import { api, apiBaseUrlDaCauHinh } from '@/lib/api'
 import { trichCamKet, apLucTheoNgay } from '@/lib/cam-ket'
 import { chuyenCanh } from '@/lib/chuyen-canh'
@@ -58,6 +58,11 @@ export function AppShell() {
   // NỀN để làm tươi dữ liệu. Chỉ có tác dụng ở chế độ backend thật.
   const folderCache = useRef(new Map<string, { items: typeof seedEmails; cursor: string | null }>())
 
+  // Thư vừa khôi phục, ghim lên đầu Hộp thư cho tới khi người dùng rời khỏi Hộp thư
+  // hoặc bấm Làm mới. Không ghim thì thư cũ khôi phục xong rơi ra ngoài trang đầu và
+  // coi như biến mất — xem ghi chú dài ở `restoreEmails`.
+  const [vuaKhoiPhuc, setVuaKhoiPhuc] = useState<typeof seedEmails>([])
+
   // Chế độ backend thật: nạp thư theo THƯ MỤC đang chọn từ Gmail; đổi nav → fetch lại
   // (inbox/sent/drafts/trash/starred/archive). Mock mode bỏ qua → vẫn dùng dữ liệu mẫu.
   useEffect(() => {
@@ -95,6 +100,9 @@ export function AppShell() {
       return
     }
     setActiveNav(id)
+    // Rời Hộp thư là thôi ghim: ghim chỉ để trả lời câu "thư tôi vừa lấy lại đâu",
+    // giữ mãi thì nó thành một thứ tự sai vĩnh viễn ở đầu danh sách.
+    if (id !== 'inbox') setVuaKhoiPhuc([])
     /* CHỈ chuyển cảnh khi THẬT SỰ đổi cảnh.
        Bản trước bọc MỌI cú bấm thư mục trong `chuyenCanh`, mà chuyển cảnh gốc là
        một hiệu ứng TOÀN TRANG: cả trang trượt -8px và co 0.994 trong 0.34s. Nên
@@ -182,6 +190,7 @@ export function AppShell() {
   // Nút "Làm mới": nạp lại truy vấn hiện tại nhưng BỎ QUA cache backend (fresh) → thấy thư mới ngay.
   const refreshEmails = () => {
     if (!apiBaseUrlDaCauHinh) return
+    setVuaKhoiPhuc([]) // "Làm mới" = xin bản thật của máy chủ, ghim tay phải nhường
     setRefreshing(true)
     api
       .listEmails({ ...pageQuery, fresh: true })
@@ -269,6 +278,15 @@ export function AppShell() {
       // là đổi `folder` về 'inbox', y như các hành động khác ở khối này. Bản trước
       // chỉ gọi máy chủ mà không đụng state: ở chế độ mock thư đứng nguyên trong
       // thùng rác trong khi toast đã báo "đã khôi phục" — báo xanh giả.
+      //
+      // GHIM LÊN ĐẦU HỘP THƯ. Máy chủ trả 30 thư/trang, sắp theo ngày nhận giảm dần,
+      // và thư khôi phục quay về ĐÚNG vị trí thời gian cũ của nó. Thư cũ hơn 30 thư
+      // mới nhất thì nằm ở trang 2 — người dùng bấm khôi phục, thấy toast báo xong,
+      // nhìn Hộp thư thì không có gì mới. Đúng nghĩa đen là "khôi phục rồi nhưng
+      // không thấy mail". Ghim là cách nói thật: "đây là mấy thư bạn vừa lấy lại",
+      // khác hẳn việc giả vờ chúng là thư mới nhất.
+      const ds = emails.filter((e) => ids.includes(e.id))
+      if (ds.length) setVuaKhoiPhuc(ds.map((e) => ({ ...e, folder: THU_MUC_DICH.restore })))
       suaThu(ids, (e) => ({ ...e, folder: THU_MUC_DICH.restore }), THU_MUC_DICH.restore)
       if (apiBaseUrlDaCauHinh) api.restoreEmails(ids).then(resync).catch(resync)
     },
@@ -288,12 +306,17 @@ export function AppShell() {
     },
   }
 
-  const openedEmail = emails.find((e) => e.id === openedId) ?? null
+  // Danh sách ĐEM ĐI HIỆN: thư vừa khôi phục đứng trước, phần còn lại giữ nguyên thứ
+  // tự máy chủ trả. Khử trùng theo id để khi máy chủ trả về đúng thư đó (thư mới, nằm
+  // trong trang đầu) thì nó không hiện hai lần.
+  const emailsHienThi = useMemo(() => ghimLenDau(emails, vuaKhoiPhuc), [emails, vuaKhoiPhuc])
+
+  const openedEmail = emailsHienThi.find((e) => e.id === openedId) ?? null
 
   return (
     <div className="giao-dien-app relative flex h-screen w-full overflow-hidden bg-background text-foreground">
       {/* Báo hiệu nổi trên cùng — thư cần xử lý và hạn sắp tới. */}
-      <AlertOverlay emails={emails} />
+      <AlertOverlay emails={emailsHienThi} />
       {/* Cực quang nền — dải sáng uốn lượn như khung hình đầu trang giới thiệu.
           Nằm SAU mọi panel (các panel là khối kính nên ánh sáng vẫn thấp thoáng qua). */}
       <div aria-hidden className="aurora-stage">
@@ -319,7 +342,7 @@ export function AppShell() {
       {activeNav === 'viec' ? (
         <div className={cn('flex min-h-0 shrink-0 flex-col p-2', aiOpen ? 'w-[420px]' : 'flex-1')}>
           <CommitmentsView
-            emails={emails}
+            emails={emailsHienThi}
             onOpenEmail={(id) => {
               setActiveNav('inbox')
               openEmail(id)
@@ -328,7 +351,7 @@ export function AppShell() {
         </div>
       ) : (
       <EmailList
-        emails={emails}
+        emails={emailsHienThi}
         folder={folder}
         openedId={openedId}
         onOpen={openEmail}
@@ -354,7 +377,7 @@ export function AppShell() {
           {aiOpen && (
             <div className={openedEmail ? 'hidden' : 'flex min-w-0 flex-1'}>
               <ChatPanel
-                emails={emails}
+                emails={emailsHienThi}
                 actions={actions}
                 injectedCommand={pendingCommand}
                 onInjectConsumed={() => setPendingCommand(null)}

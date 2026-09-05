@@ -255,8 +255,17 @@ const TU_DIEN: Record<string, { vi: string; en: string }> = {
   'fld.archive': { vi: 'Lưu trữ', en: 'Archive' },
   'fld.trash': { vi: 'Thùng rác', en: 'Trash' },
   'toast.unstarred': { vi: 'Đã bỏ quan trọng', en: 'Removed from important' },
-  'toast.restored': { vi: 'Đã khôi phục {n} thư về hộp thư', en: 'Restored {n} messages to the inbox' },
-  'toast.restoredOne': { vi: 'Đã khôi phục thư về hộp thư', en: 'Message restored to the inbox' },
+  // Nói rõ thư ĐANG Ở ĐÂU. Thư khôi phục quay về đúng vị trí thời gian cũ, nên thư cũ
+  // rơi ra ngoài trang đầu và người dùng kết luận là khôi phục hụt. Câu này cùng với
+  // việc ghim lên đầu Hộp thư trả lời thẳng câu "thế mail đâu".
+  'toast.restored': {
+    vi: 'Đã khôi phục {n} thư — đang ghim ở đầu Hộp thư',
+    en: 'Restored {n} messages — pinned at the top of your inbox',
+  },
+  'toast.restoredOne': {
+    vi: 'Đã khôi phục thư — đang ghim ở đầu Hộp thư',
+    en: 'Message restored — pinned at the top of your inbox',
+  },
   'toast.starred': { vi: 'Đã đánh dấu quan trọng', en: 'Marked important' },
   'toast.markedRead': { vi: 'Đã đánh dấu {n} thư là đã đọc', en: 'Marked {n} messages as read' },
   'toast.markedUnread': { vi: 'Đã đánh dấu {n} thư là chưa đọc', en: 'Marked {n} messages as unread' },

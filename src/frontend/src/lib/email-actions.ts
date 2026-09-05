@@ -40,6 +40,24 @@ export function apDungSuaLacQuan<T extends { id: string }>(
   return bien
 }
 
+/**
+ * Ghim `ghim` lên đầu `ds`, khử trùng theo id.
+ *
+ * Vì sao cần: máy chủ trả 30 thư/trang sắp theo ngày nhận giảm dần, và thư khôi phục
+ * quay về ĐÚNG vị trí thời gian cũ của nó. Thư cũ hơn 30 thư mới nhất thì nằm ở trang
+ * 2 — người dùng bấm khôi phục, thấy toast báo xong, nhìn Hộp thư không thấy gì mới.
+ * Ghim là cách trả lời thẳng "thư bạn vừa lấy lại đây"; nó KHÔNG giả vờ thư đó mới,
+ * và bị dọn ngay khi người dùng rời Hộp thư hoặc bấm Làm mới.
+ *
+ * Khử trùng theo id là bắt buộc: thư khôi phục đủ mới thì máy chủ CŨNG trả nó trong
+ * trang đầu, và không khử thì nó hiện hai lần.
+ */
+export function ghimLenDau<T extends { id: string }>(ds: T[], ghim: T[]): T[] {
+  if (!ghim.length) return ds
+  const id = new Set(ghim.map((e) => e.id))
+  return [...ghim, ...ds.filter((e) => !id.has(e.id))]
+}
+
 /** Thư mục thư sẽ tới sau mỗi hành động — nguồn sự thật DUY NHẤT cho vòng lùi. */
 export const THU_MUC_DICH = {
   archive: 'archive',
