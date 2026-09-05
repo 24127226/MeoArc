@@ -37,6 +37,7 @@ from fastmcp import FastMCP
 from sqlalchemy import select
 
 from app.core.db import SessionLocal
+from app.core.labeling import ALL_CATEGORIES
 from app.models.session import AuthSession
 from app.repo import session_repo, audit_repo, subscription_repo, connected_account_repo
 from app.services import auth_service, auth_service_ms
@@ -164,17 +165,35 @@ async def _call(name: str, args: dict) -> dict:
                 "hint": "Đọc 'error' và giải thích cho người dùng; thử sửa tham số rồi gọi lại."}
 
 
+# Hậu quả THẬT của từng hành động, nói đúng mức — không nói quá, không nói giảm.
+#
+# Trước đây mọi hành động dùng chung một câu "HÀNH ĐỘNG KHÔNG HOÀN TÁC". Câu đó ĐÚNG
+# với gửi/trả lời (người nhận đã đọc rồi, không rút lại được) nhưng SAI với xoá: xoá là
+# chuyển vào Thùng rác và đã có `restore` lấy về. Nói quá cũng hỏng như nói giảm — agent
+# ngoài đọc chỉ dẫn này để soạn câu hỏi cho người dùng, nên một cảnh báo thổi phồng sẽ
+# được nó chuyển nguyên văn tới người dùng, và người dùng học được rằng cảnh báo của
+# MeoArc nói quá. Đúng tinh thần thang rủi ro: hoàn tác được / người khác đã thấy.
+_HAU_QUA = {
+    "bulk_action:delete": ("Thư sẽ vào THÙNG RÁC và khôi phục lại được (tool `bulk_action` "
+                           "không khôi phục — người dùng lấy lại từ giao diện MeoArc hoặc "
+                           "Gmail), nhưng sẽ biến khỏi hộp thư."),
+    "send_email": "KHÔNG HOÀN TÁC — thư gửi đi rồi thì người nhận đã thấy, không rút lại được.",
+    "reply_email": "KHÔNG HOÀN TÁC — thư trả lời gửi đi rồi thì người nhận đã thấy.",
+}
+
+
 def _needs_confirm(action: str, preview: dict) -> dict:
     """CONFIRM-GATE (UC010 cho agent ngoài): lần gọi đầu KHÔNG thực thi — trả bản xem
     trước + chỉ dẫn. Agent phải đưa preview cho NGƯỜI DÙNG duyệt rồi gọi lại confirm=true."""
+    hau_qua = _HAU_QUA.get(action, "Hành động có rủi ro — chưa thực thi.")
     return {
         "success": False,
         "needs_confirmation": True,
         "action": action,
         "preview": preview,
-        "instruction": ("HÀNH ĐỘNG KHÔNG HOÀN TÁC — chưa thực thi. Hãy hiển thị 'preview' cho "
-                        "người dùng và HỎI XÁC NHẬN. Người dùng đồng ý thì gọi lại tool này với "
-                        "chính các tham số đó kèm confirm=true."),
+        "instruction": (f"{hau_qua} CHƯA THỰC THI. Hãy hiển thị 'preview' cho người dùng và "
+                        "HỎI XÁC NHẬN. Người dùng đồng ý thì gọi lại tool này với chính các "
+                        "tham số đó kèm confirm=true."),
     }
 
 
@@ -201,11 +220,21 @@ async def semantic_search(query: str, limit: int = 5, pool: int = 30) -> dict:
 
 
 async def categorize_emails(limit: int = 20, query: str = "") -> dict:
-    """Tự ĐỀ XUẤT nhãn cho các thư gần nhất (Học tập/Công việc/Tài chính/Mạng xã hội/
-    Mua sắm & Ưu đãi/Cập nhật & Hệ thống/Cá nhân) theo người gửi + nội dung. CHỈ đề xuất —
-    trả {id, label, reason}; muốn ÁP thì gọi apply_labels với các id + label đó SAU KHI
-    người dùng duyệt."""
+    # Docstring được LẮP Ở DƯỚI từ `ALL_CATEGORIES` — xem ghi chú ở đó.
     return await _call("categorize_emails", {"limit": limit, "query": query})
+
+
+# ── DANH SÁCH NHÃN PHẢI SINH RA, KHÔNG CHÉP TAY ──
+# Docstring của tool chính là thứ agent NGOÀI đọc để biết app có những nhãn nào. Chép
+# tay thì nó trôi: nhãn thứ 8 "Đi lại" đã được thêm vào `labeling.py` mà dòng này vẫn
+# liệt kê 7 — tức Claude Desktop được cho một bảng phân loại SAI, và sai ở đúng chỗ
+# không ai nhìn thấy vì nó không phải giao diện. Lắp từ nguồn sự thật thì hết trôi.
+categorize_emails.__doc__ = (
+    "Tự ĐỀ XUẤT nhãn cho các thư gần nhất ("
+    + "/".join(c.label for c in ALL_CATEGORIES)
+    + ") theo người gửi + nội dung. CHỈ đề xuất — trả {id, label, reason}; muốn ÁP thì "
+      "gọi apply_labels với các id + label đó SAU KHI người dùng duyệt."
+)
 
 
 async def get_email(email_id: str) -> dict:

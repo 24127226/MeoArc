@@ -33,7 +33,7 @@ class Category:
     desc: str       # mô tả để LLM/hiển thị
 
 
-# ── TAXONOMY (7 nhãn ↔ 7 màu FE) ─────────────────────────────────────
+# ── TAXONOMY (8 nhãn ↔ 8 màu FE) ─────────────────────────────────────
 HOC_TAP   = Category("hoc_tap",  "Học tập",            "moss",   "trường/phòng ban/giáo vụ/LMS/lớp học")
 CONG_VIEC = Category("cong_viec","Công việc",          "sea",    "tuyển dụng/thực tập/công ty/dev/dự án")
 HE_THONG  = Category("he_thong", "Cập nhật & Hệ thống","sun",    "thông báo tự động/bảo mật/OTP/no-reply")

@@ -213,3 +213,48 @@ def test_noi_ro_hai_tool_CO_Y_khong_mo():
     d = TestClient(app).get("/mcp/thong-tin").json()
     assert set(d["khong_mo"]) == {"dat_cho_mo_phong", "tu_choi_ngoai_pham_vi"}
     assert all(name not in d["tools"] for name in d["khong_mo"])
+
+
+def test_mo_ta_tool_liet_ke_DU_moi_nhan():
+    """Docstring của `categorize_emails` phải nêu ĐỦ nhãn trong `ALL_CATEGORIES`.
+
+    Docstring tool chính là thứ agent NGOÀI (Claude Desktop/Code) đọc để biết app phân
+    loại theo bảng nào — nó là giao diện của app với agent, y như nhãn nút bấm là giao
+    diện với người. Đã trôi một lần: nhãn thứ 8 "Đi lại" vào `labeling.py` mà docstring
+    vẫn liệt kê 7, nên agent ngoài được cho một bảng phân loại thiếu. Sai ở đây không
+    ai nhìn thấy vì nó không hiện trên màn hình nào.
+    """
+    from app.core.labeling import ALL_CATEGORIES
+    from app.mcp import server
+
+    mo_ta = server.categorize_emails.__doc__ or ""
+    thieu = [c.label for c in ALL_CATEGORIES if c.label not in mo_ta]
+    assert not thieu, f"docstring categorize_emails thiếu nhãn: {thieu}"
+
+
+def test_canh_bao_confirm_noi_DUNG_MUC_theo_tung_hanh_dong():
+    """Xoá thì lấy lại được; gửi thì không. Cảnh báo phải phân biệt hai thứ đó.
+
+    Câu chỉ dẫn này được agent NGOÀI đọc rồi chuyển nguyên ý tới người dùng, nên một
+    cảnh báo thổi phồng sẽ đi thẳng ra màn hình người dùng. Nói quá hỏng ngang nói
+    giảm: dùng mãi thì người ta học được rằng cảnh báo của MeoArc nói cho có.
+    """
+    from app.mcp.server import _needs_confirm
+
+    xoa = _needs_confirm("bulk_action:delete", {"so_thu": 2})["instruction"]
+    assert "THÙNG RÁC" in xoa and "khôi phục lại được" in xoa
+    assert "KHÔNG HOÀN TÁC" not in xoa, "xoá là xoá MỀM — nói không hoàn tác là nói sai"
+
+    for gui in ("send_email", "reply_email"):
+        assert "KHÔNG HOÀN TÁC" in _needs_confirm(gui, {})["instruction"], (
+            f"{gui} thì thật sự không lùi được — phải nói thẳng"
+        )
+
+
+def test_confirm_gate_van_CHAN_that_su():
+    """Sửa câu chữ không được làm mất chính cái cổng."""
+    from app.mcp.server import _needs_confirm
+
+    ra = _needs_confirm("bulk_action:delete", {"so_thu": 2})
+    assert ra["success"] is False and ra["needs_confirmation"] is True
+    assert "confirm=true" in ra["instruction"]
